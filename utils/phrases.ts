@@ -16,4 +16,7 @@ export const phrases = [
   'Las ranas sueñan con ser challenger, pero luego despiertan.',
   'El niñito le queria tirar una torta a la anciana.',
   'Un tiburón se esta ahogando en el aire.',
+  'El éxito es como la cebolla, capa por capa.',
+  'Si tuvieras una vaca voladora, ¿la ordeñarías en el aire o esperarías a que aterrizará primero?',
+  'La lluvia huele a perro mojado.',
 ]
