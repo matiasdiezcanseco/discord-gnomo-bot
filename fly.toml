@@ -1,4 +1,4 @@
-# fly.toml file generated for discord-gnomo-bot on 2023-03-26T09:56:14-05:00
+# fly.toml file generated for discord-gnomo-bot on 2023-03-26T10:02:00-05:00
 
 app = "discord-gnomo-bot"
 kill_signal = "SIGINT"
