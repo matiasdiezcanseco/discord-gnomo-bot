@@ -9,7 +9,7 @@ export const phrases = [
   'Ves, ves, no me hicieron nada.',
   'El trompito... Girasol.',
   'Te imaginas si Sharknado fuera real? Y en vez de tiburones sean cactuses y estes caminando por ahi y te caiga uno en la cara?',
-  'Sabes con que se peuden lanzar los cohetes? Con un lanzacohetes.',
+  'Sabes con que se pueden lanzar los cohetes? Con un lanzacohetes.',
   'Te imaginas tener un rinoceronte de amigo?',
   'Antes la tierra estaba poblada por árboles.',
   'Si amarras una madera a tu llanta, tienes mas tracción.',
