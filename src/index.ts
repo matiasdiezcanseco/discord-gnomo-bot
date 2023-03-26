@@ -1,9 +1,22 @@
 import dotenv from 'dotenv'
 dotenv.config()
 
+import express from 'express'
 import { Client } from 'discord.js'
 import { generatePhrase } from './generatePhrase'
 import { generateImage } from './generateImage'
+
+const app = express()
+
+app.get('/', function (_, res) {
+  console.log('Health: Ok')
+  res.send('Health: Ok')
+})
+
+app.listen(8080, () => {
+  console.log('Server started on port 8080')
+})
+
 const client = new Client({
   intents: ['GuildMessages', 'Guilds', 'MessageContent'],
 })

@@ -1,8 +1,9 @@
-# fly.toml file generated for discord-gnomo-bot on 2023-02-23T12:53:47-05:00
+# fly.toml file generated for discord-gnomo-bot on 2023-03-26T09:56:14-05:00
 
 app = "discord-gnomo-bot"
 kill_signal = "SIGINT"
 kill_timeout = 5
+primary_region = "scl"
 processes = []
 
 [env]
