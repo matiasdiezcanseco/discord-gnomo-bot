@@ -18,12 +18,12 @@ client.on('messageCreate', async (msg) => {
 
   console.log(msg.author.username, ' , ', msg.content)
 
-  const [enabler, command] = msg.content.split(' ')
+  const [enabler, command, extra] = msg.content.split(' ')
   if (enabler !== '-g') return
 
   let response = ''
-  if (command === 'frase') response = generatePhrase()
-  else if (command === 'pic') response = generateImage()
+  if (command === 'frase') response = generatePhrase(extra ? parseInt(extra) : undefined)
+  else if (command === 'pic') response = generateImage(extra ? parseInt(extra) : undefined)
 
   if (response) {
     console.log(msg.author.username, ' , ', response)
