@@ -39,7 +39,7 @@ client.on('messageCreate', async (msg) => {
   if (enabler !== '-g') return
 
   let response = ''
-  if (command === 'frase') response = generatePhrase(extra ? parseInt(extra) : undefined)
+  if (command === 'frase') await generatePhrase({ message: msg })
   else if (command === 'pic') response = generateImage(extra ? parseInt(extra) : undefined)
 
   if (response) {
