@@ -1,10 +1,11 @@
 import axios from 'axios'
 import dayjs from 'dayjs'
+import { userMention } from 'discord.js'
 import type { Channel } from 'discord.js'
 
 export const checkBirthdays = async (channel: Channel) => {
   try {
-    const { data: birthdays } = await axios.get<{ id: number; name: string; date: string }[]>(
+    const { data: birthdays } = await axios.get<{ id: string; name: string; date: string }[]>(
       process.env.BUCKET_URL + 'birthdays.json',
     )
     const today = dayjs().format('MM-DD')
