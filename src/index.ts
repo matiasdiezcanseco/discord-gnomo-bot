@@ -35,17 +35,11 @@ client.on('messageCreate', async (msg) => {
 
   console.log(msg.author.username, ' , ', msg.content)
 
-  const [enabler, command, extra] = msg.content.split(' ')
+  const [enabler, command] = msg.content.split(' ')
   if (enabler !== '-g') return
 
-  let response = ''
   if (command === 'frase') await generatePhrase({ message: msg })
-  else if (command === 'pic') response = generateImage(extra ? parseInt(extra) : undefined)
-
-  if (response) {
-    console.log(msg.author.username, ' , ', response)
-    msg.reply(response)
-  }
+  else if (command === 'pic') await generateImage({ message: msg })
 })
 
 client.login(process.env.BOT_TOKEN)
