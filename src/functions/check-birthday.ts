@@ -11,11 +11,13 @@ export const checkBirthdays = async (channel: Channel) => {
 
     birthdays.forEach((birthday) => {
       if (birthday.date === today) {
+        const message = `Feliz cumpleaños ${birthday.name}! 🎉🎉🎉`
+        console.log(message)
         //@ts-ignore
-        channel.send(`Feliz cumpleaños ${birthday.name}! 🎉🎉🎉`)
+        channel.send(message)
       }
     })
   } catch (e) {
-    console.log('error', e)
+    console.log('Error:', e)
   }
 }
