@@ -6,7 +6,7 @@ import cron from 'node-cron'
 import { client } from './client'
 import { generatePhrase } from './functions/generate-phrase'
 import { generateImage } from './functions/generate-image'
-import { checkBirthdays } from './functions/check-birthday'
+import { checkBirthdays } from './functions/check-birthdays'
 
 const app = express()
 
