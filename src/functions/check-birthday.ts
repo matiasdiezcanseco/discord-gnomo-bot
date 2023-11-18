@@ -14,6 +14,8 @@ export const checkBirthdays = async (channel: Channel) => {
         const message = `Feliz cumpleaños ${birthday.name}! 🎉🎉🎉`
         console.log(message)
         //@ts-ignore
+        channel.send(userMention(birthday.id))
+        //@ts-ignore
         channel.send(message)
       }
     })
