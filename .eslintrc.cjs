@@ -14,5 +14,7 @@ module.exports = {
     es6: true,
     node: true,
   },
-  rules: {},
+  rules: {
+    '@typescript-eslint/ban-ts-comment': 'off',
+  },
 }

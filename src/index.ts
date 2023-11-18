@@ -2,9 +2,11 @@ import dotenv from 'dotenv'
 dotenv.config()
 
 import express from 'express'
-import { Client } from 'discord.js'
-import { generatePhrase } from './generatePhrase'
-import { generateImage } from './generateImage'
+import cron from 'node-cron'
+import { client } from './client'
+import { generatePhrase } from './functions/generate-phrase'
+import { generateImage } from './functions/generate-image'
+import { checkBirthdays } from './functions/check-birthday'
 
 const app = express()
 
@@ -17,12 +19,14 @@ app.listen(8080, () => {
   console.log('Server started on port 8080')
 })
 
-const client = new Client({
-  intents: ['GuildMessages', 'Guilds', 'MessageContent'],
-})
-
 client.once('ready', () => {
   console.log(`Logged in as ${client?.user?.tag}!`)
+})
+
+cron.schedule('0 8 * * *', async () => {
+  const channel = client.channels.cache.get(process.env.GNOMOS_CHANNEL_ID || '')
+  if (!channel) return
+  await checkBirthdays(channel)
 })
 
 client.on('messageCreate', async (msg) => {
