@@ -1,9 +1,8 @@
 import axios from 'axios'
 import dayjs from 'dayjs'
-import { userMention } from 'discord.js'
-import type { Channel } from 'discord.js'
+import { userMention, type TextChannel } from 'discord.js'
 
-export const checkBirthdays = async (channel: Channel) => {
+export const checkBirthdays = async (channel: TextChannel) => {
   try {
     const { data: birthdays } = await axios.get<{ id: string; name: string; date: string }[]>(
       process.env.BUCKET_URL + 'birthdays.json',
@@ -14,9 +13,7 @@ export const checkBirthdays = async (channel: Channel) => {
       if (birthday.date === today) {
         const message = `Feliz cumpleaños ${birthday.name}! 🎉🎉🎉`
         console.log(message)
-        //@ts-ignore
         channel.send(userMention(birthday.id))
-        //@ts-ignore
         channel.send(message)
       }
     })

@@ -3,10 +3,11 @@ dotenv.config()
 
 import express from 'express'
 import cron from 'node-cron'
-import { client } from './client'
-import { generatePhrase } from './functions/generate-phrase'
-import { generateImage } from './functions/generate-image'
-import { checkBirthdays } from './functions/check-birthdays'
+import { ChannelType } from 'discord.js'
+import { client } from './client.ts'
+import { generatePhrase } from './functions/generate-phrase.ts'
+import { generateImage } from './functions/generate-image.ts'
+import { checkBirthdays } from './functions/check-birthdays.ts'
 
 const app = express()
 
@@ -25,7 +26,7 @@ client.once('ready', () => {
 
 cron.schedule('0 8 * * *', async () => {
   const channel = client.channels.cache.get(process.env.GNOMOS_CHANNEL_ID || '')
-  if (!channel) return
+  if (!channel || channel.type !== ChannelType.GuildText) return
   await checkBirthdays(channel)
 })
 
@@ -35,8 +36,13 @@ client.on('messageCreate', async (msg) => {
 
   console.log(msg.author.username, ' , ', msg.content)
 
-  const [enabler, command] = msg.content.split(' ')
-  if (enabler !== '-g') return
+  // Check if the bot is mentioned
+  if (!client.user || !msg.mentions.has(client.user.id)) return
+
+  // Extract command after the bot mention
+  // Discord mentions come in format <@BOT_ID> or <@!BOT_ID>
+  const content = msg.content.replace(/<@!?\d+>/g, '').trim()
+  const command = content.split(' ')[0]
 
   if (command === 'frase') await generatePhrase({ message: msg })
   else if (command === 'pic') await generateImage({ message: msg })
