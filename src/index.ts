@@ -6,8 +6,11 @@ import cron from 'node-cron'
 import { ChannelType } from 'discord.js'
 import { client } from './client.ts'
 import { checkBirthdays } from './functions/check-birthdays.ts'
-import { selectAction } from './functions/select-action.ts'
 import { getRandomConfusedPhrase } from './functions/confused-phrases.ts'
+import { AssistantAgent } from './agents/assistant-agent.ts'
+import { PhraseAgent } from './agents/phrase-agent.ts'
+import { ImageAgent } from './agents/image-agent.ts'
+import { AgentRegistry } from './agents/types.ts'
 
 const app = express()
 
@@ -19,6 +22,14 @@ app.get('/', function (_, res) {
 app.listen(8080, () => {
   console.log('Server started on port 8080')
 })
+
+// Initialize agents
+const agentRegistry: AgentRegistry = {
+  phrase: new PhraseAgent(),
+  image: new ImageAgent(),
+}
+
+const assistantAgent = new AssistantAgent(agentRegistry)
 
 client.once('ready', () => {
   console.log(`Logged in as ${client?.user?.tag}!`)
@@ -43,12 +54,12 @@ client.on('messageCreate', async (msg) => {
   // Discord mentions come in format <@BOT_ID> or <@!BOT_ID>
   const content = msg.content.replace(/<@!?\d+>/g, '').trim()
 
-  // Use LLM to select and execute the appropriate action
-  const { actionName, text } = await selectAction(content)
+  // Use assistant agent to handle the message
+  const response = await assistantAgent.handle(content)
 
-  if (text) {
-    console.log(`Executed action: ${actionName}`)
-    await msg.reply(text)
+  if (response.success && response.text) {
+    console.log(`Handled by agent: ${response.agentName}`)
+    await msg.reply(response.text)
   } else {
     await msg.reply(getRandomConfusedPhrase())
   }
