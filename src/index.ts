@@ -5,9 +5,9 @@ import express from 'express'
 import cron from 'node-cron'
 import { ChannelType } from 'discord.js'
 import { client } from './client.ts'
-import { generatePhrase } from './functions/generate-phrase.ts'
-import { generateImage } from './functions/generate-image.ts'
 import { checkBirthdays } from './functions/check-birthdays.ts'
+import { selectAction } from './functions/select-action.ts'
+import { getRandomConfusedPhrase } from './functions/confused-phrases.ts'
 
 const app = express()
 
@@ -39,13 +39,19 @@ client.on('messageCreate', async (msg) => {
   // Check if the bot is mentioned
   if (!client.user || !msg.mentions.has(client.user.id)) return
 
-  // Extract command after the bot mention
+  // Extract message content after the bot mention
   // Discord mentions come in format <@BOT_ID> or <@!BOT_ID>
   const content = msg.content.replace(/<@!?\d+>/g, '').trim()
-  const command = content.split(' ')[0]
 
-  if (command === 'frase') await generatePhrase({ message: msg })
-  else if (command === 'pic') await generateImage({ message: msg })
+  // Use LLM to select and execute the appropriate action
+  const { actionName, text } = await selectAction(content)
+
+  if (text) {
+    console.log(`Executed action: ${actionName}`)
+    await msg.reply(text)
+  } else {
+    await msg.reply(getRandomConfusedPhrase())
+  }
 })
 
 client.login(process.env.BOT_TOKEN)

@@ -6,6 +6,7 @@ declare global {
       GUILD_ID: string
       GNOMOS_CHANNEL_ID: string
       TEST_CHANNEL_ID: string
+      OPENAI_API_KEY: string
     }
   }
 }
