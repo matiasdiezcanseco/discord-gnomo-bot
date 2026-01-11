@@ -1,4 +1,23 @@
 /**
+ * User information for context
+ */
+export interface UserInfo {
+  username: string
+  userId: string
+}
+
+/**
+ * Message history entry for conversation context
+ */
+export interface MessageHistory {
+  role: 'user' | 'assistant'
+  username: string
+  userId: string
+  content: string
+  timestamp: number
+}
+
+/**
  * Base interface that all agents must implement
  */
 export interface Agent {

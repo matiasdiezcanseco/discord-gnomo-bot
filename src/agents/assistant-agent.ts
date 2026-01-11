@@ -1,7 +1,7 @@
-import { generateText, tool, stepCountIs } from 'ai'
+import { generateText, tool, stepCountIs, type ModelMessage } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
-import type { Agent, AgentResponse, AgentRegistry } from './types.ts'
+import type { Agent, AgentResponse, AgentRegistry, UserInfo, MessageHistory } from './types.ts'
 
 /**
  * Assistant agent that handles routing to specialized agents
@@ -49,14 +49,36 @@ export class AssistantAgent implements Agent {
     }
   }
 
-  async handle(message: string): Promise<AgentResponse> {
+  /**
+   * Convert message history to AI SDK message format
+   */
+  private convertHistoryToMessages(history: MessageHistory[]): ModelMessage[] {
+    return history.map((msg) => ({
+      role: msg.role,
+      content: msg.role === 'user' ? `[${msg.username}]: ${msg.content}` : msg.content,
+    }))
+  }
+
+  /**
+   * Handle a user message with optional context
+   * @param message The current user message
+   * @param userInfo Optional user information (username, userId)
+   * @param history Optional conversation history for context
+   */
+  async handle(
+    message: string,
+    userInfo?: UserInfo,
+    history: MessageHistory[] = [],
+  ): Promise<AgentResponse> {
     try {
-      const result = await generateText({
-        model: openai('gpt-4o-mini'),
-        tools: this.createRoutingTools(),
-        toolChoice: 'auto',
-        stopWhen: stepCountIs(2),
-        system: `Eres un asistente de bot de Discord. 
+      // Convert history to AI SDK message format
+      const historyMessages = this.convertHistoryToMessages(history)
+
+      // Build system prompt with user context
+      const userContext = userInfo ? `Estás hablando con ${userInfo.username}. ` : ''
+
+      const systemPrompt = `Eres un asistente de bot de Discord. 
+        ${userContext}
         Responde siempre en español. 
         Según el mensaje del usuario, determina qué acción ejecutar.
         Llama a una herramienta si la solicitud del usuario coincide con una de las acciones disponibles. 
@@ -65,8 +87,25 @@ export class AssistantAgent implements Agent {
         Si la solicitud no coincide con ninguna acción, no llames a ninguna herramienta. 
         Si retornas algún recurso como imágenes o frases, solo retorna el texto del recurso, no agregues ningún texto adicional. 
         Si retornas una url, solo retorna la url. 
-        Puedes responder a peticiones que no tienen relación con las acciones disponibles.`,
-        prompt: message,
+        Puedes responder a peticiones que no tienen relación con las acciones disponibles.
+        Los mensajes del historial incluyen el nombre de usuario entre corchetes para que sepas quién dijo qué.`
+
+      // Build current message with user context
+      const currentMessage = userInfo ? `[${userInfo.username}]: ${message}` : message
+
+      // Combine history with current message
+      const messages: ModelMessage[] = [
+        ...historyMessages,
+        { role: 'user' as const, content: currentMessage },
+      ]
+
+      const result = await generateText({
+        model: openai('gpt-4o-mini'),
+        tools: this.createRoutingTools(),
+        toolChoice: 'auto',
+        stopWhen: stepCountIs(2),
+        system: systemPrompt,
+        messages,
       })
 
       return {

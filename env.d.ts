@@ -7,6 +7,10 @@ declare global {
       GNOMOS_CHANNEL_ID: string
       TEST_CHANNEL_ID: string
       OPENAI_API_KEY: string
+      UPSTASH_REDIS_REST_URL: string
+      UPSTASH_REDIS_REST_TOKEN: string
+      CONVERSATION_TTL: string
+      MAX_CONVERSATION_MESSAGES: string
     }
   }
 }

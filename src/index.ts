@@ -10,7 +10,8 @@ import { getRandomConfusedPhrase } from './functions/confused-phrases.ts'
 import { AssistantAgent } from './agents/assistant-agent.ts'
 import { PhraseAgent } from './agents/phrase-agent.ts'
 import { ImageAgent } from './agents/image-agent.ts'
-import { AgentRegistry } from './agents/types.ts'
+import { AgentRegistry, MessageHistory } from './agents/types.ts'
+import { getChannelHistory, addMessage } from './services/redis-service.ts'
 
 const app = express()
 
@@ -54,11 +55,42 @@ client.on('messageCreate', async (msg) => {
   // Discord mentions come in format <@BOT_ID> or <@!BOT_ID>
   const content = msg.content.replace(/<@!?\d+>/g, '').trim()
 
-  // Use assistant agent to handle the message
-  const response = await assistantAgent.handle(content)
+  // Extract user info and channel ID
+  const userInfo = {
+    username: msg.author.username,
+    userId: msg.author.id,
+  }
+  const channelId = msg.channel.id
+
+  // Get conversation history from Redis
+  const history = await getChannelHistory(channelId)
+
+  // Store user message in history
+  const userMessage: MessageHistory = {
+    role: 'user',
+    username: userInfo.username,
+    userId: userInfo.userId,
+    content,
+    timestamp: Date.now(),
+  }
+  await addMessage(channelId, userMessage)
+
+  // Use assistant agent to handle the message with context
+  const response = await assistantAgent.handle(content, userInfo, history)
 
   if (response.success && response.text) {
     console.log(`Handled by agent: ${response.agentName}`)
+
+    // Store bot response in history
+    const botMessage: MessageHistory = {
+      role: 'assistant',
+      username: client.user.username,
+      userId: client.user.id,
+      content: response.text,
+      timestamp: Date.now(),
+    }
+    await addMessage(channelId, botMessage)
+
     await msg.reply(response.text)
   } else {
     await msg.reply(getRandomConfusedPhrase())
