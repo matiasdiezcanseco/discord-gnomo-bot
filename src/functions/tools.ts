@@ -5,6 +5,23 @@ import type { AgentRegistry } from '../agents/types.ts'
 import { findUserByNameAsync } from './user-lookup.ts'
 
 /**
+ * Execute an agent and return a standardized tool result
+ */
+async function executeAgent(
+  agents: AgentRegistry,
+  agentKey: string,
+  input: string = '',
+  fallbackError: string = 'Agent no disponible',
+): Promise<{ success: boolean; text: string | null }> {
+  const agent = agents[agentKey]
+  if (!agent) {
+    return { success: false, text: fallbackError }
+  }
+  const response = await agent.handle(input)
+  return { success: response.success, text: response.text }
+}
+
+/**
  * Create tools for routing to other agents and performing web searches
  * @param agents Registry of available agents
  * @param guild Optional Discord guild for user lookup functionality
@@ -42,27 +59,13 @@ export function createRoutingTools(agents: AgentRegistry, guild?: Guild | null) 
       description:
         'Envía una frase o cita aleatoria al usuario. Usa esto cuando el usuario quiera una frase.',
       inputSchema: z.object({}),
-      execute: async () => {
-        const agent = agents['phrase']
-        if (!agent) {
-          return { success: false, text: null }
-        }
-        const response = await agent.handle('')
-        return { success: response.success, text: response.text }
-      },
+      execute: () => executeAgent(agents, 'phrase'),
     }),
     generateImage: tool({
       description:
         'Envía una imagen o foto aleatoria al usuario. Usa esto cuando el usuario quiera ver una imagen o una foto.',
       inputSchema: z.object({}),
-      execute: async () => {
-        const agent = agents['image']
-        if (!agent) {
-          return { success: false, text: null }
-        }
-        const response = await agent.handle('')
-        return { success: response.success, text: response.text }
-      },
+      execute: () => executeAgent(agents, 'image'),
     }),
     webSearch: tool({
       description:
@@ -70,14 +73,8 @@ export function createRoutingTools(agents: AgentRegistry, guild?: Guild | null) 
       inputSchema: z.object({
         query: z.string().describe('La consulta de búsqueda en español o inglés'),
       }),
-      execute: async ({ query }) => {
-        const agent = agents['webSearch']
-        if (!agent) {
-          return { success: false, text: 'Web search agent no disponible' }
-        }
-        const response = await agent.handle(query)
-        return { success: response.success, text: response.text }
-      },
+      execute: ({ query }) =>
+        executeAgent(agents, 'webSearch', query, 'Web search agent no disponible'),
     }),
   }
 }

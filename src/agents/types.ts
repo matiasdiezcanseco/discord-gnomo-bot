@@ -29,9 +29,17 @@ export interface Agent {
   /**
    * Handle a user message and return a response
    * @param message The user's message
+   * @param userInfo Optional user information (username, userId)
+   * @param history Optional conversation history for context
+   * @param guild Optional Discord guild for additional functionality
    * @returns A promise that resolves to an AgentResponse
    */
-  handle(message: string): Promise<AgentResponse>
+  handle(
+    message: string,
+    userInfo?: UserInfo,
+    history?: MessageHistory[],
+    guild?: unknown,
+  ): Promise<AgentResponse>
 }
 
 /**

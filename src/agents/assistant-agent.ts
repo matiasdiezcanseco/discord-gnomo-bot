@@ -4,6 +4,8 @@ import type { Guild } from 'discord.js'
 import type { Agent, AgentResponse, AgentRegistry, UserInfo, MessageHistory } from './types.ts'
 import { createRoutingTools } from '../functions/tools.ts'
 import { getAssistantSystemPrompt } from '../prompts/assistant-system-prompt.ts'
+import { createSuccessResponse, createErrorResponse } from '../utils/agent-utils.ts'
+import { truncateText } from '../utils/text-utils.ts'
 
 /**
  * Assistant agent that handles routing to specialized agents
@@ -66,24 +68,13 @@ export class AssistantAgent implements Agent {
         messages,
       })
 
-      // Enforce 2000 character limit
-      let responseText = result.text
-      if (responseText && responseText.length > 2000) {
-        responseText = responseText.substring(0, 1997) + '...'
-      }
+      // Enforce 2000 character limit for Discord
+      const responseText = result.text ? truncateText(result.text) : result.text
 
-      return {
-        agentName: this.name,
-        text: responseText,
-        success: true,
-      }
+      return createSuccessResponse(this.name, responseText || '')
     } catch (error) {
       console.error(`Error in ${this.name}:`, error)
-      return {
-        agentName: this.name,
-        text: null,
-        success: false,
-      }
+      return createErrorResponse(this.name)
     }
   }
 }

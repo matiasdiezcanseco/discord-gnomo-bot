@@ -1,5 +1,10 @@
-import { Agent, AgentResponse } from './types.ts'
+import type { Agent, AgentResponse } from './types.ts'
 import { generateImage } from '../functions/generate-image.ts'
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  withAgentErrorHandling,
+} from '../utils/agent-utils.ts'
 
 /**
  * Specialized agent for generating random images
@@ -7,30 +12,13 @@ import { generateImage } from '../functions/generate-image.ts'
 export class ImageAgent implements Agent {
   name = 'image-agent'
 
-  async handle(message: string): Promise<AgentResponse> {
-    try {
+  async handle(): Promise<AgentResponse> {
+    return withAgentErrorHandling(this.name, async () => {
       const imageUrl = await generateImage()
-
       if (!imageUrl) {
-        return {
-          agentName: this.name,
-          text: null,
-          success: false,
-        }
+        return createErrorResponse(this.name)
       }
-
-      return {
-        agentName: this.name,
-        text: imageUrl,
-        success: true,
-      }
-    } catch (error) {
-      console.error(`Error in ${this.name}:`, error)
-      return {
-        agentName: this.name,
-        text: null,
-        success: false,
-      }
-    }
+      return createSuccessResponse(this.name, imageUrl)
+    })
   }
 }

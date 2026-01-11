@@ -1,5 +1,10 @@
 import { tavily } from '@tavily/core'
 import type { Agent, AgentResponse } from './types.ts'
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  withAgentErrorHandling,
+} from '../utils/agent-utils.ts'
 
 /**
  * Web search agent that performs internet searches using Tavily
@@ -12,14 +17,10 @@ export class WebSearchAgent implements Agent {
    * @param query The search query
    */
   async handle(query: string): Promise<AgentResponse> {
-    try {
+    return withAgentErrorHandling(this.name, async () => {
       const apiKey = process.env.TAVILY_API_KEY
       if (!apiKey) {
-        return {
-          agentName: this.name,
-          text: 'Error: Tavily API key no configurada',
-          success: false,
-        }
+        return createErrorResponse(this.name, 'Error: Tavily API key no configurada')
       }
 
       const tvly = tavily({ apiKey })
@@ -28,12 +29,8 @@ export class WebSearchAgent implements Agent {
         maxResults: 5,
       })
 
-      if (!response || !response.results || response.results.length === 0) {
-        return {
-          agentName: this.name,
-          text: 'No se encontraron resultados para tu búsqueda',
-          success: false,
-        }
+      if (!response?.results?.length) {
+        return createErrorResponse(this.name, 'No se encontraron resultados para tu búsqueda')
       }
 
       // Format results for display
@@ -49,18 +46,7 @@ export class WebSearchAgent implements Agent {
         ? `${response.answer}\n\nFuentes:\n${formattedResults}`
         : formattedResults
 
-      return {
-        agentName: this.name,
-        text: resultText,
-        success: true,
-      }
-    } catch (error) {
-      console.error(`Error in ${this.name}:`, error)
-      return {
-        agentName: this.name,
-        text: 'Error al realizar la búsqueda web',
-        success: false,
-      }
-    }
+      return createSuccessResponse(this.name, resultText)
+    })
   }
 }
