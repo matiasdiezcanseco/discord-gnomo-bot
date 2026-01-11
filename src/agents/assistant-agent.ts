@@ -100,7 +100,7 @@ export class AssistantAgent implements Agent {
       ]
 
       const result = await generateText({
-        model: openai('gpt-4o-mini'),
+        model: openai(process.env.OPENAI_MODEL || 'gpt-4o-mini'),
         tools: this.createRoutingTools(),
         toolChoice: 'auto',
         stopWhen: stepCountIs(2),
