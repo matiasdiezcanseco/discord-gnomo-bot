@@ -1,4 +1,4 @@
-import { Redis } from '@upstash/redis'
+import IORedis from 'ioredis'
 import type { MessageHistory } from '../agents/types.ts'
 import { createLogger } from './logger.ts'
 
@@ -8,20 +8,19 @@ const CONVERSATION_TTL = parseInt(process.env.CONVERSATION_TTL || '86400', 10) /
 const MAX_MESSAGES = parseInt(process.env.MAX_CONVERSATION_MESSAGES || '100', 10) // Default: 100 messages
 
 /**
- * Initialize Upstash Redis client
- * Returns null if credentials are not configured
+ * Initialize Redis client
+ * Uses REDIS_URL environment variable
+ * Returns null if not configured
  */
-const createRedisClient = (): Redis | null => {
-  const url = process.env.UPSTASH_REDIS_REST_URL
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN
-
-  if (!url || !token) {
-    log.warn('Upstash Redis credentials not configured - history feature disabled')
+const createRedisClient = (): IORedis | null => {
+  const redisUrl = process.env.REDIS_URL
+  if (!redisUrl) {
+    log.warn('REDIS_URL not configured - history feature disabled')
     return null
   }
 
-  log.info({ url: url.substring(0, 30) + '...' }, 'Redis client initialized')
-  return new Redis({ url, token })
+  log.info('Redis client initialized')
+  return new IORedis(redisUrl)
 }
 
 const redis = createRedisClient()
@@ -43,8 +42,9 @@ export const getChannelHistory = async (channelId: string): Promise<MessageHisto
 
   try {
     const key = getChannelKey(channelId)
-    const history = await redis.get<MessageHistory[]>(key)
-    return history || []
+    const data = await redis.get(key)
+    if (!data) return []
+    return JSON.parse(data) as MessageHistory[]
   } catch (error) {
     log.error(
       { err: error, channelId },
@@ -64,7 +64,8 @@ export const addMessage = async (channelId: string, message: MessageHistory): Pr
 
   try {
     const key = getChannelKey(channelId)
-    let history = (await redis.get<MessageHistory[]>(key)) || []
+    const data = await redis.get(key)
+    let history: MessageHistory[] = data ? JSON.parse(data) : []
 
     // Add the new message
     history.push(message)
@@ -75,7 +76,7 @@ export const addMessage = async (channelId: string, message: MessageHistory): Pr
     }
 
     // Store with TTL
-    await redis.setex(key, CONVERSATION_TTL, history)
+    await redis.setex(key, CONVERSATION_TTL, JSON.stringify(history))
   } catch (error) {
     log.error({ err: error, channelId }, 'Failed to add message to history')
   }
