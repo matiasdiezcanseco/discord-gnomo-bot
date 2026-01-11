@@ -77,25 +77,36 @@ client.on('messageCreate', async (msg) => {
   }
   await addMessage(channelId, userMessage)
 
-  // Use assistant agent to handle the message with context
-  const response = await assistantAgent.handle(content, userInfo, history)
+  // Start typing indicator and keep it active during processing
+  await msg.channel.sendTyping()
+  const typingInterval = setInterval(() => {
+    msg.channel.sendTyping().catch(() => clearInterval(typingInterval))
+  }, 7000) // Send typing indicator every 7 seconds (expires after ~10 seconds)
 
-  if (response.success && response.text) {
-    console.log(`Handled by agent: ${response.agentName}`)
+  try {
+    // Use assistant agent to handle the message with context
+    const response = await assistantAgent.handle(content, userInfo, history)
 
-    // Store bot response in history
-    const botMessage: MessageHistory = {
-      role: 'assistant',
-      username: client.user.username,
-      userId: client.user.id,
-      content: response.text,
-      timestamp: Date.now(),
+    if (response.success && response.text) {
+      console.log(`Handled by agent: ${response.agentName}`)
+
+      // Store bot response in history
+      const botMessage: MessageHistory = {
+        role: 'assistant',
+        username: client.user.username,
+        userId: client.user.id,
+        content: response.text,
+        timestamp: Date.now(),
+      }
+      await addMessage(channelId, botMessage)
+
+      await msg.reply(response.text)
+    } else {
+      await msg.reply(getRandomConfusedPhrase())
     }
-    await addMessage(channelId, botMessage)
-
-    await msg.reply(response.text)
-  } else {
-    await msg.reply(getRandomConfusedPhrase())
+  } finally {
+    // Stop typing indicator
+    clearInterval(typingInterval)
   }
 })
 
