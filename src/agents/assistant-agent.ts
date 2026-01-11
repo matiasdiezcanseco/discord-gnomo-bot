@@ -6,6 +6,9 @@ import { createRoutingTools } from '../functions/tools.ts'
 import { getAssistantSystemPrompt } from '../prompts/assistant-system-prompt.ts'
 import { createSuccessResponse, createErrorResponse } from '../utils/agent-utils.ts'
 import { truncateText } from '../utils/text-utils.ts'
+import { createLogger } from '../services/logger.ts'
+
+const log = createLogger('assistant-agent')
 
 /**
  * Assistant agent that handles routing to specialized agents
@@ -73,7 +76,7 @@ export class AssistantAgent implements Agent {
 
       return createSuccessResponse(this.name, responseText || '')
     } catch (error) {
-      console.error(`Error in ${this.name}:`, error)
+      log.error({ err: error }, 'Agent processing failed')
       return createErrorResponse(this.name)
     }
   }

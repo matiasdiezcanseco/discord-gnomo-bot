@@ -13,16 +13,19 @@ import { ImageAgent } from './agents/image-agent.ts'
 import { WebSearchAgent } from './agents/web-search-agent.ts'
 import { AgentRegistry, MessageHistory } from './agents/types.ts'
 import { getChannelHistory, addMessage } from './services/redis-service.ts'
+import { createLogger } from './services/logger.ts'
+
+const log = createLogger('main')
 
 const app = express()
 
 app.get('/', function (_, res) {
-  console.log('Health: Ok')
+  log.debug('Health check requested')
   res.send('Health: Ok')
 })
 
 app.listen(8080, () => {
-  console.log('Server started on port 8080')
+  log.info({ port: 8080 }, 'Server started')
 })
 
 // Initialize agents
@@ -35,7 +38,7 @@ const agentRegistry: AgentRegistry = {
 const assistantAgent = new AssistantAgent(agentRegistry)
 
 client.once('ready', () => {
-  console.log(`Logged in as ${client?.user?.tag}!`)
+  log.info({ tag: client?.user?.tag }, 'Discord client ready')
 })
 
 cron.schedule('0 8 * * *', async () => {
@@ -48,7 +51,7 @@ client.on('messageCreate', async (msg) => {
   if (msg.author.bot) return
   if (msg.guild?.id !== process.env.GUILD_ID) return
 
-  console.log(msg.author.username, ' , ', msg.content)
+  log.debug({ username: msg.author.username, content: msg.content }, 'Message received')
 
   // Check if the bot is mentioned
   if (!client.user || !msg.mentions.has(client.user.id)) return
@@ -89,7 +92,7 @@ client.on('messageCreate', async (msg) => {
     const response = await assistantAgent.handle(content, userInfo, history, msg.guild)
 
     if (response.success && response.text) {
-      console.log(`Handled by agent: ${response.agentName}`)
+      log.info({ agent: response.agentName }, 'Message handled')
 
       // Store bot response in history
       const botMessage: MessageHistory = {

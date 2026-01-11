@@ -1,4 +1,7 @@
 import type { AgentResponse } from '../agents/types.ts'
+import { createLogger } from '../services/logger.ts'
+
+const log = createLogger('agent-utils')
 
 /**
  * Create a successful agent response
@@ -41,7 +44,7 @@ export async function withAgentErrorHandling(
   try {
     return await operation()
   } catch (error) {
-    console.error(`Error in ${agentName}:`, error)
+    log.error({ err: error, agent: agentName }, 'Agent operation failed')
     return createErrorResponse(agentName, error instanceof Error ? error.message : null)
   }
 }

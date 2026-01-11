@@ -1,4 +1,7 @@
 import axios from 'axios'
+import { createLogger } from './logger.ts'
+
+const log = createLogger('bucket')
 
 /**
  * Fetch data from the bucket URL
@@ -10,7 +13,7 @@ export async function fetchBucketData<T>(path: string): Promise<T | null> {
     const { data } = await axios.get<T>(process.env.BUCKET_URL + path)
     return data
   } catch (error) {
-    console.error(`Error fetching bucket data from ${path}:`, error)
+    log.error({ err: error, path }, 'Failed to fetch bucket data')
     return null
   }
 }

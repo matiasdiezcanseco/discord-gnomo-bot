@@ -1,4 +1,7 @@
 import type { Guild, GuildMember } from 'discord.js'
+import { createLogger } from '../services/logger.ts'
+
+const log = createLogger('user-lookup')
 
 /**
  * Search predicate for matching a member by username or display name
@@ -36,7 +39,7 @@ export async function findUserByNameAsync(guild: Guild, name: string): Promise<G
     const members = await guild.members.search({ query: name, limit: 10 })
     return members.find((m) => matchesMember(m, searchName)) ?? null
   } catch (error) {
-    console.error('Error searching guild members:', error)
+    log.error({ err: error, query: name }, 'Failed to search guild members')
     return null
   }
 }

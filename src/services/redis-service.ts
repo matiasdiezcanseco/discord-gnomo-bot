@@ -1,5 +1,8 @@
 import { Redis } from '@upstash/redis'
 import type { MessageHistory } from '../agents/types.ts'
+import { createLogger } from './logger.ts'
+
+const log = createLogger('redis')
 
 const CONVERSATION_TTL = parseInt(process.env.CONVERSATION_TTL || '86400', 10) // Default: 24 hours in seconds
 const MAX_MESSAGES = parseInt(process.env.MAX_CONVERSATION_MESSAGES || '100', 10) // Default: 100 messages
@@ -13,11 +16,11 @@ const createRedisClient = (): Redis | null => {
   const token = process.env.UPSTASH_REDIS_REST_TOKEN
 
   if (!url || !token) {
-    console.warn('⚠️  Upstash Redis credentials not configured. History feature disabled.')
+    log.warn('Upstash Redis credentials not configured - history feature disabled')
     return null
   }
 
-  console.log('✓ Redis client initialized with URL:', url.substring(0, 30) + '...')
+  log.info({ url: url.substring(0, 30) + '...' }, 'Redis client initialized')
   return new Redis({ url, token })
 }
 
@@ -43,11 +46,10 @@ export const getChannelHistory = async (channelId: string): Promise<MessageHisto
     const history = await redis.get<MessageHistory[]>(key)
     return history || []
   } catch (error) {
-    console.error(
-      '⚠️  Error fetching channel history from Redis:',
-      error instanceof Error ? error.message : error,
+    log.error(
+      { err: error, channelId },
+      'Failed to fetch channel history - continuing without history',
     )
-    console.error('⚠️  Bot will continue without history for this message.')
     return []
   }
 }
@@ -75,11 +77,7 @@ export const addMessage = async (channelId: string, message: MessageHistory): Pr
     // Store with TTL
     await redis.setex(key, CONVERSATION_TTL, history)
   } catch (error) {
-    console.error(
-      '⚠️  Error adding message to Redis:',
-      error instanceof Error ? error.message : error,
-    )
-    console.error('⚠️  Message will not be saved to history.')
+    log.error({ err: error, channelId }, 'Failed to add message to history')
   }
 }
 
@@ -94,9 +92,6 @@ export const clearChannelHistory = async (channelId: string): Promise<void> => {
     const key = getChannelKey(channelId)
     await redis.del(key)
   } catch (error) {
-    console.error(
-      '⚠️  Error clearing channel history from Redis:',
-      error instanceof Error ? error.message : error,
-    )
+    log.error({ err: error, channelId }, 'Failed to clear channel history')
   }
 }
