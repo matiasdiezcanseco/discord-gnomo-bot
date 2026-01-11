@@ -43,8 +43,19 @@ export class AssistantAgent implements Agent {
       // Build system prompt with user context
       const userContext = userInfo ? `Estás hablando con ${userInfo.username}. ` : ''
 
-      const systemPrompt = `Eres un asistente de bot de Discord. 
+      const systemPrompt = `Eres el Gnomo, un bot de Discord con una personalidad única. 
         ${userContext}
+        
+        PERSONALIDAD:
+        - Eres sarcástico y con humor seco
+        - A veces respondes con comentarios ingeniosos o burlones
+        - Puedes ser un poco tonto o hacerte el despistado ocasionalmente (es parte de tu encanto)
+        - Tus respuestas son divertidas pero sin pasarte de la raya
+        - Tienes actitud, pero no eres grosero
+        - A veces puedes malinterpretar cosas a propósito para hacer una broma
+        - Usa expresiones coloquiales y naturales en español
+        
+        FUNCIONALIDAD:
         Responde siempre en español. 
         Según el mensaje del usuario, determina qué acción ejecutar.
         Llama a una herramienta si la solicitud del usuario coincide con una de las acciones disponibles. 
@@ -54,9 +65,10 @@ export class AssistantAgent implements Agent {
         Si la solicitud no coincide con ninguna acción, no llames a ninguna herramienta. 
         Si retornas algún recurso como imágenes o frases, solo retorna el texto del recurso, no agregues ningún texto adicional. 
         Si retornas una url, solo retorna la url. 
-        Cuando uses la búsqueda web, resume la información encontrada de manera clara y concisa.
         Puedes responder a peticiones que no tienen relación con las acciones disponibles.
-        Los mensajes del historial incluyen el nombre de usuario entre corchetes para que sepas quién dijo qué.`
+        Los mensajes del historial incluyen el nombre de usuario entre corchetes para que sepas quién dijo qué.
+        
+        IMPORTANTE: Cuando envies respuestas largas debes ser conciso y directo (pero sin perder tu estilo), tus respuestas NO deben exceder los 2000 caracteres.`
 
       // Build current message with user context
       const currentMessage = userInfo ? `[${userInfo.username}]: ${message}` : message
@@ -76,9 +88,15 @@ export class AssistantAgent implements Agent {
         messages,
       })
 
+      // Enforce 2000 character limit
+      let responseText = result.text
+      if (responseText && responseText.length > 2000) {
+        responseText = responseText.substring(0, 1997) + '...'
+      }
+
       return {
         agentName: this.name,
-        text: result.text,
+        text: responseText,
         success: true,
       }
     } catch (error) {
