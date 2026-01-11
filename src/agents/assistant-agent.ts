@@ -1,7 +1,7 @@
-import { generateText, tool, stepCountIs, type ModelMessage } from 'ai'
+import { generateText, stepCountIs, type ModelMessage } from 'ai'
 import { openai } from '@ai-sdk/openai'
-import { z } from 'zod'
 import type { Agent, AgentResponse, AgentRegistry, UserInfo, MessageHistory } from './types.ts'
+import { createRoutingTools } from '../functions/tools.ts'
 
 /**
  * Assistant agent that handles routing to specialized agents
@@ -13,40 +13,6 @@ export class AssistantAgent implements Agent {
 
   constructor(agents: AgentRegistry) {
     this.agents = agents
-  }
-
-  /**
-   * Create tools for routing to other agents
-   */
-  private createRoutingTools() {
-    return {
-      generatePhrase: tool({
-        description:
-          'Envía una frase o cita aleatoria al usuario. Usa esto cuando el usuario quiera una frase.',
-        inputSchema: z.object({}),
-        execute: async () => {
-          const agent = this.agents['phrase']
-          if (!agent) {
-            return { success: false, text: null }
-          }
-          const response = await agent.handle('')
-          return { success: response.success, text: response.text }
-        },
-      }),
-      generateImage: tool({
-        description:
-          'Envía una imagen o foto aleatoria al usuario. Usa esto cuando el usuario quiera ver una imagen o una foto.',
-        inputSchema: z.object({}),
-        execute: async () => {
-          const agent = this.agents['image']
-          if (!agent) {
-            return { success: false, text: null }
-          }
-          const response = await agent.handle('')
-          return { success: response.success, text: response.text }
-        },
-      }),
-    }
   }
 
   /**
@@ -84,9 +50,11 @@ export class AssistantAgent implements Agent {
         Llama a una herramienta si la solicitud del usuario coincide con una de las acciones disponibles. 
         Es posible que te escriban las acciones de forma corta, por ejemplo: "frase" o "pic". 
         También pueden llamarlas de forma imprevista como: "rota una foto" o "dame una frase".
+        Si te preguntan algo que requiere información actualizada o que no conoces, usa la herramienta de búsqueda web.
         Si la solicitud no coincide con ninguna acción, no llames a ninguna herramienta. 
         Si retornas algún recurso como imágenes o frases, solo retorna el texto del recurso, no agregues ningún texto adicional. 
         Si retornas una url, solo retorna la url. 
+        Cuando uses la búsqueda web, resume la información encontrada de manera clara y concisa.
         Puedes responder a peticiones que no tienen relación con las acciones disponibles.
         Los mensajes del historial incluyen el nombre de usuario entre corchetes para que sepas quién dijo qué.`
 
@@ -101,9 +69,9 @@ export class AssistantAgent implements Agent {
 
       const result = await generateText({
         model: openai(process.env.OPENAI_MODEL || 'gpt-4o-mini'),
-        tools: this.createRoutingTools(),
+        tools: createRoutingTools(this.agents),
         toolChoice: 'auto',
-        stopWhen: stepCountIs(2),
+        stopWhen: stepCountIs(3),
         system: systemPrompt,
         messages,
       })

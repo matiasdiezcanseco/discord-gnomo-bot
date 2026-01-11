@@ -10,6 +10,7 @@ import { getRandomConfusedPhrase } from './functions/confused-phrases.ts'
 import { AssistantAgent } from './agents/assistant-agent.ts'
 import { PhraseAgent } from './agents/phrase-agent.ts'
 import { ImageAgent } from './agents/image-agent.ts'
+import { WebSearchAgent } from './agents/web-search-agent.ts'
 import { AgentRegistry, MessageHistory } from './agents/types.ts'
 import { getChannelHistory, addMessage } from './services/redis-service.ts'
 
@@ -28,6 +29,7 @@ app.listen(8080, () => {
 const agentRegistry: AgentRegistry = {
   phrase: new PhraseAgent(),
   image: new ImageAgent(),
+  webSearch: new WebSearchAgent(),
 }
 
 const assistantAgent = new AssistantAgent(agentRegistry)

@@ -12,6 +12,7 @@ declare global {
       UPSTASH_REDIS_REST_TOKEN: string
       CONVERSATION_TTL: string
       MAX_CONVERSATION_MESSAGES: string
+      TAVILY_API_KEY: string
     }
   }
 }
