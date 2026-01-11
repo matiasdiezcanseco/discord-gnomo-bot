@@ -85,7 +85,8 @@ client.on('messageCreate', async (msg) => {
 
   try {
     // Use assistant agent to handle the message with context
-    const response = await assistantAgent.handle(content, userInfo, history)
+    // Pass guild for user lookup functionality
+    const response = await assistantAgent.handle(content, userInfo, history, msg.guild)
 
     if (response.success && response.text) {
       console.log(`Handled by agent: ${response.agentName}`)

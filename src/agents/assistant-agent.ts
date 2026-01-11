@@ -1,5 +1,6 @@
 import { generateText, stepCountIs, type ModelMessage } from 'ai'
 import { openai } from '@ai-sdk/openai'
+import type { Guild } from 'discord.js'
 import type { Agent, AgentResponse, AgentRegistry, UserInfo, MessageHistory } from './types.ts'
 import { createRoutingTools } from '../functions/tools.ts'
 
@@ -30,11 +31,13 @@ export class AssistantAgent implements Agent {
    * @param message The current user message
    * @param userInfo Optional user information (username, userId)
    * @param history Optional conversation history for context
+   * @param guild Optional Discord guild for user lookup functionality
    */
   async handle(
     message: string,
     userInfo?: UserInfo,
     history: MessageHistory[] = [],
+    guild?: Guild | null,
   ): Promise<AgentResponse> {
     try {
       // Convert history to AI SDK message format
@@ -68,6 +71,11 @@ export class AssistantAgent implements Agent {
         Puedes responder a peticiones que no tienen relación con las acciones disponibles.
         Los mensajes del historial incluyen el nombre de usuario entre corchetes para que sepas quién dijo qué.
         
+        MENCIONES DE USUARIOS:
+        Si el usuario quiere que menciones o etiquetes a alguien del servidor, usa la herramienta lookupUser para buscar al usuario.
+        Cuando uses esta herramienta y encuentres al usuario, INCLUYE la mención que te devuelve en tu respuesta.
+        Por ejemplo, si te dicen "dile a david que se una", busca a "david" y responde algo como "¡Oye <@123456789>, únete al chat!"
+        
         IMPORTANTE: Cuando envies respuestas largas debes ser conciso y directo (pero sin perder tu estilo), tus respuestas NO deben exceder los 2000 caracteres.`
 
       // Build current message with user context
@@ -81,7 +89,7 @@ export class AssistantAgent implements Agent {
 
       const result = await generateText({
         model: openai(process.env.OPENAI_MODEL || 'gpt-4o-mini'),
-        tools: createRoutingTools(this.agents),
+        tools: createRoutingTools(this.agents, guild),
         toolChoice: 'auto',
         stopWhen: stepCountIs(3),
         system: systemPrompt,

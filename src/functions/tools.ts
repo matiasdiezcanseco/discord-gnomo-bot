@@ -1,12 +1,43 @@
 import { tool } from 'ai'
 import { z } from 'zod'
+import { userMention, type Guild } from 'discord.js'
 import type { AgentRegistry } from '../agents/types.ts'
+import { findUserByNameAsync } from './user-lookup.ts'
 
 /**
  * Create tools for routing to other agents and performing web searches
+ * @param agents Registry of available agents
+ * @param guild Optional Discord guild for user lookup functionality
  */
-export function createRoutingTools(agents: AgentRegistry) {
+export function createRoutingTools(agents: AgentRegistry, guild?: Guild | null) {
   return {
+    lookupUser: tool({
+      description:
+        'Busca un usuario en el servidor de Discord por su nombre de usuario o nombre visible. Usa esto cuando necesites mencionar o etiquetar a un usuario específico. Retorna la mención del usuario si lo encuentra.',
+      inputSchema: z.object({
+        name: z.string().describe('El nombre de usuario o nombre visible a buscar'),
+      }),
+      execute: async ({ name }) => {
+        if (!guild) {
+          return { success: false, mention: null, message: 'No hay acceso al servidor' }
+        }
+        const member = await findUserByNameAsync(guild, name)
+        if (member) {
+          return {
+            success: true,
+            mention: userMention(member.id),
+            username: member.user.username,
+            displayName: member.displayName,
+            message: `Usuario encontrado: ${member.displayName}`,
+          }
+        }
+        return {
+          success: false,
+          mention: null,
+          message: `No se encontró ningún usuario llamado "${name}"`,
+        }
+      },
+    }),
     generatePhrase: tool({
       description:
         'Envía una frase o cita aleatoria al usuario. Usa esto cuando el usuario quiera una frase.',
