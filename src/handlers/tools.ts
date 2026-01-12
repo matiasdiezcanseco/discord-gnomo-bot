@@ -1,8 +1,8 @@
 import { tool } from 'ai'
 import { z } from 'zod'
-import { userMention, type Guild } from 'discord.js'
+import type { Guild } from 'discord.js'
 import type { AgentRegistry } from '../agents/types.ts'
-import { findUserByNameAsync } from './user-lookup.ts'
+import { LookupUserAgent } from '../agents/lookup-user-agent.ts'
 
 /**
  * Execute an agent and return a standardized tool result
@@ -27,6 +27,12 @@ async function executeAgent(
  * @param guild Optional Discord guild for user lookup functionality
  */
 export function createRoutingTools(agents: AgentRegistry, guild?: Guild | null) {
+  // Set guild on lookupUser agent if available
+  const lookupUserAgent = agents['lookupUser'] as LookupUserAgent | undefined
+  if (lookupUserAgent && guild) {
+    lookupUserAgent.setGuild(guild)
+  }
+
   return {
     lookupUser: tool({
       description:
@@ -35,24 +41,21 @@ export function createRoutingTools(agents: AgentRegistry, guild?: Guild | null) 
         name: z.string().describe('El nombre de usuario o nombre visible a buscar'),
       }),
       execute: async ({ name }) => {
-        if (!guild) {
-          return { success: false, mention: null, message: 'No hay acceso al servidor' }
-        }
-        const member = await findUserByNameAsync(guild, name)
-        if (member) {
-          return {
-            success: true,
-            mention: userMention(member.id),
-            username: member.user.username,
-            displayName: member.displayName,
-            message: `Usuario encontrado: ${member.displayName}`,
+        const result = await executeAgent(
+          agents,
+          'lookupUser',
+          name,
+          'Lookup user agent no disponible',
+        )
+        // Parse the JSON response to return structured data
+        if (result.text) {
+          try {
+            return JSON.parse(result.text)
+          } catch {
+            return { success: result.success, mention: null, message: result.text }
           }
         }
-        return {
-          success: false,
-          mention: null,
-          message: `No se encontró ningún usuario llamado "${name}"`,
-        }
+        return { success: false, mention: null, message: 'Error en la búsqueda' }
       },
     }),
     generatePhrase: tool({

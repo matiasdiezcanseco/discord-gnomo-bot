@@ -3,7 +3,7 @@ import type { AssistantAgent } from '../agents/assistant-agent.ts'
 import { ENV } from '../config/env.ts'
 import { getChannelHistory, addMessage } from '../services/redis-service.ts'
 import { createLogger } from '../services/logger.ts'
-import { getRandomConfusedPhrase } from '../functions/confused-phrases.ts'
+import { getRandomConfusedPhrase } from '../utils/confused-phrases.ts'
 import { withTypingIndicator } from '../utils/typing-indicator.ts'
 import {
   createUserMessage,

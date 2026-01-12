@@ -14,4 +14,3 @@ export const confusedPhrases = [
 export function getRandomConfusedPhrase(): string {
   return confusedPhrases[Math.floor(Math.random() * confusedPhrases.length)]
 }
-
