@@ -11,7 +11,7 @@ export function getTimeParserPrompt(
 ): string {
   return `Parse the following Spanish time expression and convert it to minutes from now.
 
-Current date and time: ${currentDateTime}
+Current date and time: ${currentDateTime} (UTC-5)
 Current day of week: ${currentDayOfWeek}
 
 Time expression: "${timeExpression}"

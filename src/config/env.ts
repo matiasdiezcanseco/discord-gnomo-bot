@@ -29,6 +29,9 @@ const envSchema = z.object({
   // Runtime
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).optional(),
+
+  // Timezone
+  USER_TIMEZONE: z.string().default('America/Bogota'), // UTC-5
 })
 
 /**

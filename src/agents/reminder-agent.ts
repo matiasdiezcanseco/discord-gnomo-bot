@@ -1,4 +1,6 @@
 import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc.js'
+import timezone from 'dayjs/plugin/timezone.js'
 import { generateText, Output } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
@@ -8,6 +10,10 @@ import { createReminder, isReminderServiceAvailable } from '../services/reminder
 import { getTimeParserPrompt } from '../prompts/time-parser-prompt.ts'
 import { ENV } from '../config/env.ts'
 import { createLogger } from '../services/logger.ts'
+
+// Configure dayjs with timezone support
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 const log = createLogger('reminder-agent')
 
@@ -51,7 +57,8 @@ export class ReminderAgent implements Agent {
     timeExpression: string,
   ): Promise<{ timestamp: number; humanReadable: string } | null> {
     try {
-      const now = dayjs()
+      // Use the user's timezone instead of server timezone
+      const now = dayjs().tz(ENV.USER_TIMEZONE)
       const currentDateTime = now.format('YYYY-MM-DD HH:mm:ss')
       const currentDayOfWeek = now.format('dddd')
 
