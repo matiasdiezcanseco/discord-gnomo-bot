@@ -9,6 +9,7 @@ import { createAssistantAgent } from './agents/agent-factory.ts'
 import { startHealthServer } from './handlers/health-handler.ts'
 import { handleMessage } from './handlers/message-handler.ts'
 import { checkBirthdays } from './functions/check-birthdays.ts'
+import { checkReminders } from './functions/check-reminders.ts'
 import { createLogger } from './services/logger.ts'
 
 const log = createLogger('main')
@@ -29,6 +30,11 @@ cron.schedule('0 8 * * *', async () => {
   const channel = client.channels.cache.get(ENV.GNOMOS_CHANNEL_ID)
   if (!channel || channel.type !== ChannelType.GuildText) return
   await checkBirthdays(channel)
+})
+
+// Reminder check cron job (every minute)
+cron.schedule('* * * * *', async () => {
+  await checkReminders(client)
 })
 
 // Message handler

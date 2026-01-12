@@ -4,6 +4,7 @@ import { PhraseAgent } from './phrase-agent.ts'
 import { ImageAgent } from './image-agent.ts'
 import { WebSearchAgent } from './web-search-agent.ts'
 import { LookupUserAgent } from './lookup-user-agent.ts'
+import { ReminderAgent } from './reminder-agent.ts'
 
 /**
  * Create the agent registry with all specialized agents
@@ -14,6 +15,7 @@ export function createAgentRegistry(): AgentRegistry {
     image: new ImageAgent(),
     webSearch: new WebSearchAgent(),
     lookupUser: new LookupUserAgent(),
+    reminder: new ReminderAgent(),
   }
 }
 

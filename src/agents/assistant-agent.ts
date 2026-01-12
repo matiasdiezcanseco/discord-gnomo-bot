@@ -1,6 +1,6 @@
 import { generateText, stepCountIs, type ModelMessage } from 'ai'
 import { openai } from '@ai-sdk/openai'
-import type { Guild } from 'discord.js'
+import type { Guild, TextChannel } from 'discord.js'
 import type { Agent, AgentResponse, AgentRegistry, UserInfo, MessageHistory } from './types.ts'
 import { ENV } from '../config/env.ts'
 import { MAX_AGENT_STEPS } from '../config/constants.ts'
@@ -40,12 +40,14 @@ export class AssistantAgent implements Agent {
    * @param userInfo Optional user information (username, userId)
    * @param history Optional conversation history for context
    * @param guild Optional Discord guild for user lookup functionality
+   * @param channel Optional Discord channel for reminder functionality
    */
   async handle(
     message: string,
     userInfo?: UserInfo,
     history: MessageHistory[] = [],
     guild?: Guild | null,
+    channel?: TextChannel | null,
   ): Promise<AgentResponse> {
     try {
       // Convert history to AI SDK message format
@@ -66,7 +68,7 @@ export class AssistantAgent implements Agent {
 
       const result = await generateText({
         model: openai(ENV.OPENAI_MODEL),
-        tools: createRoutingTools(this.agents, guild),
+        tools: createRoutingTools(this.agents, guild, channel, userInfo),
         toolChoice: 'auto',
         stopWhen: stepCountIs(MAX_AGENT_STEPS),
         system: systemPrompt,

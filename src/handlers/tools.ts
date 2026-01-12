@@ -1,8 +1,9 @@
 import { tool } from 'ai'
 import { z } from 'zod'
-import type { Guild } from 'discord.js'
+import type { Guild, TextChannel } from 'discord.js'
 import type { AgentRegistry } from '../agents/types.ts'
 import { LookupUserAgent } from '../agents/lookup-user-agent.ts'
+import { ReminderAgent } from '../agents/reminder-agent.ts'
 
 /**
  * Execute an agent and return a standardized tool result
@@ -25,13 +26,23 @@ async function executeAgent(
  * Create tools for routing to other agents and performing web searches
  * @param agents Registry of available agents
  * @param guild Optional Discord guild for user lookup functionality
+ * @param channel Optional Discord channel for reminder functionality
+ * @param userInfo Optional user information for context
  */
-export function createRoutingTools(agents: AgentRegistry, guild?: Guild | null) {
+export function createRoutingTools(
+  agents: AgentRegistry,
+  guild?: Guild | null,
+  channel?: TextChannel | null,
+  userInfo?: { userId: string; username: string } | null,
+) {
   // Set guild on lookupUser agent if available
   const lookupUserAgent = agents['lookupUser'] as LookupUserAgent | undefined
   if (lookupUserAgent && guild) {
     lookupUserAgent.setGuild(guild)
   }
+
+  // Get reminder agent for setReminder tool
+  const reminderAgent = agents['reminder'] as ReminderAgent | undefined
 
   return {
     lookupUser: tool({
@@ -78,6 +89,37 @@ export function createRoutingTools(agents: AgentRegistry, guild?: Guild | null) 
       }),
       execute: ({ query }) =>
         executeAgent(agents, 'webSearch', query, 'Web search agent no disponible'),
+    }),
+    setReminder: tool({
+      description:
+        'Crea un recordatorio para el usuario. Usa esto cuando el usuario quiera que le recuerdes algo en el futuro. Ejemplos: "recuérdame en 2 horas...", "avísame mañana...", "en 30 minutos recuérdame..."',
+      inputSchema: z.object({
+        timeExpression: z
+          .string()
+          .describe(
+            'La expresión de tiempo del usuario, ej: "en 2 horas", "mañana a las 9am", "en 30 minutos"',
+          ),
+        reminderMessage: z
+          .string()
+          .describe('El mensaje o cosa que el usuario quiere que le recuerdes'),
+      }),
+      execute: async ({ timeExpression, reminderMessage }) => {
+        if (!reminderAgent || !channel) {
+          return { success: false, text: 'Servicio de recordatorios no disponible' }
+        }
+
+        // Create the input JSON for the reminder agent
+        const input = JSON.stringify({
+          timeExpression,
+          reminderMessage,
+          channelId: channel.id,
+          userId: userInfo?.userId || '',
+          username: userInfo?.username || 'Usuario',
+        })
+
+        const response = await reminderAgent.handle(input)
+        return { success: response.success, text: response.text }
+      },
     }),
   }
 }

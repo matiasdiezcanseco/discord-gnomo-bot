@@ -1,4 +1,4 @@
-import { ChannelType, type Client, type Message } from 'discord.js'
+import { ChannelType, type Client, type Message, type TextChannel } from 'discord.js'
 import type { AssistantAgent } from '../agents/assistant-agent.ts'
 import { ENV } from '../config/env.ts'
 import { getChannelHistory, addMessage } from '../services/redis-service.ts'
@@ -44,9 +44,12 @@ export async function handleMessage(
   const history = await getChannelHistory(channelId)
   await addMessage(channelId, createUserMessage(userInfo, content))
 
+  // Get channel as TextChannel for reminder functionality
+  const channel = msg.channel.type === ChannelType.GuildText ? (msg.channel as TextChannel) : null
+
   // Process message with typing indicator
   const response = await withTypingIndicator(msg.channel, () =>
-    assistantAgent.handle(content, userInfo, history, msg.guild),
+    assistantAgent.handle(content, userInfo, history, msg.guild, channel),
   )
 
   if (response.success && response.text) {
