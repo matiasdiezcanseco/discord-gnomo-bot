@@ -1,11 +1,9 @@
 import IORedis from 'ioredis'
 import type { MessageHistory } from '../agents/types.ts'
+import { ENV } from '../config/env.ts'
 import { createLogger } from './logger.ts'
 
 const log = createLogger('redis')
-
-const CONVERSATION_TTL = parseInt(process.env.CONVERSATION_TTL || '86400', 10) // Default: 24 hours in seconds
-const MAX_MESSAGES = parseInt(process.env.MAX_CONVERSATION_MESSAGES || '100', 10) // Default: 100 messages
 
 /**
  * Initialize Redis client
@@ -13,14 +11,13 @@ const MAX_MESSAGES = parseInt(process.env.MAX_CONVERSATION_MESSAGES || '100', 10
  * Returns null if not configured
  */
 const createRedisClient = (): IORedis | null => {
-  const redisUrl = process.env.REDIS_URL
-  if (!redisUrl) {
+  if (!ENV.REDIS_URL) {
     log.warn('REDIS_URL not configured - history feature disabled')
     return null
   }
 
   log.info('Redis client initialized')
-  return new IORedis(redisUrl)
+  return new IORedis(ENV.REDIS_URL)
 }
 
 const redis = createRedisClient()
@@ -71,12 +68,12 @@ export const addMessage = async (channelId: string, message: MessageHistory): Pr
     history.push(message)
 
     // Keep only the last MAX_MESSAGES messages (FIFO)
-    if (history.length > MAX_MESSAGES) {
-      history = history.slice(-MAX_MESSAGES)
+    if (history.length > ENV.MAX_CONVERSATION_MESSAGES) {
+      history = history.slice(-ENV.MAX_CONVERSATION_MESSAGES)
     }
 
     // Store with TTL
-    await redis.setex(key, CONVERSATION_TTL, JSON.stringify(history))
+    await redis.setex(key, ENV.CONVERSATION_TTL, JSON.stringify(history))
   } catch (error) {
     log.error({ err: error, channelId }, 'Failed to add message to history')
   }

@@ -1,5 +1,7 @@
 import { tavily } from '@tavily/core'
 import type { Agent, AgentResponse } from './types.ts'
+import { ENV } from '../config/env.ts'
+import { MAX_SEARCH_RESULTS } from '../config/constants.ts'
 import {
   createSuccessResponse,
   createErrorResponse,
@@ -18,15 +20,14 @@ export class WebSearchAgent implements Agent {
    */
   async handle(query: string): Promise<AgentResponse> {
     return withAgentErrorHandling(this.name, async () => {
-      const apiKey = process.env.TAVILY_API_KEY
-      if (!apiKey) {
+      if (!ENV.TAVILY_API_KEY) {
         return createErrorResponse(this.name, 'Error: Tavily API key no configurada')
       }
 
-      const tvly = tavily({ apiKey })
+      const tvly = tavily({ apiKey: ENV.TAVILY_API_KEY })
       const response = await tvly.search(query, {
         searchDepth: 'basic',
-        maxResults: 5,
+        maxResults: MAX_SEARCH_RESULTS,
       })
 
       if (!response?.results?.length) {

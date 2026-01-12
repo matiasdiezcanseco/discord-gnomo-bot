@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { ENV } from '../config/env.ts'
 import { createLogger } from './logger.ts'
 
 const log = createLogger('bucket')
@@ -10,7 +11,7 @@ const log = createLogger('bucket')
  */
 export async function fetchBucketData<T>(path: string): Promise<T | null> {
   try {
-    const { data } = await axios.get<T>(process.env.BUCKET_URL + path)
+    const { data } = await axios.get<T>(ENV.BUCKET_URL + path)
     return data
   } catch (error) {
     log.error({ err: error, path }, 'Failed to fetch bucket data')
@@ -37,5 +38,5 @@ export async function getRandomBucketItem<T>(path: string): Promise<T | null> {
  * @returns The full URL
  */
 export function getBucketUrl(path: string): string {
-  return process.env.BUCKET_URL + path
+  return ENV.BUCKET_URL + path
 }

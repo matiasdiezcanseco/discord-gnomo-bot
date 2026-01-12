@@ -2,6 +2,8 @@ import { generateText, stepCountIs, type ModelMessage } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import type { Guild } from 'discord.js'
 import type { Agent, AgentResponse, AgentRegistry, UserInfo, MessageHistory } from './types.ts'
+import { ENV } from '../config/env.ts'
+import { MAX_AGENT_STEPS } from '../config/constants.ts'
 import { createRoutingTools } from '../functions/tools.ts'
 import { getAssistantSystemPrompt } from '../prompts/assistant-system-prompt.ts'
 import { createSuccessResponse, createErrorResponse } from '../utils/agent-utils.ts'
@@ -63,10 +65,10 @@ export class AssistantAgent implements Agent {
       ]
 
       const result = await generateText({
-        model: openai(process.env.OPENAI_MODEL || 'gpt-4o-mini'),
+        model: openai(ENV.OPENAI_MODEL),
         tools: createRoutingTools(this.agents, guild),
         toolChoice: 'auto',
-        stopWhen: stepCountIs(3),
+        stopWhen: stepCountIs(MAX_AGENT_STEPS),
         system: systemPrompt,
         messages,
       })

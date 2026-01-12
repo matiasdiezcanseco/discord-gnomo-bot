@@ -4,6 +4,8 @@ dotenv.config()
 import express from 'express'
 import cron from 'node-cron'
 import { ChannelType } from 'discord.js'
+import { ENV } from './config/env.ts'
+import { TYPING_INDICATOR_INTERVAL_MS } from './config/constants.ts'
 import { client } from './client.ts'
 import { checkBirthdays } from './functions/check-birthdays.ts'
 import { getRandomConfusedPhrase } from './functions/confused-phrases.ts'
@@ -42,14 +44,14 @@ client.once('ready', () => {
 })
 
 cron.schedule('0 8 * * *', async () => {
-  const channel = client.channels.cache.get(process.env.GNOMOS_CHANNEL_ID || '')
+  const channel = client.channels.cache.get(ENV.GNOMOS_CHANNEL_ID)
   if (!channel || channel.type !== ChannelType.GuildText) return
   await checkBirthdays(channel)
 })
 
 client.on('messageCreate', async (msg) => {
   if (msg.author.bot) return
-  if (msg.guild?.id !== process.env.GUILD_ID) return
+  if (msg.guild?.id !== ENV.GUILD_ID) return
 
   log.debug({ username: msg.author.username, content: msg.content }, 'Message received')
 
@@ -84,7 +86,7 @@ client.on('messageCreate', async (msg) => {
   await msg.channel.sendTyping()
   const typingInterval = setInterval(() => {
     msg.channel.sendTyping().catch(() => clearInterval(typingInterval))
-  }, 7000) // Send typing indicator every 7 seconds (expires after ~10 seconds)
+  }, TYPING_INDICATOR_INTERVAL_MS)
 
   try {
     // Use assistant agent to handle the message with context
@@ -114,4 +116,4 @@ client.on('messageCreate', async (msg) => {
   }
 })
 
-client.login(process.env.BOT_TOKEN)
+client.login(ENV.BOT_TOKEN)
