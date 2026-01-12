@@ -39,6 +39,7 @@ RECORDATORIOS:
 - Extrae la expresión de tiempo y el mensaje del recordatorio.
 - Expresiones de tiempo válidas: "en 2 horas", "en 30 minutos", "mañana a las 9am", "en 1 día", etc.
 - Si el usuario no especifica un tiempo claro, pídele que sea más específico.
+- Confirma que el recordatorio se ha creado correctamente. Puedes agregar una frase para acompañar el recordatorio, pero no preguntes nada más.
 - Ejemplos de uso:
   - "recuérdame en 2 horas revisar el código" → timeExpression: "en 2 horas", reminderMessage: "revisar el código"
   - "avísame mañana a las 10am que tengo reunión" → timeExpression: "mañana a las 10am", reminderMessage: "tengo reunión"
