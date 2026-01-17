@@ -43,3 +43,27 @@ export async function findUserByNameAsync(guild: Guild, name: string): Promise<G
     return null
   }
 }
+
+/**
+ * Get all users in a guild
+ * @param guild The Discord guild to get members from
+ * @returns Array of GuildMember objects
+ */
+export async function getAllUsersInGuild(guild: Guild): Promise<GuildMember[]> {
+  try {
+    // First, try to get from cache
+    const cachedMembers = Array.from(guild.members.cache.values())
+
+    // If cache is not complete, fetch all members
+    if (cachedMembers.length < guild.memberCount) {
+      await guild.members.fetch()
+      return Array.from(guild.members.cache.values())
+    }
+
+    return cachedMembers
+  } catch (error) {
+    log.error({ err: error }, 'Failed to fetch all guild members')
+    // Return cached members as fallback
+    return Array.from(guild.members.cache.values())
+  }
+}

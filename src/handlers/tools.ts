@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { Guild, TextChannel } from 'discord.js'
 import type { AgentRegistry } from '../agents/types.ts'
 import { LookupUserAgent } from '../agents/lookup-user-agent.ts'
+import { LookupAllUsersAgent } from '../agents/lookup-all-users-agent.ts'
 import { ReminderAgent } from '../agents/reminder-agent.ts'
 
 /**
@@ -41,6 +42,12 @@ export function createRoutingTools(
     lookupUserAgent.setGuild(guild)
   }
 
+  // Set guild on lookupAllUsers agent if available
+  const lookupAllUsersAgent = agents['lookupAllUsers'] as LookupAllUsersAgent | undefined
+  if (lookupAllUsersAgent && guild) {
+    lookupAllUsersAgent.setGuild(guild)
+  }
+
   // Get reminder agent for setReminder tool
   const reminderAgent = agents['reminder'] as ReminderAgent | undefined
 
@@ -67,6 +74,28 @@ export function createRoutingTools(
           }
         }
         return { success: false, mention: null, message: 'Error en la búsqueda' }
+      },
+    }),
+    lookupAllUsers: tool({
+      description:
+        'Obtiene una lista de todos los usuarios en el servidor de Discord. Usa esto cuando el usuario quiera ver todos los miembros del servidor o necesites información sobre todos los usuarios.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        const result = await executeAgent(
+          agents,
+          'lookupAllUsers',
+          '',
+          'Lookup all users agent no disponible',
+        )
+        // Parse the JSON response to return structured data
+        if (result.text) {
+          try {
+            return JSON.parse(result.text)
+          } catch {
+            return { success: result.success, users: [], message: result.text }
+          }
+        }
+        return { success: false, users: [], message: 'Error en la búsqueda' }
       },
     }),
     generatePhrase: tool({
