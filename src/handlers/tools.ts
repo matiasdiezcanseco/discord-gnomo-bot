@@ -4,6 +4,7 @@ import type { Guild, TextChannel } from 'discord.js'
 import type { AgentRegistry } from '../agents/types.ts'
 import { LookupUserAgent } from '../agents/lookup-user-agent.ts'
 import { LookupAllUsersAgent } from '../agents/lookup-all-users-agent.ts'
+import { LookupVoiceUsersAgent } from '../agents/lookup-voice-users-agent.ts'
 import { ReminderAgent } from '../agents/reminder-agent.ts'
 
 /**
@@ -48,6 +49,12 @@ export function createRoutingTools(
     lookupAllUsersAgent.setGuild(guild)
   }
 
+  // Set guild on lookupVoiceUsers agent if available
+  const lookupVoiceUsersAgent = agents['lookupVoiceUsers'] as LookupVoiceUsersAgent | undefined
+  if (lookupVoiceUsersAgent && guild) {
+    lookupVoiceUsersAgent.setGuild(guild)
+  }
+
   // Get reminder agent for setReminder tool
   const reminderAgent = agents['reminder'] as ReminderAgent | undefined
 
@@ -86,6 +93,28 @@ export function createRoutingTools(
           'lookupAllUsers',
           '',
           'Lookup all users agent no disponible',
+        )
+        // Parse the JSON response to return structured data
+        if (result.text) {
+          try {
+            return JSON.parse(result.text)
+          } catch {
+            return { success: result.success, users: [], message: result.text }
+          }
+        }
+        return { success: false, users: [], message: 'Error en la búsqueda' }
+      },
+    }),
+    lookupVoiceUsers: tool({
+      description:
+        'Obtiene una lista de todos los usuarios que están actualmente conectados en canales de voz del servidor. Usa esto cuando el usuario quiera saber quién está en llamada o en canales de voz.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        const result = await executeAgent(
+          agents,
+          'lookupVoiceUsers',
+          '',
+          'Lookup voice users agent no disponible',
         )
         // Parse the JSON response to return structured data
         if (result.text) {

@@ -5,6 +5,7 @@ import { ImageAgent } from './image-agent.ts'
 import { WebSearchAgent } from './web-search-agent.ts'
 import { LookupUserAgent } from './lookup-user-agent.ts'
 import { LookupAllUsersAgent } from './lookup-all-users-agent.ts'
+import { LookupVoiceUsersAgent } from './lookup-voice-users-agent.ts'
 import { ReminderAgent } from './reminder-agent.ts'
 
 /**
@@ -17,6 +18,7 @@ export function createAgentRegistry(): AgentRegistry {
     webSearch: new WebSearchAgent(),
     lookupUser: new LookupUserAgent(),
     lookupAllUsers: new LookupAllUsersAgent(),
+    lookupVoiceUsers: new LookupVoiceUsersAgent(),
     reminder: new ReminderAgent(),
   }
 }

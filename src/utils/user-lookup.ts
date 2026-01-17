@@ -1,4 +1,4 @@
-import type { Guild, GuildMember } from 'discord.js'
+import type { Guild, GuildMember, VoiceState } from 'discord.js'
 import { createLogger } from '../services/logger.ts'
 
 const log = createLogger('user-lookup')
@@ -65,5 +65,51 @@ export async function getAllUsersInGuild(guild: Guild): Promise<GuildMember[]> {
     log.error({ err: error }, 'Failed to fetch all guild members')
     // Return cached members as fallback
     return Array.from(guild.members.cache.values())
+  }
+}
+
+/**
+ * Information about a user in a voice channel
+ */
+export interface VoiceUserInfo {
+  member: GuildMember
+  channelId: string
+  channelName: string | null
+  selfMute: boolean
+  selfDeaf: boolean
+  serverMute: boolean
+  serverDeaf: boolean
+}
+
+/**
+ * Get all users currently connected to voice channels in a guild
+ * @param guild The Discord guild to check
+ * @returns Array of VoiceUserInfo objects
+ */
+export function getUsersInVoiceChannels(guild: Guild): VoiceUserInfo[] {
+  try {
+    const voiceUsers: VoiceUserInfo[] = []
+
+    // Iterate through all voice states in the guild
+    for (const [userId, voiceState] of guild.voiceStates.cache) {
+      // Only include users that are in a voice channel (have a channelId)
+      if (voiceState.channelId && voiceState.member) {
+        const channel = voiceState.channel
+        voiceUsers.push({
+          member: voiceState.member,
+          channelId: voiceState.channelId,
+          channelName: channel?.name ?? null,
+          selfMute: voiceState.mute || false,
+          selfDeaf: voiceState.deaf || false,
+          serverMute: voiceState.serverMute || false,
+          serverDeaf: voiceState.serverDeaf || false,
+        })
+      }
+    }
+
+    return voiceUsers
+  } catch (error) {
+    log.error({ err: error }, 'Failed to get users in voice channels')
+    return []
   }
 }
