@@ -1,6 +1,10 @@
 import { userMention, type Guild } from 'discord.js'
 import type { Agent, AgentResponse } from './types.ts'
-import { createSuccessResponse, createErrorResponse, withAgentErrorHandling } from '../utils/agent-utils.ts'
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  withAgentErrorHandling,
+} from '../utils/agent-utils.ts'
 import { getUsersInVoiceChannels } from '../utils/user-lookup.ts'
 
 /**
@@ -24,11 +28,14 @@ export class LookupVoiceUsersAgent implements Agent {
   async handle(): Promise<AgentResponse> {
     return withAgentErrorHandling(this.name, async () => {
       if (!this.guild) {
-        return createErrorResponse(this.name, JSON.stringify({
-          success: false,
-          users: [],
-          message: 'No hay acceso al servidor',
-        }))
+        return createErrorResponse(
+          this.name,
+          JSON.stringify({
+            success: false,
+            users: [],
+            message: 'No hay acceso al servidor',
+          }),
+        )
       }
 
       const voiceUsers = getUsersInVoiceChannels(this.guild)
@@ -47,28 +54,35 @@ export class LookupVoiceUsersAgent implements Agent {
       }))
 
       // Group users by channel for better organization
-      const usersByChannel = voiceUsers.reduce((acc, voiceUser) => {
-        const channelName = voiceUser.channelName || 'Canal desconocido'
-        if (!acc[channelName]) {
-          acc[channelName] = []
-        }
-        acc[channelName].push({
-          mention: userMention(voiceUser.member.id),
-          username: voiceUser.member.user.username,
-          displayName: voiceUser.member.displayName,
-        })
-        return acc
-      }, {} as Record<string, Array<{ mention: string; username: string; displayName: string }>>)
+      const usersByChannel = voiceUsers.reduce(
+        (acc, voiceUser) => {
+          const channelName = voiceUser.channelName || 'Canal desconocido'
+          if (!acc[channelName]) {
+            acc[channelName] = []
+          }
+          acc[channelName].push({
+            mention: userMention(voiceUser.member.id),
+            username: voiceUser.member.user.username,
+            displayName: voiceUser.member.displayName,
+          })
+          return acc
+        },
+        {} as Record<string, Array<{ mention: string; username: string; displayName: string }>>,
+      )
 
-      return createSuccessResponse(this.name, JSON.stringify({
-        success: true,
-        users,
-        usersByChannel,
-        count: users.length,
-        message: users.length > 0
-          ? `Hay ${users.length} usuario${users.length > 1 ? 's' : ''} conectado${users.length > 1 ? 's' : ''} en canales de voz`
-          : 'No hay usuarios conectados en canales de voz',
-      }))
+      return createSuccessResponse(
+        this.name,
+        JSON.stringify({
+          success: true,
+          users,
+          usersByChannel,
+          count: users.length,
+          message:
+            users.length > 0
+              ? `Hay ${users.length} usuario${users.length > 1 ? 's' : ''} conectado${users.length > 1 ? 's' : ''} en canales de voz`
+              : 'No hay usuarios conectados en canales de voz',
+        }),
+      )
     })
   }
 }
