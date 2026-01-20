@@ -44,4 +44,5 @@ ENV PATH /root/.volta/bin:$PATH
 # Install pnpm and production dependencies only
 RUN npm install -g pnpm && pnpm install --prod --frozen-lockfile
 
-CMD [ "pnpm", "run", "start" ]
+# Run the compiled application directly in production
+CMD [ "node", "dist/main.js" ]
