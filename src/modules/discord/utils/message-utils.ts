@@ -1,4 +1,4 @@
-import type { MessageHistory, UserInfo } from '../../agents/utils/agent-types';
+import type { MessageHistory, UserInfo } from '../../agents/utils/agent-types'
 
 /**
  * Create a user message history entry
@@ -10,7 +10,7 @@ export function createUserMessage(userInfo: UserInfo, content: string): MessageH
     userId: userInfo.userId,
     content,
     timestamp: Date.now(),
-  };
+  }
 }
 
 /**
@@ -27,15 +27,40 @@ export function createBotMessage(
     userId: botId,
     content,
     timestamp: Date.now(),
-  };
+  }
 }
 
 /**
- * Extract message content by removing bot mentions
+ * Replace user mentions in message content with readable usernames
+ * Preserves the @ symbol so AI understands it's a user reference
+ * @param content The message content
+ * @param botId The bot's user ID to exclude from replacement
+ * @param getUserNameById Function to get username by ID
+ * @returns Content with user mentions replaced by @username
+ */
+export function replaceUserMentionsWithNames(
+  content: string,
+  botId: string,
+  getUserNameById: (userId: string) => string | undefined,
+): string {
+  return content
+    .replace(/<@!?(\d+)>/g, (match, userId) => {
+      if (userId === botId) {
+        return ''
+      }
+      const username = getUserNameById(userId)
+      return username ? `@${username}` : match
+    })
+    .trim()
+}
+
+/**
+ * Extract message content by removing bot mentions only
  * Discord mentions come in format <@BOT_ID> or <@!BOT_ID>
+ * @deprecated Use replaceUserMentionsWithNames instead for better AI understanding
  */
 export function extractMessageContent(content: string): string {
-  return content.replace(/<@!?\\d+>/g, '').trim();
+  return content.replace(/<@!?\\d+>/g, '').trim()
 }
 
 /**
@@ -45,5 +70,5 @@ export function extractUserInfo(author: { username: string; id: string }): UserI
   return {
     username: author.username,
     userId: author.id,
-  };
+  }
 }
