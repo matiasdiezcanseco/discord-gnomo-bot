@@ -7,12 +7,14 @@ import { LoggerService } from '../services/logger/logger.service'
 import { DiscordService } from './discord.service'
 import { getRandomConfusedPhrase } from './utils/confused-phrases'
 import { withTypingIndicator } from './utils/typing-indicator'
+import { sanitizeResponse } from '../agents/utils/text-utils'
 import {
   createUserMessage,
   createBotMessage,
   extractUserInfo,
   replaceUserMentionsWithNames,
 } from './utils/message-utils'
+import type { ImageAttachment } from '../agents/utils/agent-types'
 
 /**
  * Handles incoming Discord messages and routes them to assistant agent
@@ -35,6 +37,25 @@ export class MessageHandlerService implements OnModuleInit {
     const client = this.discord.getClient()
 
     client.on('messageCreate', (msg) => this.handleMessage(msg))
+  }
+
+  /**
+   * Extract image attachments from Discord message
+   */
+  private extractImages(msg: Message): ImageAttachment[] {
+    const images: ImageAttachment[] = []
+
+    for (const attachment of msg.attachments.values()) {
+      if (attachment.contentType?.startsWith('image/')) {
+        images.push({
+          url: attachment.url,
+          name: attachment.name,
+          contentType: attachment.contentType,
+        })
+      }
+    }
+
+    return images
   }
 
   /**
@@ -67,6 +88,9 @@ export class MessageHandlerService implements OnModuleInit {
     const userInfo = extractUserInfo(msg.author)
     const channelId = msg.channel.id
 
+    // Extract image attachments
+    const images = this.extractImages(msg)
+
     // Get conversation history and store user message
     const history = await this.redisHistory.getChannelHistory(channelId)
     await this.redisHistory.addMessage(channelId, createUserMessage(userInfo, content))
@@ -76,7 +100,7 @@ export class MessageHandlerService implements OnModuleInit {
 
     // Process message with typing indicator
     const response = await withTypingIndicator(msg.channel, () =>
-      this.assistantAgent.handle(content, userInfo, history, msg.guild, channel),
+      this.assistantAgent.handle(content, userInfo, history, msg.guild, channel, images),
     )
 
     if (response.success && response.text) {
@@ -94,7 +118,8 @@ export class MessageHandlerService implements OnModuleInit {
 
       await msg.reply(response.text)
     } else {
-      await msg.reply(getRandomConfusedPhrase())
+      const confusedPhrase = sanitizeResponse(getRandomConfusedPhrase())
+      await msg.reply(confusedPhrase)
     }
   }
 }
