@@ -4,26 +4,18 @@ import { z } from 'zod'
 import type { Guild, TextChannel } from 'discord.js'
 import type { AgentRegistry, ToolRegistry, UserInfo } from '../agents/utils/agent-types'
 import { ReminderAgent } from '../agents/reminder-agent'
+import { MemoryService } from '../services/memory/memory.service'
 
-/**
- * Token for injecting AgentRegistry
- */
 export const AGENT_REGISTRY = 'AGENT_REGISTRY'
 
-/**
- * Token for injecting ToolRegistry
- */
 export const TOOL_REGISTRY = 'TOOL_REGISTRY'
 
-/**
- * Service that creates AI SDK tools from agents and tools
- * Replaces the createRoutingTools function with proper dependency injection
- */
 @Injectable()
 export class RoutingToolsService {
   constructor(
     @Inject(AGENT_REGISTRY) private readonly agents: AgentRegistry,
     @Inject(TOOL_REGISTRY) private readonly tools: ToolRegistry,
+    private readonly memoryService: MemoryService,
   ) {}
 
   /**
@@ -180,6 +172,109 @@ export class RoutingToolsService {
 
           const response = await reminderAgent.handle(input)
           return { success: response.success, text: response.text }
+        },
+      }),
+      saveMemory: tool({
+        description:
+          'Guarda un hecho o información importante en la memoria a largo plazo. Úsalo cuando el usuario te pida explícitamente que recuerdes algo. Ejemplos: "recuerda que...", "guarda esto...", "anota que..."',
+        inputSchema: z.object({
+          key: z
+            .string()
+            .describe(
+              'Clave única en español y formato snake_case para identificar el recuerdo, ej: "jugadores_battlefield", "cumpleaños_juan"',
+            ),
+          content: z
+            .string()
+            .describe(
+              'El contenido a recordar, ej: "Los usuarios que juegan battlefield son: @juan, @pedro"',
+            ),
+          category: z
+            .enum(['users', 'preferences', 'facts', 'events', 'general'])
+            .optional()
+            .describe('Categoría del recuerdo'),
+        }),
+        execute: async ({ key, content, category }) => {
+          if (!this.memoryService.isEnabled()) {
+            return { success: false, text: 'Servicio de memoria no disponible' }
+          }
+
+          const memory = await this.memoryService.upsertMemory(key, content, {
+            category,
+            guildId: guild?.id,
+          })
+
+          if (memory) {
+            return { success: true, text: `Recuerdo guardado: ${key}` }
+          }
+          return { success: false, text: 'No se pudo guardar el recuerdo' }
+        },
+      }),
+      queryMemory: tool({
+        description:
+          'Busca en la memoria a largo plazo información relevante. Úsalo cuando necesites recordar hechos previos, preferencias de usuarios, o información guardada. Ejemplos: cuando te preguntan "¿quién juega X?", "¿qué te dije sobre Y?"',
+        inputSchema: z.object({
+          query: z.string().describe('La consulta para buscar recuerdos relevantes'),
+          category: z
+            .enum(['users', 'preferences', 'facts', 'events', 'general'])
+            .optional()
+            .describe('Filtrar por categoría específica'),
+        }),
+        execute: async ({ query, category }) => {
+          if (!this.memoryService.isEnabled()) {
+            return { success: false, memories: [], text: 'Servicio de memoria no disponible' }
+          }
+
+          const results = await this.memoryService.searchMemories(query, {
+            category,
+            guildId: guild?.id,
+            limit: 5,
+            threshold: 0.6,
+          })
+
+          if (results.length === 0) {
+            return { success: true, memories: [], text: 'No encontré recuerdos relevantes' }
+          }
+
+          const memories = results.map((r) => ({
+            key: r.memory.key,
+            content: r.memory.content,
+            category: r.memory.category,
+            relevance: Math.round(r.similarity * 100) / 100,
+          }))
+
+          return {
+            success: true,
+            memories,
+            text: `Encontré ${memories.length} recuerdo(s) relevante(s)`,
+          }
+        },
+      }),
+      autoSaveMemory: tool({
+        description:
+          'Guarda automáticamente información importante que el usuario comparte sin pedirlo explícitamente. Úsalo cuando detectes información valiosa como: preferencias personales, datos sobre usuarios (juegos que juegan, cumpleaños, etc.), o hechos importantes. NO lo uses para conversaciones casuales.',
+        inputSchema: z.object({
+          content: z
+            .string()
+            .describe(
+              'El hecho o información importante a guardar, se descriptivo para ayudar a la generación del embedding',
+            ),
+          category: z
+            .enum(['users', 'preferences', 'facts', 'events', 'general'])
+            .describe(
+              'Categoría: users=info de usuarios, preferences=gustos, facts=hechos, events=eventos',
+            ),
+        }),
+        execute: async ({ content, category }) => {
+          if (!this.memoryService.isEnabled()) {
+            return { success: false, saved: false }
+          }
+
+          const memory = await this.memoryService.saveMemory(content, {
+            category,
+            guildId: guild?.id,
+          })
+
+          return { success: true, saved: !!memory }
         },
       }),
     }

@@ -15,10 +15,8 @@ import {
   replaceUserMentionsWithNames,
 } from './utils/message-utils'
 import type { ImageAttachment } from '../agents/utils/agent-types'
+import { MemoryService } from '../services/memory/memory.service'
 
-/**
- * Handles incoming Discord messages and routes them to assistant agent
- */
 @Injectable()
 export class MessageHandlerService implements OnModuleInit {
   private readonly logger
@@ -28,6 +26,7 @@ export class MessageHandlerService implements OnModuleInit {
     private readonly discord: DiscordService,
     private readonly assistantAgent: AssistantAgent,
     private readonly redisHistory: RedisHistoryService,
+    private readonly memoryService: MemoryService,
     loggerService: LoggerService,
   ) {
     this.logger = loggerService.createLogger('message-handler')
@@ -95,12 +94,36 @@ export class MessageHandlerService implements OnModuleInit {
     const history = await this.redisHistory.getChannelHistory(channelId)
     await this.redisHistory.addMessage(channelId, createUserMessage(userInfo, content))
 
+    // Search for relevant memories from long-term storage
+    let memoryContext = ''
+    if (this.memoryService.isEnabled()) {
+      const memoryResults = await this.memoryService.searchMemories(content, {
+        guildId: msg.guild?.id,
+        limit: 5,
+        threshold: 0.6,
+      })
+
+      if (memoryResults.length > 0) {
+        memoryContext =
+          '\n\n=== MEMORIAS RELEVANTES ===\n' +
+          memoryResults.map((r) => `- ${r.memory.content}`).join('\n')
+      }
+    }
+
     // Get channel as TextChannel for reminder functionality
     const channel = msg.channel.type === ChannelType.GuildText ? (msg.channel as TextChannel) : null
 
     // Process message with typing indicator
     const response = await withTypingIndicator(msg.channel, () =>
-      this.assistantAgent.handle(content, userInfo, history, msg.guild, channel, images),
+      this.assistantAgent.handle(
+        content,
+        userInfo,
+        history,
+        msg.guild,
+        channel,
+        images,
+        memoryContext,
+      ),
     )
 
     if (response.success && response.text) {
