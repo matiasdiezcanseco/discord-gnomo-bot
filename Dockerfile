@@ -20,6 +20,10 @@ COPY package.json pnpm-lock.yaml ./
 # Install ALL dependencies (including devDependencies) for building
 RUN pnpm install --frozen-lockfile
 
+# Copy prisma schema and generate client
+COPY prisma ./prisma
+RUN pnpm run db:generate
+
 # Copy source code
 COPY . .
 
@@ -43,6 +47,10 @@ ENV PATH /root/.volta/bin:$PATH
 
 # Install pnpm and production dependencies only
 RUN npm install -g pnpm && pnpm install --prod --frozen-lockfile
+
+# Copy generated Prisma client from builder
+COPY --from=builder /app/node_modules/.prisma /app/node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma/client /app/node_modules/@prisma/client
 
 # Run the compiled application directly in production
 CMD [ "node", "dist/main.js" ]
