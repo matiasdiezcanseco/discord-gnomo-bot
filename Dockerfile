@@ -1,15 +1,6 @@
-FROM debian:bullseye as builder
+FROM node:23-bullseye as builder
 
-ARG NODE_VERSION=23.7.0
-
-RUN apt-get update; apt install -y curl python-is-python3 pkg-config build-essential
-RUN curl https://get.volta.sh | bash
-ENV VOLTA_HOME /root/.volta
-ENV PATH /root/.volta/bin:$PATH
-RUN volta install node@${NODE_VERSION}
 RUN npm install -g pnpm
-
-#######################################################################
 
 RUN mkdir /app
 WORKDIR /app
@@ -32,11 +23,10 @@ RUN pnpm run build
 
 #######################################################################
 
-FROM debian:bullseye
+FROM node:23-bullseye
 
 LABEL fly_launch_runtime="nodejs"
 
-COPY --from=builder /root/.volta /root/.volta
 COPY --from=builder /app/dist /app/dist
 COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/pnpm-lock.yaml /app/pnpm-lock.yaml
@@ -44,12 +34,11 @@ COPY --from=builder /app/prisma /app/prisma
 
 WORKDIR /app
 ENV NODE_ENV production
-ENV PATH /root/.volta/bin:$PATH
 
 # Install pnpm and production dependencies only
 RUN npm install -g pnpm && pnpm install --prod --frozen-lockfile
 
-# Install prisma CLI globally and generate client
+# Generate Prisma client
 RUN npm install -g prisma && prisma generate
 
 # Run the compiled application directly in production
