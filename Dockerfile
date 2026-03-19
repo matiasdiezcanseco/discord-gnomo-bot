@@ -49,8 +49,8 @@ ENV PATH /root/.volta/bin:$PATH
 # Install pnpm and production dependencies only
 RUN npm install -g pnpm && pnpm install --prod --frozen-lockfile
 
-# Generate Prisma client for production
-RUN npx prisma generate
+# Install prisma CLI globally and generate client
+RUN npm install -g prisma && prisma generate
 
 # Run the compiled application directly in production
 CMD [ "node", "dist/main.js" ]
