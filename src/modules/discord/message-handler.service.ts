@@ -90,32 +90,30 @@ export class MessageHandlerService implements OnModuleInit {
     // Extract image attachments
     const images = this.extractImages(msg)
 
-    // Get conversation history and store user message
-    const history = await this.redisHistory.getChannelHistory(channelId)
-    await this.redisHistory.addMessage(channelId, createUserMessage(userInfo, content))
+    // Start typing indicator immediately, then run all operations in parallel
+    const channel = msg.channel.type === ChannelType.GuildText ? (msg.channel as TextChannel) : null
 
-    // Search for relevant memories from long-term storage
-    let memoryContext = ''
-    if (this.memoryService.isEnabled()) {
-      const memoryResults = await this.memoryService.searchMemories(content, {
-        guildId: msg.guild?.id,
-        limit: 5,
-        threshold: 0.6,
-      })
+    const response = await withTypingIndicator(msg.channel, async () => {
+      const [history, , memoryResults] = await Promise.all([
+        this.redisHistory.getChannelHistory(channelId),
+        this.redisHistory.addMessage(channelId, createUserMessage(userInfo, content)),
+        this.memoryService.isEnabled()
+          ? this.memoryService.searchMemories(content, {
+              guildId: msg.guild?.id,
+              limit: 5,
+              threshold: 0.6,
+            })
+          : Promise.resolve([]),
+      ])
 
+      let memoryContext = ''
       if (memoryResults.length > 0) {
         memoryContext =
           '\n\n=== MEMORIAS RELEVANTES ===\n' +
           memoryResults.map((r) => `- ${r.memory.content}`).join('\n')
       }
-    }
 
-    // Get channel as TextChannel for reminder functionality
-    const channel = msg.channel.type === ChannelType.GuildText ? (msg.channel as TextChannel) : null
-
-    // Process message with typing indicator
-    const response = await withTypingIndicator(msg.channel, () =>
-      this.assistantAgent.handle(
+      return this.assistantAgent.handle(
         content,
         userInfo,
         history,
@@ -123,8 +121,8 @@ export class MessageHandlerService implements OnModuleInit {
         channel,
         images,
         memoryContext,
-      ),
-    )
+      )
+    })
 
     if (response.success && response.text) {
       this.logger.info({ agent: response.agentName }, 'Message handled')
