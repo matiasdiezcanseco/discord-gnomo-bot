@@ -40,6 +40,7 @@ COPY --from=builder /root/.volta /root/.volta
 COPY --from=builder /app/dist /app/dist
 COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/pnpm-lock.yaml /app/pnpm-lock.yaml
+COPY --from=builder /app/prisma /app/prisma
 
 WORKDIR /app
 ENV NODE_ENV production
@@ -48,9 +49,8 @@ ENV PATH /root/.volta/bin:$PATH
 # Install pnpm and production dependencies only
 RUN npm install -g pnpm && pnpm install --prod --frozen-lockfile
 
-# Copy generated Prisma client from builder
-COPY --from=builder /app/node_modules/.prisma /app/node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma/client /app/node_modules/@prisma/client
+# Generate Prisma client for production
+RUN npx prisma generate
 
 # Run the compiled application directly in production
 CMD [ "node", "dist/main.js" ]
