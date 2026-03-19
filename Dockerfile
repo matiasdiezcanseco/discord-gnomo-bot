@@ -39,7 +39,7 @@ ENV NODE_ENV production
 RUN npm install -g pnpm && pnpm install --prod --frozen-lockfile
 
 # Generate Prisma client
-RUN npm install -g prisma && prisma generate
+RUN pnpm exec prisma generate
 
 # Run the compiled application directly in production
 CMD [ "node", "dist/main.js" ]
