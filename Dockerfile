@@ -13,7 +13,7 @@ RUN pnpm install --frozen-lockfile
 
 # Copy prisma schema and generate client
 COPY prisma ./prisma
-RUN pnpm run db:generate
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost/dummy" pnpm run db:generate
 
 # Copy source code
 COPY . .
@@ -39,7 +39,7 @@ ENV NODE_ENV production
 RUN npm install -g pnpm && pnpm install --prod --frozen-lockfile
 
 # Generate Prisma client
-RUN npm install -g prisma && prisma generate
+RUN npm install -g prisma && DATABASE_URL="postgresql://dummy:dummy@localhost/dummy" prisma generate
 
 # Run the compiled application directly in production
 CMD [ "node", "dist/main.js" ]
