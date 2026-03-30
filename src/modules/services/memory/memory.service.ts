@@ -234,13 +234,64 @@ export class MemoryService {
       return null
     }
 
-    const existing = await this.getMemoryByKey(key, options.guildId)
+    try {
+      const textForEmbedding = this.buildEnhancedEmbeddingText(content, { ...options, key })
+      const embedding = await generateEmbedding(textForEmbedding, this.config)
+      const embeddingStr = JSON.stringify(embedding)
+      const category = options.category || 'general'
+      const guildId = options.guildId || null
 
-    if (existing) {
-      return this.updateMemory(key, content, options.guildId)
+      const rows = await this.db!.$queryRawUnsafe<
+        Array<{
+          id: string
+          key: string | null
+          content: string
+          category: string
+          guild_id: string | null
+          created_at: Date
+          updated_at: Date
+        }>
+      >(
+        `INSERT INTO memories (id, key, content, embedding, category, guild_id, created_at, updated_at)
+         VALUES (COALESCE(
+           (SELECT id FROM memories WHERE key = $1 AND ($2::text IS NULL OR guild_id = $2) LIMIT 1),
+           $3
+         ), $1, $4, $5::vector, $6, $2, NOW(), NOW())
+         ON CONFLICT (id) DO UPDATE SET
+           content = EXCLUDED.content,
+           embedding = EXCLUDED.embedding,
+           category = EXCLUDED.category,
+           updated_at = NOW()
+         RETURNING id, key, content, category, guild_id, created_at, updated_at`,
+        key,
+        guildId,
+        crypto.randomUUID(),
+        content,
+        embeddingStr,
+        category,
+      )
+
+      const row = rows[0]
+      if (!row) {
+        this.logError('upsert memory', new Error('No row returned from upsert'))
+        return null
+      }
+
+      this.logger.info(`Memory upserted: ${key} (id=${row.id})`, 'memory-service')
+      return this.mapRowToMemory({
+        id: row.id,
+        key: row.key,
+        content: row.content,
+        embedding: null,
+        category: row.category,
+        guildId: row.guild_id,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      })
+    } catch (error) {
+      this.logError('upsert memory', error)
+      return null
     }
-
-    return this.saveMemory(content, { ...options, key })
   }
 
   async searchMemories(

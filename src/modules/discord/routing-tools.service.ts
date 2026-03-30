@@ -251,7 +251,7 @@ export class RoutingToolsService {
       }),
       autoSaveMemory: tool({
         description:
-          'Guarda automáticamente información importante que el usuario comparte sin pedirlo explícitamente. Úsalo cuando detectes información valiosa como: preferencias personales, datos sobre usuarios (juegos que juegan, cumpleaños, etc.), o hechos importantes. NO lo uses para conversaciones casuales.',
+          'Guarda información MUY importante que el usuario comparte. SÚSELO con moderación: solo para datos concretos como cumpleaños, qué juegos juega cada usuario, o datos del usuario. NO lo uses para opiniones, planes vagos, o conversación casual. Si dudas, NO guardes.',
         inputSchema: z.object({
           content: z
             .string()

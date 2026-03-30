@@ -15,7 +15,6 @@ import {
   replaceUserMentionsWithNames,
 } from './utils/message-utils'
 import type { ImageAttachment } from '../agents/utils/agent-types'
-import { MemoryService } from '../services/memory/memory.service'
 
 @Injectable()
 export class MessageHandlerService implements OnModuleInit {
@@ -26,7 +25,6 @@ export class MessageHandlerService implements OnModuleInit {
     private readonly discord: DiscordService,
     private readonly assistantAgent: AssistantAgent,
     private readonly redisHistory: RedisHistoryService,
-    private readonly memoryService: MemoryService,
     loggerService: LoggerService,
   ) {
     this.logger = loggerService.createLogger('message-handler')
@@ -94,34 +92,12 @@ export class MessageHandlerService implements OnModuleInit {
     const channel = msg.channel.type === ChannelType.GuildText ? (msg.channel as TextChannel) : null
 
     const response = await withTypingIndicator(msg.channel, async () => {
-      const [history, , memoryResults] = await Promise.all([
+      const [history] = await Promise.all([
         this.redisHistory.getChannelHistory(channelId),
         this.redisHistory.addMessage(channelId, createUserMessage(userInfo, content)),
-        this.memoryService.isEnabled()
-          ? this.memoryService.searchMemories(content, {
-              guildId: msg.guild?.id,
-              limit: 5,
-              threshold: 0.6,
-            })
-          : Promise.resolve([]),
       ])
 
-      let memoryContext = ''
-      if (memoryResults.length > 0) {
-        memoryContext =
-          '\n\n=== MEMORIAS RELEVANTES ===\n' +
-          memoryResults.map((r) => `- ${r.memory.content}`).join('\n')
-      }
-
-      return this.assistantAgent.handle(
-        content,
-        userInfo,
-        history,
-        msg.guild,
-        channel,
-        images,
-        memoryContext,
-      )
+      return this.assistantAgent.handle(content, userInfo, history, msg.guild, channel, images)
     })
 
     if (response.success && response.text) {

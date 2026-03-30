@@ -10,7 +10,7 @@ export const DISCORD_MAX_MESSAGE_LENGTH = 2000
 export const TYPING_INDICATOR_INTERVAL_MS = 7000
 
 /** Maximum agent processing steps */
-export const MAX_AGENT_STEPS = 4
+export const MAX_AGENT_STEPS = 3
 
 /** Maximum web search results to return */
 export const MAX_SEARCH_RESULTS = 5

@@ -78,7 +78,6 @@ export class AssistantAgent implements Agent {
     guild?: Guild | null,
     channel?: TextChannel | null,
     images?: ImageAttachment[],
-    memoryContext?: string,
   ): Promise<AgentResponse> {
     try {
       // Convert history to AI SDK message format
@@ -86,7 +85,7 @@ export class AssistantAgent implements Agent {
 
       // Build system prompt with user context
       const userContext = userInfo ? `Estás hablando con ${userInfo.username}. ` : ''
-      const systemPrompt = getAssistantSystemPrompt(userContext, memoryContext)
+      const systemPrompt = getAssistantSystemPrompt(userContext)
 
       // Build current message with user context and optional images
       const currentMessageBase = userInfo ? `[${userInfo.username}]: ${message}` : message
