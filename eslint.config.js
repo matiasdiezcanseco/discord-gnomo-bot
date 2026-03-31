@@ -1,8 +1,8 @@
-import js from '@eslint/js';
-import tseslint from '@typescript-eslint/eslint-plugin';
-import tsparser from '@typescript-eslint/parser';
-import eslintConfigPrettier from 'eslint-config-prettier';
-import globals from 'globals';
+import js from '@eslint/js'
+import tseslint from '@typescript-eslint/eslint-plugin'
+import tsparser from '@typescript-eslint/parser'
+import eslintConfigPrettier from 'eslint-config-prettier'
+import globals from 'globals'
 
 export default [
   // Ignore patterns (replacing .eslintignore)
@@ -31,8 +31,9 @@ export default [
     rules: {
       ...tseslint.configs.recommended.rules,
       '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
   // Prettier integration (must be last)
   eslintConfigPrettier,
-];
+]

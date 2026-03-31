@@ -1,4 +1,4 @@
-import { DISCORD_MAX_MESSAGE_LENGTH } from '../../config/constants'
+import { DISCORD_MAX_MESSAGE_LENGTH } from '../../../modules/config/constants'
 
 /**
  * Truncate text to a maximum length, adding ellipsis if truncated

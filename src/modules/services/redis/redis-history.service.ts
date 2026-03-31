@@ -2,7 +2,7 @@ import { Injectable, OnModuleDestroy, Inject } from '@nestjs/common'
 import IORedis from 'ioredis'
 import { ConfigService } from '@nestjs/config'
 import { LoggerService } from '../logger/logger.service'
-import type { MessageHistory } from '../../agents/utils/agent-types'
+import type { MessageHistory } from '../../../core/context/bot-context'
 
 @Injectable()
 export class RedisHistoryService implements OnModuleDestroy {

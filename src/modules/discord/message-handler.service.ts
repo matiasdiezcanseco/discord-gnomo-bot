@@ -1,20 +1,20 @@
 import { Injectable, OnModuleInit } from '@nestjs/common'
-import { ChannelType, type Message, type TextChannel } from 'discord.js'
-import { AssistantAgent } from '../agents/assistant-agent'
+import { ChannelType, type Message } from 'discord.js'
 import { ConfigService } from '@nestjs/config'
+import { OrchestratorService } from '../../core/orchestrator/orchestrator.service'
 import { RedisHistoryService } from '../services/redis/redis-history.service'
 import { LoggerService } from '../services/logger/logger.service'
 import { DiscordService } from './discord.service'
 import { getRandomConfusedPhrase } from './utils/confused-phrases'
 import { withTypingIndicator } from './utils/typing-indicator'
-import { sanitizeResponse } from '../agents/utils/text-utils'
+import { sanitizeResponse } from '../../core/orchestrator/utils/text-utils'
 import {
   createUserMessage,
   createBotMessage,
   extractUserInfo,
   replaceUserMentionsWithNames,
 } from './utils/message-utils'
-import type { ImageAttachment } from '../agents/utils/agent-types'
+import type { BotContext, ImageAttachment } from '../../core/context/bot-context'
 
 @Injectable()
 export class MessageHandlerService implements OnModuleInit {
@@ -23,7 +23,7 @@ export class MessageHandlerService implements OnModuleInit {
   constructor(
     private readonly config: ConfigService,
     private readonly discord: DiscordService,
-    private readonly assistantAgent: AssistantAgent,
+    private readonly orchestrator: OrchestratorService,
     private readonly redisHistory: RedisHistoryService,
     loggerService: LoggerService,
   ) {
@@ -36,9 +36,6 @@ export class MessageHandlerService implements OnModuleInit {
     client.on('messageCreate', (msg) => this.handleMessage(msg))
   }
 
-  /**
-   * Extract image attachments from Discord message
-   */
   private extractImages(msg: Message): ImageAttachment[] {
     const images: ImageAttachment[] = []
 
@@ -55,41 +52,28 @@ export class MessageHandlerService implements OnModuleInit {
     return images
   }
 
-  /**
-   * Handle incoming Discord messages
-   */
   async handleMessage(msg: Message): Promise<void> {
-    // Ignore bot messages
     if (msg.author.bot) return
 
-    // Only respond in configured guild
     const guildId = this.config.get<string>('GUILD_ID')
     if (msg.guild?.id !== guildId) return
 
     this.logger.debug({ username: msg.author.username, content: msg.content }, 'Message received')
 
-    // Check if bot is mentioned
     if (!this.discord.getClient().user || !msg.mentions.has(this.discord.getClient().user!.id))
       return
 
-    // Skip unsupported channel types (e.g., PartialGroupDMChannel)
     if (msg.channel.type === ChannelType.GroupDM) return
 
     const botUserId = this.discord.getClient().user!.id
 
-    // Replace user mentions with readable usernames for AI understanding
     const content = replaceUserMentionsWithNames(msg.content, botUserId, (userId) => {
       const member = msg.mentions.members?.get(userId)
       return member?.displayName || member?.user?.username
     })
     const userInfo = extractUserInfo(msg.author)
     const channelId = msg.channel.id
-
-    // Extract image attachments
     const images = this.extractImages(msg)
-
-    // Start typing indicator immediately, then run all operations in parallel
-    const channel = msg.channel.type === ChannelType.GuildText ? (msg.channel as TextChannel) : null
 
     const response = await withTypingIndicator(msg.channel, async () => {
       const [history] = await Promise.all([
@@ -97,13 +81,22 @@ export class MessageHandlerService implements OnModuleInit {
         this.redisHistory.addMessage(channelId, createUserMessage(userInfo, content)),
       ])
 
-      return this.assistantAgent.handle(content, userInfo, history, msg.guild, channel, images)
+      const ctx: BotContext = {
+        message: content,
+        userInfo,
+        channel: { id: channelId },
+        guildId: msg.guild!.id,
+        images,
+        history,
+        guild: msg.guild!,
+      }
+
+      return this.orchestrator.handle(ctx)
     })
 
     if (response.success && response.text) {
-      this.logger.info({ agent: response.agentName }, 'Message handled')
+      this.logger.info('Message handled')
 
-      // Store bot response in history
       await this.redisHistory.addMessage(
         channelId,
         createBotMessage(

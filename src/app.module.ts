@@ -5,7 +5,6 @@ import { RedisModule } from './modules/services/redis/redis.module'
 import { BucketModule } from './modules/services/bucket/bucket.module'
 import { ReminderModule } from './modules/services/reminder/reminder.module'
 import { MemoryModule } from './modules/services/memory/memory.module'
-import { AgentsModule } from './modules/agents/agents.module'
 import { DiscordModule } from './modules/discord/discord.module'
 import { ScheduleModule } from './modules/schedule/schedule.module'
 import { HealthModule } from './modules/health/health.module'
@@ -31,7 +30,6 @@ import { HealthModule } from './modules/health/health.module'
     BucketModule,
     ReminderModule,
     MemoryModule,
-    AgentsModule,
     DiscordModule,
     ScheduleModule,
     HealthModule,

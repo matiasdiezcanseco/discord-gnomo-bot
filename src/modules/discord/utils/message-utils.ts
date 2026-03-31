@@ -1,4 +1,4 @@
-import type { MessageHistory, UserInfo } from '../../agents/utils/agent-types'
+import type { MessageHistory, UserInfo } from '../../../core/context/bot-context'
 
 /**
  * Create a user message history entry

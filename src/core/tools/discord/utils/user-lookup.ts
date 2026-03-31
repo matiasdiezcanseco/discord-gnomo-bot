@@ -1,12 +1,12 @@
-import type { Guild, GuildMember } from 'discord.js';
-import { LoggerService } from '../../services/logger/logger.service';
+import type { Guild, GuildMember } from 'discord.js'
+import { LoggerService } from '../../../../modules/services/logger/logger.service'
 
 /**
  * Search predicate for matching a member by username or display name
  */
 const matchesMember = (member: GuildMember, searchName: string): boolean =>
   member.user.username.toLowerCase() === searchName ||
-  member.displayName.toLowerCase() === searchName;
+  member.displayName.toLowerCase() === searchName
 
 /**
  * Find a user in a guild by username or display name (case-insensitive)
@@ -14,12 +14,9 @@ const matchesMember = (member: GuildMember, searchName: string): boolean =>
  * @param name The username or display name to search for
  * @returns The matching GuildMember or null if not found
  */
-export function findUserByName(
-  guild: Guild,
-  name: string,
-): GuildMember | null {
-  const searchName = name.toLowerCase().trim();
-  return guild.members.cache.find((m) => matchesMember(m, searchName)) ?? null;
+export function findUserByName(guild: Guild, name: string): GuildMember | null {
+  const searchName = name.toLowerCase().trim()
+  return guild.members.cache.find((m) => matchesMember(m, searchName)) ?? null
 }
 
 /**
@@ -33,19 +30,19 @@ export async function findUserByNameAsync(
   name: string,
   logger: LoggerService,
 ): Promise<GuildMember | null> {
-  const searchName = name.toLowerCase().trim();
+  const searchName = name.toLowerCase().trim()
 
   // Try cache first
-  const cachedMember = findUserByName(guild, name);
-  if (cachedMember) return cachedMember;
+  const cachedMember = findUserByName(guild, name)
+  if (cachedMember) return cachedMember
 
   // Use search API instead of fetching all members (more efficient for large guilds)
   try {
-    const members = await guild.members.search({ query: name, limit: 10 });
-    return members.find((m) => matchesMember(m, searchName)) ?? null;
+    const members = await guild.members.search({ query: name, limit: 10 })
+    return members.find((m) => matchesMember(m, searchName)) ?? null
   } catch (error) {
-    logger.error({ err: error, query: name }, 'Failed to search guild members');
-    return null;
+    logger.error({ err: error, query: name }, 'Failed to search guild members')
+    return null
   }
 }
 
@@ -60,19 +57,19 @@ export async function getAllUsersInGuild(
 ): Promise<GuildMember[]> {
   try {
     // First, try to get from cache
-    const cachedMembers = Array.from(guild.members.cache.values());
+    const cachedMembers = Array.from(guild.members.cache.values())
 
     // If cache is not complete, fetch all members
     if (cachedMembers.length < guild.memberCount) {
-      await guild.members.fetch();
-      return Array.from(guild.members.cache.values());
+      await guild.members.fetch()
+      return Array.from(guild.members.cache.values())
     }
 
-    return cachedMembers;
+    return cachedMembers
   } catch (error) {
-    logger.error({ err: error }, 'Failed to fetch all guild members');
+    logger.error({ err: error }, 'Failed to fetch all guild members')
     // Return cached members as fallback
-    return Array.from(guild.members.cache.values());
+    return Array.from(guild.members.cache.values())
   }
 }
 
@@ -80,13 +77,13 @@ export async function getAllUsersInGuild(
  * Information about a user in a voice channel
  */
 export interface VoiceUserInfo {
-  member: GuildMember;
-  channelId: string;
-  channelName: string | null;
-  selfMute: boolean;
-  selfDeaf: boolean;
-  serverMute: boolean;
-  serverDeaf: boolean;
+  member: GuildMember
+  channelId: string
+  channelName: string | null
+  selfMute: boolean
+  selfDeaf: boolean
+  serverMute: boolean
+  serverDeaf: boolean
 }
 
 /**
@@ -94,18 +91,15 @@ export interface VoiceUserInfo {
  * @param guild The Discord guild to check
  * @returns Array of VoiceUserInfo objects
  */
-export function getUsersInVoiceChannels(
-  guild: Guild,
-  logger: LoggerService,
-): VoiceUserInfo[] {
+export function getUsersInVoiceChannels(guild: Guild, logger: LoggerService): VoiceUserInfo[] {
   try {
-    const voiceUsers: VoiceUserInfo[] = [];
+    const voiceUsers: VoiceUserInfo[] = []
 
     // Iterate through all voice states in guild
     for (const [, voiceState] of guild.voiceStates.cache) {
       // Only include users that are in a voice channel (have a channelId)
       if (voiceState.channelId && voiceState.member) {
-        const channel = voiceState.channel;
+        const channel = voiceState.channel
         voiceUsers.push({
           member: voiceState.member,
           channelId: voiceState.channelId,
@@ -114,13 +108,13 @@ export function getUsersInVoiceChannels(
           selfDeaf: voiceState.deaf || false,
           serverMute: voiceState.serverMute || false,
           serverDeaf: voiceState.serverDeaf || false,
-        });
+        })
       }
     }
 
-    return voiceUsers;
+    return voiceUsers
   } catch (error) {
-    logger.error({ err: error }, 'Failed to get users in voice channels');
-    return [];
+    logger.error({ err: error }, 'Failed to get users in voice channels')
+    return []
   }
 }
