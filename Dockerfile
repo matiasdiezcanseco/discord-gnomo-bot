@@ -1,4 +1,4 @@
-FROM node:23-bullseye as builder
+FROM node:24-bullseye as builder
 
 RUN mkdir /app
 WORKDIR /app
@@ -21,7 +21,7 @@ RUN npm run build
 
 #######################################################################
 
-FROM node:23-bullseye
+FROM node:24-bullseye
 
 LABEL fly_launch_runtime="nodejs"
 
