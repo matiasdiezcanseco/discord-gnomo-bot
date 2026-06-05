@@ -29,7 +29,7 @@ You can also chat naturally with the bot. It will understand requests like:
 1. Install dependencies:
 
 ```bash
-pnpm install
+npm install
 ```
 
 2. Copy `.env-example` to `.env` and fill in your credentials:
@@ -49,7 +49,7 @@ Required environment variables:
 3. Run the bot:
 
 ```bash
-pnpm dev
+npm run dev
 ```
 
 ### Deployment
@@ -57,5 +57,5 @@ pnpm dev
 Deploy to Fly.io:
 
 ```bash
-pnpm deploy
+npm run deploy
 ```
