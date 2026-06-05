@@ -6,7 +6,7 @@ RUN mkdir /app
 WORKDIR /app
 
 # Copy package files first for better layer caching
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Install ALL dependencies (including devDependencies) for building
 RUN pnpm install --frozen-lockfile
@@ -30,6 +30,7 @@ LABEL fly_launch_runtime="nodejs"
 COPY --from=builder /app/dist /app/dist
 COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/pnpm-lock.yaml /app/pnpm-lock.yaml
+COPY --from=builder /app/pnpm-workspace.yaml /app/pnpm-workspace.yaml
 COPY --from=builder /app/prisma /app/prisma
 
 WORKDIR /app
