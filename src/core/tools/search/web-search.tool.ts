@@ -7,12 +7,16 @@ import type { BotTool } from '../tool.interface'
 import type { BotContext } from '../../context/bot-context'
 import { ConfigService } from '@nestjs/config'
 import { MAX_SEARCH_RESULTS } from '../../../modules/config/constants'
+import { LoggerService } from '../../../modules/services/logger/logger.service'
 
 @Injectable()
 export class WebSearchTool implements BotTool {
   readonly name = 'web-search'
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly logger: LoggerService,
+  ) {}
 
   build(_ctx: BotContext): Record<string, Tool> {
     return {
@@ -23,9 +27,12 @@ export class WebSearchTool implements BotTool {
           query: z.string().describe('La consulta de búsqueda en español o inglés'),
         }),
         execute: async ({ query }) => {
+          this.logger.debug({ query }, 'Performing web search')
+
           const apiKey = this.config.get<string>('TAVILY_API_KEY')
 
           if (!apiKey) {
+            this.logger.warn({ query }, 'Tavily API key not configured')
             return { success: false, text: 'Error: Tavily API key no configurada' }
           }
 
@@ -37,6 +44,7 @@ export class WebSearchTool implements BotTool {
             })
 
             if (!response?.results?.length) {
+              this.logger.debug({ query }, 'No search results found')
               return { success: false, text: 'No se encontraron resultados para tu búsqueda' }
             }
 
@@ -51,8 +59,18 @@ export class WebSearchTool implements BotTool {
               ? `${response.answer}\n\nFuentes:\n${formattedResults}`
               : formattedResults
 
+            this.logger.log(
+              {
+                query,
+                resultsCount: response.results.length,
+                hasAnswer: !!response.answer,
+              },
+              'Web search completed successfully',
+            )
+
             return { success: true, text: resultText }
-          } catch {
+          } catch (error) {
+            this.logger.error({ err: error, query }, 'Web search failed')
             return { success: false, text: 'Error al realizar la búsqueda' }
           }
         },
