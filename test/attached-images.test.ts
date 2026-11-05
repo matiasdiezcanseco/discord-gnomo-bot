@@ -458,3 +458,13 @@ test('image retrieval and SDK/tool attempts share the eight-call budget', async 
   assert.equal(turns, 2)
   assert.match(a.replies.join(''), /presupuesto/)
 })
+
+test('PNG with complete pixel data but missing terminal container is rejected', async (t) => {
+  const bytes = png.subarray(0, png.length - 12)
+  const a = await setup(t, bytes)
+  const i = input()
+  i.attachments[0].size = bytes.length
+  await a.run(i)
+  assert.equal(a.model.doGenerateCalls.length, 0)
+  assert.match(a.replies.join(''), /imagen|adjuntos/)
+})

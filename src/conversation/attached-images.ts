@@ -23,7 +23,7 @@ const maxBytes = 2_500_000
 export function attachedImages(reader: SafeReader) {
   return async (context: ExecutionContext): Promise<VerifiedImage[]> => {
     const { invocation, signal } = context
-    const fail = (reason: string): never => {
+    function fail(reason: string): never {
       throw new AttachmentError(`No pude usar los adjuntos: ${reason}`)
     }
     if (invocation.attachments.length > 2) fail('máximo dos imágenes y 5 MB en total.')
@@ -41,7 +41,6 @@ export function attachedImages(reader: SafeReader) {
         fail(
           `descarga ${result.status}; puede estar caducada, bloqueada, incompleta o exceder el límite.`,
         )
-      if (result.status !== 'complete') throw new Error('unreachable')
       total += result.bytes.length
       if (total > 5_000_000 || result.bytes.length !== attachment.size)
         fail('el tamaño real no coincide con el declarado o supera 5 MB.')
@@ -56,12 +55,28 @@ export function attachedImages(reader: SafeReader) {
       const mime = format && `image/${format}`
       if (!mime || mime !== claimed || mime !== result.contentType.split(';')[0].trim())
         fail('la firma de imagen y los tipos MIME no coinciden.')
+      if (format === 'png') {
+        let ended = false
+        for (let offset = 8; offset < bytes.length; ) {
+          if (bytes.length - offset < 12) fail('contenedor de imagen incompleto.')
+          const length = bytes.readUInt32BE(offset)
+          const type = bytes.toString('ascii', offset + 4, offset + 8)
+          const next = offset + 12 + length
+          if (next > bytes.length || type === 'acTL') fail('imagen incompleta o animada.')
+          if (type === 'IEND') {
+            if (length || next !== bytes.length) fail('final de imagen inválido.')
+            ended = true
+          }
+          offset = next
+        }
+        if (!ended) fail('falta el final de la imagen PNG.')
+      }
       const decoder = sharp(bytes, {
         failOn: 'warning',
         limitInputPixels: 4_000_000,
         animated: true,
       }).timeout({ seconds: 1 })
-      const abort = () => decoder.destroy(new Error('cancelled'))
+      const abort = () => decoder.destroy()
       signal.addEventListener('abort', abort, { once: true })
       try {
         const metadata = await decoder.metadata()
@@ -80,14 +95,14 @@ export function attachedImages(reader: SafeReader) {
         signal.throwIfAborted()
         images.push({
           bytes,
-          mediaType: mime!,
+          mediaType: mime,
           source: {
             attachmentId: attachment.id,
             messageId: invocation.messageId,
             requesterId: invocation.requester.id,
             channelId: invocation.channelId,
-            width: metadata.width!,
-            height: metadata.height!,
+            width: metadata.width,
+            height: metadata.height,
             retrievedAt: result.retrievedAt,
           },
         })
