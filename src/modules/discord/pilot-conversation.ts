@@ -8,6 +8,7 @@ import { aiSdkModel } from '../../conversation/ai-sdk-model'
 import { pilotCatalog } from '../../conversation/pilot-catalog'
 import { redisClaims } from '../../conversation/redis-claims'
 import { discordHistory } from './channel-history'
+import { bucketCollection } from '../../conversation/collection-content'
 
 export function composePilot(
   client: Client,
@@ -53,14 +54,17 @@ export function composePilot(
     }
     return (
       !tool ||
-      (['pilot.status', 'messages.history'].includes(tool.capability) && tool.effect === 'read')
+      (['pilot.status', 'messages.history', 'collection.phrase', 'collection.photo'].includes(
+        tool.capability,
+      ) &&
+        tool.effect === 'read')
     )
   }
   const history = discordHistory(client, (invocation) => authorize(invocation))
   return createConversation({
     loadContext: async (context) => history(context, 30),
     model,
-    catalog: pilotCatalog(history),
+    catalog: pilotCatalog(bucketCollection(config.get<string>('BUCKET_URL')), history),
     trace,
     concurrency: config.get<number>('CONVERSATION_CONCURRENCY', 4),
     claim: redis

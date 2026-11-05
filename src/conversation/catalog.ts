@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { Invocation } from '../core/conversation/invocation'
+import type { ToolResult } from './harness'
 
 export class PartialResult<T> {
   constructor(readonly value: T) {}
@@ -26,6 +27,12 @@ export interface Capability {
   output: z.ZodType
   maxCalls: number
   maxResultChars: number
+  /** Anchored, local recognition only. Selected calls still pass through Executor. */
+  direct?: {
+    matches(invocation: Invocation): boolean
+    input: unknown
+    render(result: ToolResult): string
+  }
   available(context: ExecutionContext): Promise<boolean>
   execute(input: unknown, context: ExecutionContext): Promise<unknown>
 }
