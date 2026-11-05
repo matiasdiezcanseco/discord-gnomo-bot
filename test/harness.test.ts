@@ -189,6 +189,60 @@ class ManualClock {
   }
 }
 
+test('trusted mention resolution shares the external deadline and never grants permission after cancellation', async () => {
+  const clock = new ManualClock()
+  const replies: { content: string; allowedMentions: { users: string[] } }[] = []
+  let started!: () => void
+  const ready = new Promise<void>((resolve) => {
+    started = resolve
+  })
+  let signal: AbortSignal | undefined
+  const running = createConversation({
+    clock,
+    claim: async () => true,
+    authorize: async () => true,
+    model: { generate: async () => ({ text: '<@111>', calls: [] }) },
+    allowedUserMentions: async (_, context) =>
+      context.external(async () => {
+        signal = context.signal
+        started()
+        return new Promise<string[]>(() => {})
+      }),
+    reply: async (_, reply) => {
+      replies.push(reply)
+    },
+  }).handle(invocation)
+  await ready
+  clock.advance(12000)
+  await running
+  assert.equal(signal?.aborted, true)
+  assert.deepEqual(replies[0].allowedMentions.users, [])
+  assert.match(replies[0].content, /tiempo/)
+})
+
+test('trusted mention subcalls cannot exceed the same eight-call allowance as the model', async () => {
+  let effects = 0
+  const replies: { content: string; allowedMentions: { users: string[] } }[] = []
+  await createConversation({
+    claim: async () => true,
+    authorize: async () => true,
+    model: { generate: async () => ({ text: '<@111>', calls: [] }) },
+    allowedUserMentions: async (_, context) => {
+      for (let call = 0; call < 8; call++)
+        await context.external(async () => {
+          effects++
+        })
+      return ['111']
+    },
+    reply: async (_, reply) => {
+      replies.push(reply)
+    },
+  }).handle(invocation)
+  assert.equal(effects, 7)
+  assert.deepEqual(replies[0].allowedMentions.users, [])
+  assert.match(replies[0].content, /presupuesto/)
+})
+
 test('external work is cancelled at twelve seconds and a visible notice is delivered', async () => {
   const clock = new ManualClock()
   const replies: string[] = []

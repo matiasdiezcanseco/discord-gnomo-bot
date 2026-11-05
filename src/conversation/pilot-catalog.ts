@@ -1,9 +1,12 @@
 import { z } from 'zod'
 import { Catalog, defineCapability } from './catalog'
+import { memberCapabilities } from './member-capabilities'
+import type { MemberDirectory } from './member-directory'
 
 /** Single composition point. Future capability modules export definitions, never edit the loop. */
-export function pilotCatalog() {
+export function pilotCatalog(members?: MemberDirectory) {
   return new Catalog([
+    ...(members ? memberCapabilities(members) : []),
     defineCapability({
       name: 'pilot_status',
       description: 'Comprueba que la conversación usa el harness autorizado del piloto.',

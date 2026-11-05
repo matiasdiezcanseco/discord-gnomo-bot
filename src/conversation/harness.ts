@@ -1,5 +1,5 @@
 import type { Invocation } from '../core/conversation/invocation'
-import { Catalog, type Capability } from './catalog'
+import { Catalog, type Capability, type ExecutionContext } from './catalog'
 import { Budget, systemClock, type Clock } from './budget'
 import { splitReply } from './delivery'
 import { Admission } from './admission'
@@ -53,7 +53,10 @@ export interface ConversationPorts {
   authorize(invocation: Invocation, tool?: Capability): Promise<boolean>
   claim(invocation: Invocation): Promise<boolean>
   reply(invocation: Invocation, reply: Reply): Promise<void>
-  allowedUserMentions?(invocation: Invocation): Promise<string[]>
+  allowedUserMentions?(
+    invocation: Invocation,
+    context: ExecutionContext,
+  ): Promise<string[] | { users: string[]; clarification?: string }>
   trace?(trace: Trace): void
 }
 
@@ -93,6 +96,7 @@ export function createConversation(ports: ConversationPorts) {
       }
       const executor = new Executor(invocation, tools, budget, ports.authorize, trace)
       let text = ''
+      let users: string[] = []
       let claimed = false
       let release: (() => void) | undefined
       try {
@@ -125,6 +129,18 @@ export function createConversation(ports: ConversationPorts) {
             }
             if (budget.steps === 5) text = ''
           }
+          if (ports.allowedUserMentions) {
+            const resolved = await budget.wait(() =>
+              ports.allowedUserMentions!(invocation, {
+                invocation,
+                signal,
+                idempotencyKey: invocation.messageId,
+                external: (work) => budget.external(work),
+              }),
+            )
+            users = Array.isArray(resolved) ? resolved : resolved.users
+            if (!Array.isArray(resolved) && resolved.clarification) text = resolved.clarification
+          }
         }
       } catch {
         trace('stopped', signal.aborted ? 'timeout' : 'error')
@@ -153,9 +169,6 @@ export function createConversation(ports: ConversationPorts) {
       }
       const delivery = new Budget(clock, budget.startedAt, 15000)
       try {
-        const users = ports.allowedUserMentions
-          ? await delivery.wait(() => ports.allowedUserMentions!(invocation))
-          : []
         for (const content of chunks) {
           if (!(await delivery.wait(() => ports.authorize(invocation)))) {
             trace('delivery', 'denied')
