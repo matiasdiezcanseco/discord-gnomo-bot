@@ -59,7 +59,7 @@ function setup(data: unknown, name = 'public_search', input: unknown = { query: 
     Date.parse('2026-11-05T12:00:00Z'),
   )
   const ports = {
-    catalog: pilotCatalog(undefined, source),
+    catalog: pilotCatalog(undefined, undefined, undefined, source),
     model: model(name, input),
     claim: async () => true,
     authorize: async () => true,
@@ -171,7 +171,7 @@ for (const status of [429, 503]) {
         },
       }),
     )
-    app.ports.catalog = pilotCatalog(undefined, source)
+    app.ports.catalog = pilotCatalog(undefined, undefined, undefined, source)
     await app.run()
     await app.run()
     assert.match(app.text(), status === 429 ? /rate_limited/ : /transient/)
@@ -307,7 +307,7 @@ test('time exhaustion keeps confirmed sources and aborts the next external searc
     }),
   )
   await createConversation({
-    catalog: pilotCatalog(undefined, source),
+    catalog: pilotCatalog(undefined, undefined, undefined, source),
     model: {
       generate: async ({ results }) => ({
         text: '',
@@ -409,6 +409,7 @@ test(
     const reply = async (_: unknown, value: Reply) => {
       replies.push(value)
     }
+    const discordFetch: typeof fetch = async () => Response.json([])
     try {
       for (const name of ['public_search', 'news_search']) {
         const input = {
@@ -417,7 +418,7 @@ test(
             ? { period: { startDate: '2026-11-01', endDate: '2026-11-05' } }
             : {}),
         }
-        const app = composePilot(client, config, redis, undefined, model(name, input))
+        const app = composePilot(client, config, redis, undefined, model(name, input), discordFetch)
         const event = { ...invocation, messageId: randomUUID() }
         await Promise.all([app.handle(event, reply), app.handle(event, reply)])
       }
@@ -434,6 +435,7 @@ test(
         redis,
         undefined,
         model('public_search', { query: 'blocked' }),
+        discordFetch,
       ).handle({ ...invocation, messageId: randomUUID() }, reply)
       assert.equal(replies.length, 2)
       assert.equal(requests.length, 2)

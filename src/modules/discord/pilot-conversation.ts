@@ -8,6 +8,9 @@ import { createConversation, type ConversationPorts } from '../../conversation/h
 import { aiSdkModel } from '../../conversation/ai-sdk-model'
 import { pilotCatalog } from '../../conversation/pilot-catalog'
 import { redisClaims } from '../../conversation/redis-claims'
+import { discordMembers } from './members'
+import { memberMentions } from '../../conversation/member-mentions'
+import { discordHistory } from './channel-history'
 import { bucketCollection } from '../../conversation/collection-content'
 
 export function composePilot(
@@ -16,13 +19,69 @@ export function composePilot(
   redis: Redis | null,
   trace: ConversationPorts['trace'],
   model = aiSdkModel(openai(config.get<string>('OPENAI_MODEL', 'gpt-4o-mini'))),
+  discordFetch: typeof fetch = fetch,
 ) {
+  const members = discordMembers(client, discordFetch)
+  const authorize: ConversationPorts['authorize'] = async (invocation, tool) => {
+    if (invocation.guildId !== config.get<string>('GUILD_ID')) return false
+    if (
+      !config
+        .get<string>('CONVERSATION_PILOT_CHANNEL_IDS', '')
+        .split(',')
+        .map((id) => id.trim())
+        .includes(invocation.channelId)
+    )
+      return false
+    // Fresh membership and channel data; model arguments never participate in this lookup.
+    const guild = await client.guilds.fetch(invocation.guildId)
+    const channel = await guild.channels.fetch(invocation.channelId, { force: true })
+    if (!channel || !channel.isTextBased() || !client.user) return false
+    const [requester, bot] = await Promise.all([
+      guild.members.fetch({ user: invocation.requester.id, force: true }),
+      guild.members.fetch({ user: client.user.id, force: true }),
+    ])
+    const read = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory]
+    const send = channel.isThread()
+      ? PermissionFlagsBits.SendMessagesInThreads
+      : PermissionFlagsBits.SendMessages
+    if (
+      !channel.permissionsFor(requester)?.has(read) ||
+      !channel.permissionsFor(bot)?.has([...read, send])
+    )
+      return false
+    if (channel.isThread() && (channel.archived || channel.locked)) return false
+    if (channel.type === ChannelType.PrivateThread && channel.isThread()) {
+      try {
+        await Promise.all([channel.members.fetch(requester.id), channel.members.fetch(bot.id)])
+      } catch {
+        return false
+      }
+    }
+    return (
+      !tool ||
+      ([
+        'pilot.status',
+        'messages.history',
+        'collection.phrase',
+        'collection.photo',
+        'discord.members',
+        'web.search',
+        'web.news',
+      ].includes(tool.capability) &&
+        tool.effect === 'read')
+    )
+  }
+  const history = discordHistory(client, (invocation) => authorize(invocation), discordFetch)
   return createConversation({
+    loadContext: async (context) => history(context, 30),
     model,
     catalog: pilotCatalog(
       bucketCollection(config.get<string>('BUCKET_URL')),
+      members,
+      history,
       tavilySearch(config.get<string>('TAVILY_API_KEY')),
     ),
+    allowedUserMentions: memberMentions(members),
     trace,
     concurrency: config.get<number>('CONVERSATION_CONCURRENCY', 4),
     claim: redis
@@ -30,53 +89,7 @@ export function composePilot(
       : async () => {
           throw new Error('Redis unavailable')
         },
-    authorize: async (invocation, tool) => {
-      if (invocation.guildId !== config.get<string>('GUILD_ID')) return false
-      if (
-        !config
-          .get<string>('CONVERSATION_PILOT_CHANNEL_IDS', '')
-          .split(',')
-          .map((id) => id.trim())
-          .includes(invocation.channelId)
-      )
-        return false
-      // Fresh membership and channel data; model arguments never participate in this lookup.
-      const guild = await client.guilds.fetch(invocation.guildId)
-      const channel = await guild.channels.fetch(invocation.channelId, { force: true })
-      if (!channel || !channel.isTextBased() || !client.user) return false
-      const [requester, bot] = await Promise.all([
-        guild.members.fetch({ user: invocation.requester.id, force: true }),
-        guild.members.fetch({ user: client.user.id, force: true }),
-      ])
-      const read = PermissionFlagsBits.ViewChannel
-      const send = channel.isThread()
-        ? PermissionFlagsBits.SendMessagesInThreads
-        : PermissionFlagsBits.SendMessages
-      if (
-        !channel.permissionsFor(requester)?.has(read) ||
-        !channel.permissionsFor(bot)?.has([read, send])
-      )
-        return false
-      if (channel.isThread() && (channel.archived || channel.locked)) return false
-      if (channel.type === ChannelType.PrivateThread && channel.isThread()) {
-        try {
-          await Promise.all([channel.members.fetch(requester.id), channel.members.fetch(bot.id)])
-        } catch {
-          return false
-        }
-      }
-      return (
-        !tool ||
-        ([
-          'pilot.status',
-          'collection.phrase',
-          'collection.photo',
-          'web.search',
-          'web.news',
-        ].includes(tool.capability) &&
-          tool.effect === 'read')
-      )
-    },
+    authorize,
     // Delivery is bound to the originating Discord message by the sole receiver.
     reply: async () => {
       throw new Error('Origin reply transport required')

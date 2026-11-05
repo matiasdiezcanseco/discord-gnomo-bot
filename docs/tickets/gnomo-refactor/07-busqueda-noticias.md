@@ -36,7 +36,7 @@ Máximo cinco fuentes, dos usos por capacidad/invocación y 16 000 caracteres po
 
 Caché en proceso: hasta 64 consultas durante cinco minutos, separadas por servidor, canal/hilo, texto y periodo. Solo guarda respuestas validadas (incluidos vacíos), no errores; revalida permisos a través del ejecutor antes de reutilizar. `reused: true` conserva el `consultedAt` original. No persiste ni promete caché compartida entre réplicas.
 
-Extensiones compatibles: `pilotCatalog(collection?, search?)` añade un segundo parámetro opcional; los llamadores existentes siguen funcionando sin servicio web. El adaptador AI SDK incluye ahora el `createdAt` autenticado de la invocación en sus datos para situar periodos relativos; no modifica la firma de `handle`, los presupuestos ni la autorización. No hay nuevas migraciones ni persistencia SQL.
+Extensiones compatibles: `pilotCatalog(collection?, members?, history?, search?)` añade un cuarto parámetro opcional, conservando los parámetros de T04/T05 tras el merge; los llamadores existentes siguen funcionando sin servicio web. El adaptador AI SDK incluye (también incorporado por T04) el `createdAt` autenticado de la invocación en sus datos para situar periodos relativos; no modifica la firma de `handle`, los presupuestos ni la autorización. No hay nuevas migraciones ni persistencia SQL.
 
 ## Pruebas de invocación y evidencia
 

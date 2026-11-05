@@ -1,13 +1,23 @@
 import { searchCapabilities, type PublicSearch } from './public-search'
 import { z } from 'zod'
 import { Catalog, defineCapability } from './catalog'
+import { memberCapabilities } from './member-capabilities'
+import type { MemberDirectory } from './member-directory'
+import { messagesHistory, type HistoryReader } from './channel-history'
 import { collectionCapabilities, type CollectionSource } from './collection-content'
 
 /** Single composition point. Future capability modules export definitions, never edit the loop. */
-export function pilotCatalog(collection?: CollectionSource, search?: PublicSearch) {
+export function pilotCatalog(
+  collection?: CollectionSource,
+  members?: MemberDirectory,
+  history?: HistoryReader,
+  search?: PublicSearch,
+) {
   return new Catalog([
+    messagesHistory(history),
     ...collectionCapabilities(collection),
     ...searchCapabilities(search),
+    ...(members ? memberCapabilities(members) : []),
     defineCapability({
       name: 'pilot_status',
       description: 'Comprueba que la conversación usa el harness autorizado del piloto.',
