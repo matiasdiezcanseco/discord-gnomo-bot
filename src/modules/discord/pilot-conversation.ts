@@ -14,6 +14,7 @@ import { discordHistory } from './channel-history'
 import { bucketCollection } from '../../conversation/collection-content'
 import { safeReader, type SafeReader } from '../../web/safe-reader'
 import { discordLiveMembers } from './live-members'
+import { attachedImages } from '../../conversation/attached-images'
 
 export function composePilot(
   client: Client,
@@ -79,6 +80,16 @@ export function composePilot(
   }
   const history = discordHistory(client, (invocation) => authorize(invocation), discordFetch)
   return createConversation({
+    loadImages: async (context) => {
+      const images = await attachedImages(web)({
+        ...context,
+        external: async (work) => {
+          if (!(await authorize(context.invocation))) throw new Error('permission revoked')
+          return context.external(work)
+        },
+      })
+      return images
+    },
     loadContext: async (context) => history(context, 30),
     model,
     catalog: pilotCatalog(

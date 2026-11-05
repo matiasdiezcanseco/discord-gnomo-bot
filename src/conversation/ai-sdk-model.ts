@@ -8,7 +8,7 @@ export function aiSdkModel(
   maxOutputTokens = 1500,
 ): ConversationPorts['model'] {
   return {
-    async generate({ invocation, signal, results, tools, recentContext }) {
+    async generate({ invocation, signal, results, tools, recentContext, images }) {
       const definitions: ToolSet = Object.fromEntries(
         tools.map((tool) => [
           tool.name,
@@ -27,16 +27,32 @@ export function aiSdkModel(
         messages: [
           {
             role: 'user',
-            content: JSON.stringify({
-              requester: invocation.requester,
-              messageId: invocation.messageId,
-              channelId: invocation.channelId,
-              createdAt: invocation.createdAt,
-              request: invocation.content,
-              attachments: invocation.attachments,
-              toolResults: results,
-              recentContext,
-            }),
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  requester: invocation.requester,
+                  messageId: invocation.messageId,
+                  channelId: invocation.channelId,
+                  createdAt: invocation.createdAt,
+                  request: invocation.content,
+                  attachments: invocation.attachments.map(({ id, name, contentType, size }) => ({
+                    id,
+                    name,
+                    contentType,
+                    size,
+                  })),
+                  verifiedImages: images?.map((image) => image.source),
+                  toolResults: results,
+                  recentContext,
+                }),
+              },
+              ...(images ?? []).map((image) => ({
+                type: 'image' as const,
+                image: image.bytes,
+                mediaType: image.mediaType,
+              })),
+            ],
           },
         ],
         tools: definitions,
