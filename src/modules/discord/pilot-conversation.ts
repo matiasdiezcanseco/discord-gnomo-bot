@@ -12,6 +12,7 @@ import { discordMembers } from './members'
 import { memberMentions } from '../../conversation/member-mentions'
 import { discordHistory } from './channel-history'
 import { bucketCollection } from '../../conversation/collection-content'
+import { memoryCapabilities, type MemoryDependencies } from '../../conversation/explicit-memory'
 
 export function composePilot(
   client: Client,
@@ -20,6 +21,7 @@ export function composePilot(
   trace: ConversationPorts['trace'],
   model = aiSdkModel(openai(config.get<string>('OPENAI_MODEL', 'gpt-4o-mini'))),
   discordFetch: typeof fetch = fetch,
+  memory?: MemoryDependencies,
 ) {
   const members = discordMembers(client, discordFetch)
   const authorize: ConversationPorts['authorize'] = async (invocation, tool) => {
@@ -59,6 +61,10 @@ export function composePilot(
     }
     return (
       !tool ||
+      (tool.capability.startsWith('memory.') &&
+        ((tool.capability === 'memory.search' && tool.effect === 'read') ||
+          (['memory.save', 'memory.update', 'memory.forget'].includes(tool.capability) &&
+            tool.effect === 'write'))) ||
       ([
         'pilot.status',
         'messages.history',
@@ -80,6 +86,9 @@ export function composePilot(
       members,
       history,
       tavilySearch(config.get<string>('TAVILY_API_KEY')),
+      memoryCapabilities(memory, config.get<string>('MEMORY_OWNER_ID'), (invocation) =>
+        authorize(invocation),
+      ),
     ),
     allowedUserMentions: memberMentions(members),
     trace,

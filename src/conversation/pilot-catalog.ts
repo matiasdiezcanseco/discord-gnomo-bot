@@ -5,6 +5,7 @@ import { memberCapabilities } from './member-capabilities'
 import type { MemberDirectory } from './member-directory'
 import { messagesHistory, type HistoryReader } from './channel-history'
 import { collectionCapabilities, type CollectionSource } from './collection-content'
+import { memoryCapabilities } from './explicit-memory'
 
 /** Single composition point. Future capability modules export definitions, never edit the loop. */
 export function pilotCatalog(
@@ -12,11 +13,13 @@ export function pilotCatalog(
   members?: MemberDirectory,
   history?: HistoryReader,
   search?: PublicSearch,
+  memory?: ReturnType<typeof memoryCapabilities>,
 ) {
   return new Catalog([
     messagesHistory(history),
     ...collectionCapabilities(collection),
     ...searchCapabilities(search),
+    ...(memory ?? memoryCapabilities()),
     ...(members ? memberCapabilities(members) : []),
     defineCapability({
       name: 'pilot_status',
