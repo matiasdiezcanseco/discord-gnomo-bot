@@ -16,11 +16,11 @@ Los tickets siguen abiertos hasta la resolución mediante el PR; integrado no si
 | T05 / #7 | Integrado | cfbfa2d; miembros/menciones conservados al integrar historial |
 | T06 / #8 | Integrado | 6da5ba3; 91 pruebas con Redis real tras separar reconexión y expiración |
 | T07 / #9 | Integrado | ff762ac; 84 pruebas combinadas, Redis real, tipos, build y lint aprobados |
-| T08 / #10 | Implementador en ejecución | Lectura pública de páginas |
-| T09 / #11 | Pendiente de T08 | Adjuntos visuales |
+| T08 / #10 | Integrado | 712777f; 127 pruebas con Redis real, tipos, build y lint aprobados |
+| T09 / #11 | Próximo implementador | Adjuntos visuales sobre lector seguro |
 | T10 / #12 | Implementador en ejecución | Recuerdos explícitos y persistencia PostgreSQL aislada |
 | T11 / #13 | Pendiente de T10 | Migración de recuerdos |
-| T12 / #14 | Próximo implementador | Recordatorios recuperables |
+| T12 / #14 | Implementador en ejecución | Recordatorios recuperables |
 | T13 / #15 | Pendiente de T12 | Cumpleaños |
 | T14 / #16 | Pendiente de capacidades | Integración y latencia |
 | T15 / #17 | Pendiente de T14 | Piloto y transición |
@@ -32,3 +32,5 @@ Worktrees a limpiar después de la integración y revisión completas: implement
 También conservar hasta la limpieza final: T04 en `t3-52eab9dc`, rama `feat/recent-channel-context`; T05 en `t3-eb4c3e3e`, rama `feat/member-search-mentions`; T07 en ejecución en `t3-47fe69fd`, rama `feat/t07-news-search`.
 
 T06 integrado desde `t3-36f1523d`, rama `feat/presence-voice`. La integración reveló una carrera en la prueba de reconexión Redis con TTL de un segundo: reconexión y expiración se verifican ahora con eventos separados y un TTL holgado para la primera, manteniendo Redis real y la suite concurrente.
+
+T08 integrado desde `t3-f9a8e2da`, rama `feat/public-web-reading`. Dependencias htmlparser2/ipaddr.js instaladas según lockfile; pruebas con HTTP/HTTPS/DNS controlados verifican el lector y las restricciones de red, sin certificar latencia de servicios reales.
