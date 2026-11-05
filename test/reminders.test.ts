@@ -287,6 +287,7 @@ test(
   { skip: !process.env.T02_REDIS_URL },
   async () => {
     const redis = new Redis(process.env.T02_REDIS_URL!)
+    const orphan = randomUUID()
     const id = randomUUID(),
       other = randomUUID()
     const reminder = {
@@ -302,6 +303,7 @@ test(
     let sent = 0
     try {
       await redis.set(`reminder:${id}`, JSON.stringify(reminder))
+      await redis.set(`reminder:${orphan}`, JSON.stringify({ ...reminder, id: orphan }))
       await redis.zadd('reminders:due', 10, id)
       await redis.set(
         `reminder:${other}`,
@@ -353,10 +355,10 @@ test(
           sent++
         },
       })
-      assert.equal(sent, 1)
+      assert.equal(sent, 2)
     } finally {
       await redis.zrem('reminders:due', id, other)
-      await redis.del(`reminder:${id}`, `reminder:${other}`)
+      await redis.del(`reminder:${id}`, `reminder:${other}`, `reminder:${orphan}`)
       await redis.quit()
     }
   },

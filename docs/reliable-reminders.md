@@ -12,9 +12,9 @@ admin tooling or birthday migration is exposed.
 
 ## Public contracts and composition
 
-`pilotCatalog(collection?, members?, history?, search?, live?, web?, notices?)`
-preserves T02/T04/T05/T06/T07 and T08 positional arguments. `composePilot` supplies
-the real Redis-backed notices store as argument seven. `reminder_create` declares
+`pilotCatalog(collection?, members?, history?, search?, live?, web?, memory?, notices?)`
+preserves T02/T04/T05/T06/T07, T08 and T10 positional arguments. `composePilot` supplies
+the real Redis-backed notices store as argument eight. `reminder_create` declares
 `reminders.own`, a channel write with a strict empty argument schema. Code parses
 only `ExecutionContext.invocation`, never model-proposed text, times or identities.
 The real composition authorizes this write only for a current anchored own request,
@@ -62,8 +62,8 @@ There is no blind resend from uncertain and no exactly-once promise for Discord.
 Redis failure after a send leaves the sending marker for conservative recovery.
 Discord REST automatic 5xx retries and rate-limit queue retries are disabled in
 the runtime client. Only a proven rejection may be classified transient. Unknown
-authorization failures are conservatively uncertain; explicit missing permission
-is dead. Dead and uncertain records remain inspectable with `get(id)` or HGETALL;
+authorization lookup failures before sending are safe for bounded retry; explicit
+missing permission is dead. Dead and uncertain records remain inspectable with `get(id)` or HGETALL;
 there is intentionally no automatic manual-replay command in this ticket.
 
 Persistence across Redis server restart requires a persistent Redis data volume
@@ -95,6 +95,8 @@ This operation requires REDIS_URL, GUILD_ID, BOT_TOKEN and
 CONVERSATION_PILOT_CHANNEL_IDS. It verifies each legacy origin channel against the
 configured guild through Discord. It saves a stable `legacy:<id>` identity before
 removing the old due-index entry; the original `reminder:<id>` payload is retained.
+It explicitly scans legacy payload keys as well, recovering orphaned payloads from
+the old non-atomic SET/ZADD creation path. This scan runs only on operator request.
 A crash between save/index removal is safe because legacy pilot dispatch is
 excluded. Repeating the operation is idempotent. Malformed, oversized, foreign-guild,
 inaccessible or nonpilot entries stay pending and are reported retained. Do not
@@ -118,8 +120,10 @@ docker run --detach --name gnomo-t12-restart --publish 127.0.0.1:16393:6379 redi
 $env:T02_REDIS_URL='redis://127.0.0.1:16392'
 $env:T12_REDIS_RESTART_URL='redis://127.0.0.1:16393'
 $env:T12_REDIS_CONTAINER='gnomo-t12-restart'
+docker run --detach --name gnomo-t12-postgres --env POSTGRES_PASSWORD=test-only --env POSTGRES_USER=gnomo --env POSTGRES_DB=gnomo_t12 --publish 127.0.0.1:16412:5432 pgvector/pgvector:pg17
+$env:T10_DATABASE_URL='postgresql://gnomo:test-only@127.0.0.1:16412/gnomo_t12'
 npm run verify
-docker rm --force gnomo-t12-redis gnomo-t12-restart
+docker rm --force gnomo-t12-redis gnomo-t12-restart gnomo-t12-postgres
 ```
 
 Only name an isolated disposable test container in T12_REDIS_CONTAINER: the test

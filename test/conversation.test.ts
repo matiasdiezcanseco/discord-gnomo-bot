@@ -262,6 +262,7 @@ test('a due reminder notifies its saved requester in its saved channel and leave
             'thread1',
             {
               type: 0,
+              guildId: 'g1',
               async send(text: string) {
                 notices.push(text)
               },

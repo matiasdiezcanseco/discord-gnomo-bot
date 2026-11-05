@@ -14,7 +14,14 @@ export async function transferLegacyReminders(
 ) {
   const store = new ScheduledNotices(redis, options.namespace)
   const report: { id: string; outcome: 'transferred' | 'retained' }[] = []
-  const ids = await redis.zrange('reminders:due', 0, -1)
+  const ids = new Set(await redis.zrange('reminders:due', 0, -1))
+  // Old creation used SET then ZADD separately. Recover payloads whose index write failed.
+  let cursor = '0'
+  do {
+    const page = await redis.scan(cursor, 'MATCH', 'reminder:*', 'COUNT', 100)
+    cursor = page[0]
+    for (const key of page[1]) ids.add(key.slice('reminder:'.length))
+  } while (cursor !== '0')
   for (const id of ids) {
     const raw = await redis.get(`reminder:${id}`)
     let r: Reminder
