@@ -15,7 +15,10 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test": "tsx --tsconfig tsconfig.nest.json --test test/*.test.ts",
+    "lint:check": "eslint src test",
+    "verify": "npm test && npm run ts:check && npm run build && npm run lint:check"
   },
   "author": "Matias Diez-Canseco",
   "license": "MIT",

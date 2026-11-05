@@ -1,4 +1,5 @@
-import { Injectable, Inject } from '@nestjs/common'
+import { Injectable, Inject, Optional } from '@nestjs/common'
+import type { LanguageModel } from 'ai'
 import { generateText, stepCountIs } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import { ConfigService } from '@nestjs/config'
@@ -26,6 +27,7 @@ export class OrchestratorService {
     private readonly messageBuilder: MessageBuilder,
     private readonly config: ConfigService,
     private readonly logger: LoggerService,
+    @Optional() @Inject('CONVERSATION_MODEL') private readonly model?: LanguageModel,
   ) {}
 
   async handle(ctx: BotContext): Promise<OrchestratorResponse> {
@@ -42,7 +44,7 @@ export class OrchestratorService {
       const openaiModel = this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini')
 
       const result = await generateText({
-        model: openai(openaiModel),
+        model: this.model ?? openai(openaiModel),
         tools,
         toolChoice: 'auto',
         stopWhen: stepCountIs(MAX_AGENT_STEPS),
