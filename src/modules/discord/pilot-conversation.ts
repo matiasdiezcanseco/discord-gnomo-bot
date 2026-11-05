@@ -12,6 +12,7 @@ import { discordMembers } from './members'
 import { memberMentions } from '../../conversation/member-mentions'
 import { discordHistory } from './channel-history'
 import { bucketCollection } from '../../conversation/collection-content'
+import { safeReader, type SafeReader } from '../../web/safe-reader'
 import { discordLiveMembers } from './live-members'
 import { ScheduledNotices } from '../../conversation/scheduled-notices'
 
@@ -22,6 +23,7 @@ export function composePilot(
   trace: ConversationPorts['trace'],
   model = aiSdkModel(openai(config.get<string>('OPENAI_MODEL', 'gpt-4o-mini'))),
   discordFetch: typeof fetch = fetch,
+  web: SafeReader = safeReader(),
 ) {
   const members = discordMembers(client, discordFetch)
   const authorize: ConversationPorts['authorize'] = async (invocation, tool) => {
@@ -70,6 +72,7 @@ export function composePilot(
         'collection.phrase',
         'collection.photo',
         'discord.members',
+        'web.read',
         'discord.presence',
         'discord.voice',
         'web.search',
@@ -88,6 +91,7 @@ export function composePilot(
       history,
       tavilySearch(config.get<string>('TAVILY_API_KEY')),
       discordLiveMembers(client, members),
+      web,
       redis ? new ScheduledNotices(redis) : undefined,
     ),
     allowedUserMentions: memberMentions(members),

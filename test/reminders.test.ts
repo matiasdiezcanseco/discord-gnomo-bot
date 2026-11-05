@@ -30,7 +30,7 @@ test('explicit tomorrow with 24-hour time is interpreted in Lima without a model
   const redis = new Redis(process.env.T02_REDIS_URL!)
   const replies: string[] = []
   try {
-    const app = createConversation({ catalog: pilotCatalog(undefined, undefined, undefined, undefined, undefined, new ScheduledNotices(redis, `test:t12:${randomUUID()}`)), authorize: async () => true, claim: async () => true, model: { generate: async () => { throw Error('no model') } }, reply: async (_, r) => { replies.push(r.content) } })
+    const app = createConversation({ catalog: pilotCatalog(undefined, undefined, undefined, undefined, undefined, undefined, new ScheduledNotices(redis, `test:t12:${randomUUID()}`)), authorize: async () => true, claim: async () => true, model: { generate: async () => { throw Error('no model') } }, reply: async (_, r) => { replies.push(r.content) } })
     await app.handle({ ...origin, content: 'recuérdame mañana a las 08:00 tomar agua' })
     assert.match(replies[0], /guardado para 2026-11-06 08:00 America\/Lima/)
   } finally { await redis.quit() }
@@ -45,7 +45,7 @@ test(
       sent: unknown[] = []
     const store = new ScheduledNotices(redis, ns)
     const app = createConversation({
-      catalog: pilotCatalog(undefined, undefined, undefined, undefined, undefined, store),
+      catalog: pilotCatalog(undefined, undefined, undefined, undefined, undefined, undefined, store),
       authorize: async () => true,
       claim: async () => true,
       model: {
@@ -99,7 +99,7 @@ test(
     const replies: string[] = [],
       sent: unknown[] = []
     const app = createConversation({
-      catalog: pilotCatalog(undefined, undefined, undefined, undefined, undefined, store),
+      catalog: pilotCatalog(undefined, undefined, undefined, undefined, undefined, undefined, store),
       authorize: async () => true,
       claim: async () => true,
       model: {
@@ -340,6 +340,7 @@ test(
           undefined,
           undefined,
           undefined,
+          undefined,
           new ScheduledNotices(writer, ns),
         ),
         authorize: async () => true,
@@ -429,6 +430,7 @@ test(
         undefined,
         undefined,
         undefined,
+        undefined,
         new ScheduledNotices(redis, ns),
       ),
       authorize: async () => true,
@@ -461,3 +463,4 @@ test(
     }
   },
 )
+
