@@ -11,6 +11,7 @@ import { discordMembers } from './members'
 import { memberMentions } from '../../conversation/member-mentions'
 import { discordHistory } from './channel-history'
 import { bucketCollection } from '../../conversation/collection-content'
+import { safeReader, type SafeReader } from '../../web/safe-reader'
 
 export function composePilot(
   client: Client,
@@ -19,6 +20,7 @@ export function composePilot(
   trace: ConversationPorts['trace'],
   model = aiSdkModel(openai(config.get<string>('OPENAI_MODEL', 'gpt-4o-mini'))),
   discordFetch: typeof fetch = fetch,
+  web: SafeReader = safeReader(),
 ) {
   const members = discordMembers(client, discordFetch)
   const authorize: ConversationPorts['authorize'] = async (invocation, tool) => {
@@ -64,6 +66,7 @@ export function composePilot(
         'collection.phrase',
         'collection.photo',
         'discord.members',
+        'web.read',
       ].includes(tool.capability) &&
         tool.effect === 'read')
     )
@@ -72,7 +75,7 @@ export function composePilot(
   return createConversation({
     loadContext: async (context) => history(context, 30),
     model,
-    catalog: pilotCatalog(bucketCollection(config.get<string>('BUCKET_URL')), members, history),
+    catalog: pilotCatalog(bucketCollection(config.get<string>('BUCKET_URL')), members, history, web),
     allowedUserMentions: memberMentions(members),
     trace,
     concurrency: config.get<number>('CONVERSATION_CONCURRENCY', 4),
