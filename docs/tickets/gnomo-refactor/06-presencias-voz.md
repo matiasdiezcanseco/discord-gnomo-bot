@@ -81,3 +81,12 @@ No SQL, migraciones ni producción. Recepción Gateway real, evaluación del mod
 escenario controlado del servidor y latencia real quedan pendientes del propietario;
 no se presentan dobles como validación real. Configuración de intents y escenario
 manual en [README](../../../README.md#presence-and-voice-in-the-new-conversation-pilot-t06).
+
+Verificación final del implementador (2026-11-05): base `308ceb42` verificada como
+ancestro antes de editar; integración local `91c6019` incorporada mediante merge
+`ffe4f5e`. Se conserva búsqueda/noticias T07 en el cuarto argumento de catálogo y
+se añade presencia/voz en el quinto. `T02_REDIS_URL=redis://127.0.0.1:16386 npm run verify`
+pasó: 90/90 pruebas, cero omitidas, tipos, build y lint correctos. `git diff --check`
+correcto. Redis 7 real aislado; sin credenciales de modelo/Discord, datos de producción,
+migraciones, despliegue ni push. El aviso previo MODULE_TYPELESS_PACKAGE_JSON de ESLint
+permanece. No se ejecutó revisión delegada ni se actualizó el PR raíz.
