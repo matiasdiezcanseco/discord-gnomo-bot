@@ -7,7 +7,7 @@ import { createConversation } from '../src/conversation/harness'
 import type { Invocation } from '../src/core/conversation/invocation'
 
 test(
-  'Redis atomically deduplicates concurrent events across clients and reconnects, with scoped expiry',
+  'Redis atomically deduplicates concurrent events across clients and reconnects',
   { skip: !process.env.T02_REDIS_URL },
   async () => {
     const url = process.env.T02_REDIS_URL!
@@ -26,7 +26,7 @@ test(
     const replies: string[] = []
     const build = (client: Redis) =>
       createConversation({
-        claim: redisClaims(client, namespace, 1),
+        claim: redisClaims(client, namespace, 60),
         authorize: async () => true,
         model: {
           generate: async ({ invocation }) => ({ text: invocation.requester.id, calls: [] }),
@@ -52,12 +52,44 @@ test(
         requester: { id: 'other', username: 'Luis' },
       })
       assert.deepEqual(replies, ['1:u', '2:other'])
-      await new Promise((resolve) => setTimeout(resolve, 1100))
-      await build(second).handle(input)
-      assert.equal(replies.length, 3)
     } finally {
       first.disconnect()
       await second.quit()
+    }
+  },
+)
+
+test(
+  'an event can be processed again after its configured Redis retention expires',
+  { skip: !process.env.T02_REDIS_URL },
+  async () => {
+    const redis = new Redis(process.env.T02_REDIS_URL!)
+    const replies: string[] = []
+    const invocation: Invocation = {
+      messageId: 'expires',
+      guildId: 'g',
+      channelId: 'c',
+      requester: { id: 'u', username: 'Ana' },
+      content: 'hola',
+      createdAt: 0,
+      attachments: [],
+    }
+    const conversation = createConversation({
+      claim: redisClaims(redis, `test:t02:expiry:${randomUUID()}`, 1),
+      authorize: async () => true,
+      model: { generate: async () => ({ text: 'Hola, Ana.', calls: [] }) },
+      reply: async (_, reply) => {
+        replies.push(reply.content)
+      },
+    })
+    try {
+      await conversation.handle(invocation)
+      assert.deepEqual(replies, ['Hola, Ana.'])
+      await new Promise((resolve) => setTimeout(resolve, 1100))
+      await conversation.handle(invocation)
+      assert.deepEqual(replies, ['Hola, Ana.', 'Hola, Ana.'])
+    } finally {
+      await redis.quit()
     }
   },
 )
