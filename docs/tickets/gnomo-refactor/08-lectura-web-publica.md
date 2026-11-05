@@ -25,7 +25,7 @@ Invocar a Gnomo con una URL pública para que consulte su contenido y responda c
 
 ## Implementación y extensión para T09
 
-`web_read` declara `web.read` como lectura y se registra en `pilotCatalog(collection?, members?, history?, web?)`. `composePilot` la autoriza explícitamente, conserva los seis argumentos anteriores y añade el lector como séptimo argumento opcional. No cambia el bucle del harness, los permisos de historial/miembros ni la ruta rápida T03. Solo acepta una URL presente en el contenido de la invocación autenticada; ni historial, resultados web ni argumentos del modelo pueden añadir destinos iniciales autorizados.
+`web_read` declara `web.read` como lectura y se registra en `pilotCatalog(collection?, members?, history?, search?, live?, web?)`. `composePilot` la autoriza explícitamente, conserva los seis argumentos anteriores y añade el lector como séptimo argumento opcional. No cambia el bucle del harness, los permisos de historial/miembros ni la ruta rápida T03. Solo acepta una URL presente en el contenido de la invocación autenticada; ni historial, resultados web ni argumentos del modelo pueden añadir destinos iniciales autorizados.
 
 `src/web/safe-reader.ts` expone `safeReader().read(url, context, policy)`: bytes limitados, MIME, URL inicial/final y fecha de consulta, o estado `blocked`, `inaccessible`, `unsupported`, `timeout` o `cancelled`. El lector distingue `complete` de `partial`; el adaptador de página convierte también el recorte de texto en `partialResult` del ejecutor. T09 puede reutilizar este límite de red con una lista explícita de MIME y tamaño: deberá exigir resultado completo y validar firmas, dimensiones y formato de imagen antes del modelo. T08 no envía imágenes al modelo ni afirma validar imágenes por MIME.
 

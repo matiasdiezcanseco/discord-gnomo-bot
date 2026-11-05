@@ -360,7 +360,7 @@ test('page instructions cannot authorize effects or fetch a URL absent from the 
   })
   const replies: string[] = []
   const app = createConversation({
-    catalog: pilotCatalog(undefined, undefined, undefined, safeReader(a.net)),
+    catalog: pilotCatalog(undefined, undefined, undefined, undefined, undefined, safeReader(a.net)),
     authorize: async () => true,
     claim: async () => true,
     reply: async (_, message) => {
@@ -519,7 +519,7 @@ test('invocation exposes bounded partial text and preserves URL provenance', asy
   })
   let answered = false
   const app = createConversation({
-    catalog: pilotCatalog(undefined, undefined, undefined, safeReader(a.net)),
+    catalog: pilotCatalog(undefined, undefined, undefined, undefined, undefined, safeReader(a.net)),
     authorize: async () => true,
     claim: async () => true,
     reply: async (_, reply) => {

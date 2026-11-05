@@ -1,3 +1,4 @@
+import { tavilySearch } from '../../conversation/public-search'
 import type { Client } from 'discord.js'
 import { ChannelType, PermissionFlagsBits } from 'discord.js'
 import type { ConfigService } from '@nestjs/config'
@@ -12,6 +13,7 @@ import { memberMentions } from '../../conversation/member-mentions'
 import { discordHistory } from './channel-history'
 import { bucketCollection } from '../../conversation/collection-content'
 import { safeReader, type SafeReader } from '../../web/safe-reader'
+import { discordLiveMembers } from './live-members'
 
 export function composePilot(
   client: Client,
@@ -67,6 +69,10 @@ export function composePilot(
         'collection.photo',
         'discord.members',
         'web.read',
+        'discord.presence',
+        'discord.voice',
+        'web.search',
+        'web.news',
       ].includes(tool.capability) &&
         tool.effect === 'read')
     )
@@ -75,7 +81,14 @@ export function composePilot(
   return createConversation({
     loadContext: async (context) => history(context, 30),
     model,
-    catalog: pilotCatalog(bucketCollection(config.get<string>('BUCKET_URL')), members, history, web),
+    catalog: pilotCatalog(
+      bucketCollection(config.get<string>('BUCKET_URL')),
+      members,
+      history,
+      tavilySearch(config.get<string>('TAVILY_API_KEY')),
+      discordLiveMembers(client, members),
+      web,
+    ),
     allowedUserMentions: memberMentions(members),
     trace,
     concurrency: config.get<number>('CONVERSATION_CONCURRENCY', 4),
