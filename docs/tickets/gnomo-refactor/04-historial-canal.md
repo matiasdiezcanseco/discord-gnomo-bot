@@ -47,3 +47,6 @@ docker rm --force gnomo-t04-redis
 ```
 
 No SQL, migraciones, datos de producci贸n, modelo/Discord real ni despliegue. No se afirma medir latencia de red ni resistencia sem谩ntica de un modelo real frente a instrucciones hist贸ricas. Verificaci贸n final tras merge de integraci贸n: pendiente de registrar.
+
+
+Compatibilidad tras integrar T03: `pilotCatalog(collection?, history?)` conserva el primer argumento de colecciones. El hook de contexto se omite en la ruta directa de colecci髇 (no hay modelo que lo necesite). Se conservaron ambas familias de capacidades y sus autorizaciones expl韈itas. Las 52 pruebas incluyen la composici髇 real de colecciones heredada y el recorrido AI SDK con una instrucci髇 hist髍ica maliciosa, cuya solicitud de herramienta no autorizada termina denegada. Ning鷑 criterio funcional de T04 queda conocido sin implementar; la evaluaci髇 con Discord/modelo real y su latencia siguen pendientes fuera de esta ejecuci髇.
