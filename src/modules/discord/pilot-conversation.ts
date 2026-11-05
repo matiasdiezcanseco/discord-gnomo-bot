@@ -13,6 +13,7 @@ import { memberMentions } from '../../conversation/member-mentions'
 import { discordHistory } from './channel-history'
 import { bucketCollection } from '../../conversation/collection-content'
 import { discordLiveMembers } from './live-members'
+import { ScheduledNotices } from '../../conversation/scheduled-notices'
 
 export function composePilot(
   client: Client,
@@ -60,6 +61,9 @@ export function composePilot(
     }
     return (
       !tool ||
+      (tool.capability === 'reminders.own' &&
+        tool.effect === 'write' &&
+        /^(?:por favor,?\s+)?(?:recu[eé]rdame|recordarme)\s+/i.test(invocation.content.trim())) ||
       ([
         'pilot.status',
         'messages.history',
@@ -84,6 +88,7 @@ export function composePilot(
       history,
       tavilySearch(config.get<string>('TAVILY_API_KEY')),
       discordLiveMembers(client, members),
+      redis ? new ScheduledNotices(redis) : undefined,
     ),
     allowedUserMentions: memberMentions(members),
     trace,

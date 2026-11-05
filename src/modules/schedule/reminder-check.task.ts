@@ -36,9 +36,12 @@ export class ReminderCheckTask {
     const client = this.discord.getClient();
 
     for (const reminder of dueReminders) {
+      // Pilot pending records stay intact until an explicit transfer. Never send from both paths.
+      if (this.config.get<string>('CONVERSATION_PILOT_CHANNEL_IDS', '').split(',').map(id => id.trim()).includes(reminder.channelId)) continue;
       try {
         // Get the channel
         const channel = client.channels.cache.get(reminder.channelId);
+        if (channel && (!('guildId' in channel) || channel.guildId !== this.config.get<string>('GUILD_ID'))) continue;
 
         if (!channel) {
           this.logger.warn(

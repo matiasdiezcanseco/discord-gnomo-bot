@@ -6,6 +6,8 @@ import type { MemberDirectory } from './member-directory'
 import { messagesHistory, type HistoryReader } from './channel-history'
 import { collectionCapabilities, type CollectionSource } from './collection-content'
 import { presenceCapability, voiceCapability, type LiveMembers } from './live-members'
+import { reminderCapability } from './reminders'
+import type { ScheduledNotices } from './scheduled-notices'
 
 /** Single composition point. Future capability modules export definitions, never edit the loop. */
 export function pilotCatalog(
@@ -14,8 +16,10 @@ export function pilotCatalog(
   history?: HistoryReader,
   search?: PublicSearch,
   live?: Partial<LiveMembers>,
+  notices?: ScheduledNotices,
 ) {
   return new Catalog([
+    reminderCapability(notices),
     messagesHistory(history),
     ...collectionCapabilities(collection),
     ...searchCapabilities(search),
