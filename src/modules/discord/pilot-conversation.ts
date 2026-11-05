@@ -7,6 +7,7 @@ import { createConversation, type ConversationPorts } from '../../conversation/h
 import { aiSdkModel } from '../../conversation/ai-sdk-model'
 import { pilotCatalog } from '../../conversation/pilot-catalog'
 import { redisClaims } from '../../conversation/redis-claims'
+import { bucketCollection } from '../../conversation/collection-content'
 
 export function composePilot(
   client: Client,
@@ -17,7 +18,7 @@ export function composePilot(
 ) {
   return createConversation({
     model,
-    catalog: pilotCatalog(),
+    catalog: pilotCatalog(bucketCollection(config.get<string>('BUCKET_URL'))),
     trace,
     concurrency: config.get<number>('CONVERSATION_CONCURRENCY', 4),
     claim: redis
@@ -60,7 +61,11 @@ export function composePilot(
           return false
         }
       }
-      return !tool || (tool.capability === 'pilot.status' && tool.effect === 'read')
+      return (
+        !tool ||
+        (['pilot.status', 'collection.phrase', 'collection.photo'].includes(tool.capability) &&
+          tool.effect === 'read')
+      )
     },
     // Delivery is bound to the originating Discord message by the sole receiver.
     reply: async () => {
