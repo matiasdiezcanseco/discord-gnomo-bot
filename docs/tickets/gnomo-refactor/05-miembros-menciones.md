@@ -52,3 +52,5 @@ docker rm --force gnomo-t05-redis
 ```
 
 No hay nuevas operaciones persistentes ni migraciones en T05. Redis real ejercita también las pruebas heredadas de deduplicación concurrente, reconexión y expiración; no se afirma persistencia SQL ni reinicio del servidor Redis. Discord/modelo reales, evaluación humana y latencia de red quedan pendientes de piloto por el propietario. No se activó el piloto, desplegó, usaron credenciales ni modificó el PR raíz.
+
+Verificación final del implementador (2026-11-05): base `623d60b` verificada como ancestro antes de editar; integración local `7da5c85` incorporada mediante merge `c5b5d1f`. `T02_REDIS_URL=redis://127.0.0.1:16385 npm run verify` pasó: 53/53 pruebas, cero omitidas, tipos, compilación y lint correctos. `git diff --check` pasó. Node 24.13.1 y Redis 7 aislado en Docker Engine 27.4.0. El lint conserva el aviso previo de package.json sin type para eslint.config.js. No se ejecutó revisión delegada ni se actualizó el PR raíz desde esta rama.
