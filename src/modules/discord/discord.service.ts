@@ -17,6 +17,7 @@ export class DiscordService implements OnModuleInit, OnModuleDestroy {
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildPresences,
         GatewayIntentBits.GuildVoiceStates,
       ],
     });
