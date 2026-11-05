@@ -1,3 +1,4 @@
+import { tavilySearch } from '../../conversation/public-search'
 import type { Client } from 'discord.js'
 import { ChannelType, PermissionFlagsBits } from 'discord.js'
 import type { ConfigService } from '@nestjs/config'
@@ -18,7 +19,10 @@ export function composePilot(
 ) {
   return createConversation({
     model,
-    catalog: pilotCatalog(bucketCollection(config.get<string>('BUCKET_URL'))),
+    catalog: pilotCatalog(
+      bucketCollection(config.get<string>('BUCKET_URL')),
+      tavilySearch(config.get<string>('TAVILY_API_KEY')),
+    ),
     trace,
     concurrency: config.get<number>('CONVERSATION_CONCURRENCY', 4),
     claim: redis
@@ -63,7 +67,13 @@ export function composePilot(
       }
       return (
         !tool ||
-        (['pilot.status', 'collection.phrase', 'collection.photo'].includes(tool.capability) &&
+        ([
+          'pilot.status',
+          'collection.phrase',
+          'collection.photo',
+          'web.search',
+          'web.news',
+        ].includes(tool.capability) &&
           tool.effect === 'read')
       )
     },

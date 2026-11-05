@@ -30,6 +30,7 @@ export function aiSdkModel(
             content: JSON.stringify({
               requester: invocation.requester,
               request: invocation.content,
+              createdAt: invocation.createdAt,
               attachments: invocation.attachments,
               toolResults: results,
             }),
