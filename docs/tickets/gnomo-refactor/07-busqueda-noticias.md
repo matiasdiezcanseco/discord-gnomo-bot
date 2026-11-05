@@ -12,11 +12,11 @@ Preguntar sobre información actual o noticias de un tema y periodo, y recibir u
 
 ## Acceptance criteria
 
-- [ ] Búsqueda general y noticias son capacidades registradas; las noticias aceptan un periodo y entregan procedencia estructurada.
-- [ ] Diferenciar fecha de publicación y fecha del hecho cuando se conozcan; no inventar fechas ni enlaces.
-- [ ] Las búsquedas sin resultados, servicio opcional no configurado, rate limits y fallos transitorios se explican sin fabricar actualidad.
-- [ ] Acotar resultados y tiempo, reutilizar consultas recientes de forma explícita y respetar el presupuesto global sin reintentos ilimitados.
-- [ ] Los resultados externos no conceden permisos ni alteran las políticas; pruebas de invocación verifican fuentes, periodos, contenido malicioso y respuestas parciales al agotarse el tiempo.
+- [x] Búsqueda general y noticias son capacidades registradas; las noticias aceptan un periodo y entregan procedencia estructurada.
+- [x] Diferenciar fecha de publicación y fecha del hecho cuando se conozcan; no inventar fechas ni enlaces.
+- [x] Las búsquedas sin resultados, servicio opcional no configurado, rate limits y fallos transitorios se explican sin fabricar actualidad.
+- [x] Acotar resultados y tiempo, reutilizar consultas recientes de forma explícita y respetar el presupuesto global sin reintentos ilimitados.
+- [x] Los resultados externos no conceden permisos ni alteran las políticas; pruebas de invocación verifican fuentes, periodos, contenido malicioso y respuestas parciales al agotarse el tiempo.
 
 ## Blocked by
 
@@ -59,3 +59,6 @@ docker rm --force gnomo-t07-redis
 ```
 
 Redis es exclusivo de pruebas; IDs aleatorios, sin FLUSHDB. No se configura una URL de producción. Sin T02_REDIS_URL se omite explícitamente el caso de composición con Redis. La suite no necesita claves de modelo/Tavily/Discord. No se ejecutaron migraciones, despliegues ni consultas con credenciales reales. La integración contractual se contrastó con [Tavily Search API oficial](https://docs.tavily.com/documentation/api-reference/endpoint/search), consultada el 2026-11-05, y el cliente instalado. Latencia p50/p95 real y comportamiento del proveedor/modelo/Discord reales quedan **sin verificar**; los relojes controlados prueban cancelación del programa, no latencia de red.
+
+
+Verificación final del implementador (2026-11-05): base autorizada `7da5c85` verificada como ancestro antes de editar. Integración local `308ceb42b7b257d6b67c59f9eb957fadb44068e8` incorporada mediante merge `29818fa`. Se conservaron historial, miembros y menciones de T04/T05; búsqueda ocupa el cuarto argumento opcional del catálogo. Primer verify post-merge detectó un test con el argumento antiguo; corregido, el siguiente `$env:T02_REDIS_URL='redis://127.0.0.1:16387'; npm run verify` pasó **84/84**, cero omisiones: pruebas, tipos, build y lint. Incluye 19 casos T07, con HTTP real controlado y Redis 7 aislado. `git diff --check` correcto. Lint conserva únicamente el aviso preexistente MODULE_TYPELESS_PACKAGE_JSON. No hay criterios funcionales conocidos pendientes en T07; actualidad, ranking y latencia de servicios reales siguen sin validar y requieren evaluación posterior con configuración autorizada. No se modificó el PR raíz.

@@ -194,11 +194,13 @@ for (const input of [
   })
 }
 
-test('cached sources expire and never cross channels or publication periods', async () => {
+test('cached sources expire and never cross channels', async () => {
   const app = setup({ results: [article] })
   let now = Date.parse('2026-11-05T12:00:00Z'),
     requests = 0
   app.ports.catalog = pilotCatalog(
+    undefined,
+    undefined,
     undefined,
     tavilySearch(
       'test-key',
