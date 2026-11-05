@@ -5,6 +5,7 @@ import { memberCapabilities } from './member-capabilities'
 import type { MemberDirectory } from './member-directory'
 import { messagesHistory, type HistoryReader } from './channel-history'
 import { collectionCapabilities, type CollectionSource } from './collection-content'
+import { memoryCapabilities } from './explicit-memory'
 import { webRead } from './web-read'
 import { safeReader, type SafeReader } from '../web/safe-reader'
 import { presenceCapability, voiceCapability, type LiveMembers } from './live-members'
@@ -19,6 +20,7 @@ export function pilotCatalog(
   search?: PublicSearch,
   live?: Partial<LiveMembers>,
   web: SafeReader = safeReader(),
+  memory?: ReturnType<typeof memoryCapabilities>,
   notices?: ScheduledNotices,
 ) {
   return new Catalog([
@@ -27,6 +29,7 @@ export function pilotCatalog(
     messagesHistory(history),
     ...collectionCapabilities(collection),
     ...searchCapabilities(search),
+    ...(memory ?? memoryCapabilities()),
     ...(members ? memberCapabilities(members) : []),
     ...(live?.presence ? [presenceCapability(live.presence)] : []),
     ...(live?.voice ? [voiceCapability(live.voice)] : []),

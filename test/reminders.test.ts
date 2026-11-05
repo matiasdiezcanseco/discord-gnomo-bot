@@ -41,6 +41,7 @@ test(
           undefined,
           undefined,
           undefined,
+          undefined,
           new ScheduledNotices(redis, `test:t12:${randomUUID()}`),
         ),
         authorize: async () => true,
@@ -72,6 +73,7 @@ test(
     const store = new ScheduledNotices(redis, ns)
     const app = createConversation({
       catalog: pilotCatalog(
+        undefined,
         undefined,
         undefined,
         undefined,
@@ -134,6 +136,7 @@ test(
       sent: unknown[] = []
     const app = createConversation({
       catalog: pilotCatalog(
+        undefined,
         undefined,
         undefined,
         undefined,
@@ -383,6 +386,7 @@ test(
           undefined,
           undefined,
           undefined,
+          undefined,
           new ScheduledNotices(writer, ns),
         ),
         authorize: async () => true,
@@ -473,6 +477,7 @@ test(
         undefined,
         undefined,
         undefined,
+        undefined,
         new ScheduledNotices(redis, ns),
       ),
       authorize: async () => true,
@@ -505,3 +510,4 @@ test(
     }
   },
 )
+
