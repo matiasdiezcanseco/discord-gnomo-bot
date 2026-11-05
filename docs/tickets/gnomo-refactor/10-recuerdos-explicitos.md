@@ -42,3 +42,14 @@ aislamiento, autor frente a sujeto, propietario y coincidencias ambiguas.
 Se conserva la ruta y datos anteriores para T11. No se activó el piloto ni se
 desplegó, empujó, creó PR o cerró issue. La ausencia de URLs de pruebas omite de
 forma explícita el caso de persistencia; no lo reemplaza por almacenamiento fake.
+
+Verificación final del implementador (2026-11-05): ascendencia de
+`91c60192421aca6158af7f97572f832253d2bc2a` verificada antes de editar. Integración
+local `df0e5f45c6c8ab9ae41b9f179ff417037839c4ce` incorporada en merge `47960a6`.
+`npm run verify` posterior al merge, con las tres variables de prueba descritas
+en el contrato, pasó **129/129 pruebas, cero omitidas**, tipos, build y lint;
+`git diff --check` correcto. Incluye reinicio Docker real de PostgreSQL y nueva
+conexión tras esperar disponibilidad. Lint conserva únicamente el aviso previo
+MODULE_TYPELESS_PACKAGE_JSON. Sin revisión delegada ni comprobación de checks
+remotos del PR. No se afirma relevancia de embeddings/proveedores externos ni
+latencia real. Rama `feat/explicit-memory`, worktree `t3-b7b28ee9`.
