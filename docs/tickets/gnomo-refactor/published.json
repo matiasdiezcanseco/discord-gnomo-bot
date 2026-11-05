@@ -1,0 +1,186 @@
+[
+  {
+    "key": "T01",
+    "title": "Invocación comprobable e independiente de Discord",
+    "id": 6230694067,
+    "number": 3,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/3",
+    "blockers": [],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  },
+  {
+    "key": "T02",
+    "title": "Conversación por invocación mediante un harness autorizado",
+    "id": 6230694891,
+    "number": 4,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/4",
+    "blockers": [
+      "T01"
+    ],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  },
+  {
+    "key": "T03",
+    "title": "Frases y fotos por una ruta rápida autorizada",
+    "id": 6230696089,
+    "number": 5,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/5",
+    "blockers": [
+      "T02"
+    ],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  },
+  {
+    "key": "T04",
+    "title": "Conversar y consultar el historial real del canal",
+    "id": 6230697153,
+    "number": 6,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/6",
+    "blockers": [
+      "T02"
+    ],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  },
+  {
+    "key": "T05",
+    "title": "Identificar miembros y mencionar sin ambigüedad",
+    "id": 6230698222,
+    "number": 7,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/7",
+    "blockers": [
+      "T02"
+    ],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  },
+  {
+    "key": "T06",
+    "title": "Consultar miembros conectados y participantes en voz",
+    "id": 6230700195,
+    "number": 8,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/8",
+    "blockers": [
+      "T05"
+    ],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  },
+  {
+    "key": "T07",
+    "title": "Buscar información y noticias con fuentes y fechas",
+    "id": 6230701254,
+    "number": 9,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/9",
+    "blockers": [
+      "T02"
+    ],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  },
+  {
+    "key": "T08",
+    "title": "Leer páginas públicas con acceso de red limitado",
+    "id": 6230702400,
+    "number": 10,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/10",
+    "blockers": [
+      "T02"
+    ],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  },
+  {
+    "key": "T09",
+    "title": "Responder sobre imágenes adjuntas a una invocación",
+    "id": 6230703470,
+    "number": 11,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/11",
+    "blockers": [
+      "T08"
+    ],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  },
+  {
+    "key": "T10",
+    "title": "Guardar, consultar, corregir y borrar recuerdos del canal",
+    "id": 6230704504,
+    "number": 12,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/12",
+    "blockers": [
+      "T02"
+    ],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  },
+  {
+    "key": "T11",
+    "title": "Consultar los recuerdos existentes tras migrarlos al esquema nuevo",
+    "id": 6230707408,
+    "number": 13,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/13",
+    "blockers": [
+      "T10"
+    ],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  },
+  {
+    "key": "T12",
+    "title": "Crear y entregar recordatorios propios de forma recuperable",
+    "id": 6230708624,
+    "number": 14,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/14",
+    "blockers": [
+      "T02"
+    ],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  },
+  {
+    "key": "T13",
+    "title": "Conservar los cumpleaños con la entrega programada nueva",
+    "id": 6230709866,
+    "number": 15,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/15",
+    "blockers": [
+      "T12"
+    ],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  },
+  {
+    "key": "T14",
+    "title": "Resolver peticiones combinadas dentro del presupuesto y medir latencia",
+    "id": 6230710940,
+    "number": 16,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/16",
+    "blockers": [
+      "T03",
+      "T04",
+      "T06",
+      "T07",
+      "T09",
+      "T11",
+      "T13"
+    ],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  },
+  {
+    "key": "T15",
+    "title": "Validar el piloto y sustituir la ruta anterior sin perder datos",
+    "id": 6230713861,
+    "number": 17,
+    "url": "https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/17",
+    "blockers": [
+      "T14"
+    ],
+    "parentLinked": true,
+    "dependenciesLinked": true
+  }
+]
