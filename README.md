@@ -96,6 +96,11 @@ without Discord/model credentials. With consenting test accounts, the owner shou
 
 ### Deployment
 
+Explicit pilot memories use separate PostgreSQL/pgvector storage, opt-in embeddings
+and a trusted `MEMORY_OWNER_ID`. Setup, request syntax, deletion guarantees and
+isolated tests: [T10 storage contract](docs/tickets/gnomo-refactor/10-storage-contract.md).
+No schema setup or legacy data migration runs automatically at startup.
+
 Deploy to Fly.io:
 
 ```bash

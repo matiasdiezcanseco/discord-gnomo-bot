@@ -12,6 +12,7 @@ import { discordMembers } from './members'
 import { memberMentions } from '../../conversation/member-mentions'
 import { discordHistory } from './channel-history'
 import { bucketCollection } from '../../conversation/collection-content'
+import { memoryCapabilities, type MemoryDependencies } from '../../conversation/explicit-memory'
 import { safeReader, type SafeReader } from '../../web/safe-reader'
 import { discordLiveMembers } from './live-members'
 import { attachedImages } from '../../conversation/attached-images'
@@ -24,6 +25,7 @@ export function composePilot(
   model = aiSdkModel(openai(config.get<string>('OPENAI_MODEL', 'gpt-4o-mini'))),
   discordFetch: typeof fetch = fetch,
   web: SafeReader = safeReader(),
+  memory?: MemoryDependencies,
 ) {
   const members = discordMembers(client, discordFetch)
   const authorize: ConversationPorts['authorize'] = async (invocation, tool) => {
@@ -63,6 +65,10 @@ export function composePilot(
     }
     return (
       !tool ||
+      (tool.capability.startsWith('memory.') &&
+        ((tool.capability === 'memory.search' && tool.effect === 'read') ||
+          (['memory.save', 'memory.update', 'memory.forget'].includes(tool.capability) &&
+            tool.effect === 'write'))) ||
       ([
         'pilot.status',
         'messages.history',
@@ -78,7 +84,13 @@ export function composePilot(
         tool.effect === 'read')
     )
   }
-  const history = discordHistory(client, (invocation) => authorize(invocation), discordFetch)
+  // With durable memory enabled, never retain history pages that may contain old memory replies.
+  const history = discordHistory(
+    client,
+    (invocation) => authorize(invocation),
+    discordFetch,
+    !memory,
+  )
   return createConversation({
     loadImages: async (context) => {
       const images = await attachedImages(web)({
@@ -99,6 +111,9 @@ export function composePilot(
       tavilySearch(config.get<string>('TAVILY_API_KEY')),
       discordLiveMembers(client, members),
       web,
+      memoryCapabilities(memory, config.get<string>('MEMORY_OWNER_ID'), (invocation) =>
+        authorize(invocation),
+      ),
     ),
     allowedUserMentions: memberMentions(members),
     trace,

@@ -16,6 +16,7 @@ export function discordHistory(
   client: Client,
   authorize: (invocation: Invocation) => Promise<boolean>,
   fetcher: typeof fetch = fetch,
+  cacheEnabled = true,
 ): HistoryReader {
   // Short lived request-page cache, never an ambient archive. Fixed expiry is not renewed on hits.
   const cache = new Map<
@@ -116,7 +117,7 @@ export function discordHistory(
       result.partial = true
     }
     result.messages.reverse()
-    if (!signal.aborted) {
+    if (cacheEnabled && !signal.aborted) {
       while (cache.size >= 16) {
         const oldest = cache.keys().next().value!
         clearTimeout(cache.get(oldest)!.timer)
