@@ -113,7 +113,19 @@ export function createConversation(ports: ConversationPorts) {
           trace('authorization', 'denied')
         } else {
           trace('authorization', 'allowed')
-          for (; budget.steps < 5; ) {
+          const direct = tools.filter((tool) => tool.direct?.matches(invocation))
+          if (direct.length === 1) {
+            const tool = direct[0]
+            const result = await executor.execute({
+              id: 'direct',
+              name: tool.name,
+              input: tool.direct!.input,
+            })
+            results.push(result)
+            trace('tool_finished', result.status, result.name)
+            text = tool.direct!.render(result)
+          }
+          for (; direct.length !== 1 && budget.steps < 5; ) {
             budget.check()
             budget.steps++
             const visible = await executor.available()

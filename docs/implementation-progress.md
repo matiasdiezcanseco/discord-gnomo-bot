@@ -11,11 +11,11 @@ Los tickets siguen abiertos hasta la resolución mediante el PR; integrado no si
 | --- | --- | --- |
 | T01 / #3 | Integrado | b88a223; 15 pruebas, tipos, build y lint aprobados en worktree del implementador |
 | T02 / #4 | Integrado | 68bb8a1; 31 pruebas, Redis real aislado, tipos, build y lint aprobados en integración |
-| T03 / #5 | Frontera disponible | Frases y fotos rápidas |
-| T04 / #6 | Frontera disponible | Historial real del canal |
-| T05 / #7 | Frontera disponible | Miembros y menciones |
+| T03 / #5 | Integrado | 0829860; 40 pruebas con Redis real, tipos, build y lint aprobados en integración |
+| T04 / #6 | Implementador en ejecución | Historial real del canal |
+| T05 / #7 | Implementador en ejecución | Miembros y menciones |
 | T06 / #8 | Pendiente de T05 | Presencia y voz |
-| T07 / #9 | Frontera disponible | Búsqueda y noticias |
+| T07 / #9 | Próximo implementador | Búsqueda y noticias |
 | T08 / #10 | Frontera disponible | Lectura pública de páginas |
 | T09 / #11 | Pendiente de T08 | Adjuntos visuales |
 | T10 / #12 | Frontera disponible | Recuerdos explícitos |
@@ -27,4 +27,4 @@ Los tickets siguen abiertos hasta la resolución mediante el PR; integrado no si
 
 Frontera de pruebas confirmada: invocación normalizada hasta respuesta/efectos, modelo/Discord/web controlados y persistencia real aislada para migraciones/concurrencia. Docker Desktop ya está disponible (motor 27.4.0). Las dependencias del checkout de integración y el cliente Prisma local están preparados; no se han ejecutado servicios de producción, migraciones reales, piloto ni mediciones reales de latencia.
 
-Worktrees a limpiar después de la integración y revisión completas: implementador T01 en `t3-98d57475`, rama `feat/t01-invocation`; T02 en `t3-7364b802`, rama `feat/conversation-harness`. Preservar cualquier edición no integrada antes de limpiar mediante herramientas de T3.
+Worktrees a limpiar después de la integración y revisión completas: implementador T01 en `t3-98d57475`, rama `feat/t01-invocation`; T02 en `t3-7364b802`, rama `feat/conversation-harness`; T03 en `t3-d71d5f54`, rama `feat/fast-phrase-photo`. Preservar cualquier edición no integrada antes de limpiar mediante herramientas de T3.

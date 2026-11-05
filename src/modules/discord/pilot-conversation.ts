@@ -9,6 +9,7 @@ import { pilotCatalog } from '../../conversation/pilot-catalog'
 import { redisClaims } from '../../conversation/redis-claims'
 import { discordMembers } from './members'
 import { memberMentions } from '../../conversation/member-mentions'
+import { bucketCollection } from '../../conversation/collection-content'
 
 export function composePilot(
   client: Client,
@@ -21,7 +22,7 @@ export function composePilot(
   const members = discordMembers(client, memberFetch)
   return createConversation({
     model,
-    catalog: pilotCatalog(members),
+    catalog: pilotCatalog(bucketCollection(config.get<string>('BUCKET_URL')), members),
     allowedUserMentions: memberMentions(members),
     trace,
     concurrency: config.get<number>('CONVERSATION_CONCURRENCY', 4),
@@ -67,7 +68,10 @@ export function composePilot(
       }
       return (
         !tool ||
-        (['pilot.status', 'discord.members'].includes(tool.capability) && tool.effect === 'read')
+        (['pilot.status', 'collection.phrase', 'collection.photo', 'discord.members'].includes(
+          tool.capability,
+        ) &&
+          tool.effect === 'read')
       )
     },
     // Delivery is bound to the originating Discord message by the sole receiver.

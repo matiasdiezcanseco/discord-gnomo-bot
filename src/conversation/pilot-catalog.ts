@@ -2,10 +2,12 @@ import { z } from 'zod'
 import { Catalog, defineCapability } from './catalog'
 import { memberCapabilities } from './member-capabilities'
 import type { MemberDirectory } from './member-directory'
+import { collectionCapabilities, type CollectionSource } from './collection-content'
 
 /** Single composition point. Future capability modules export definitions, never edit the loop. */
-export function pilotCatalog(members?: MemberDirectory) {
+export function pilotCatalog(collection?: CollectionSource, members?: MemberDirectory) {
   return new Catalog([
+    ...collectionCapabilities(collection),
     ...(members ? memberCapabilities(members) : []),
     defineCapability({
       name: 'pilot_status',
