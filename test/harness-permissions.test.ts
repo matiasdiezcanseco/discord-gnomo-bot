@@ -9,7 +9,8 @@ import { composePilot } from '../src/modules/discord/pilot-conversation'
 test(
   'composed pilot checks effective requester and bot permissions using authenticated IDs',
   { skip: !process.env.T02_REDIS_URL },
-  async () => {
+  async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => new Response('[]'))
     const redis = new Redis(process.env.T02_REDIS_URL!)
     const replies: string[] = [],
       lookups: string[] = []

@@ -43,6 +43,7 @@ function fixture(
   const fetcher: typeof fetch = async (input, init) => {
     assert.ok(init?.signal)
     const url = new URL(String(input))
+    if (url.pathname.endsWith('/messages')) return new Response('[]')
     requests.push(url)
     return new Response(JSON.stringify(pages.shift() ?? []), {
       status: options.status ?? (options.fail ? 403 : 200),
