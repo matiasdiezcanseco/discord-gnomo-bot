@@ -12,6 +12,8 @@ export class DiscordService implements OnModuleInit, OnModuleDestroy {
     private readonly logger: LoggerService,
   ) {
     this.client = new Client({
+      // Discord 5xx can mean acceptance is unknown. The notice dispatcher owns retry policy.
+      rest: { retries: 0, timeout: 10000, rejectOnRateLimit: () => true },
       intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,

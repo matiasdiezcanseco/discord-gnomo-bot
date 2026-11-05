@@ -16,6 +16,7 @@ import { memoryCapabilities, type MemoryDependencies } from '../../conversation/
 import { safeReader, type SafeReader } from '../../web/safe-reader'
 import { discordLiveMembers } from './live-members'
 import { attachedImages } from '../../conversation/attached-images'
+import { ScheduledNotices } from '../../conversation/scheduled-notices'
 
 export function composePilot(
   client: Client,
@@ -65,6 +66,9 @@ export function composePilot(
     }
     return (
       !tool ||
+      (tool.capability === 'reminders.own' &&
+        tool.effect === 'write' &&
+        /^(?:por favor,?\s+)?(?:recu[eé]rdame|recordarme)\s+/i.test(invocation.content.trim())) ||
       (tool.capability.startsWith('memory.') &&
         ((tool.capability === 'memory.search' && tool.effect === 'read') ||
           (['memory.save', 'memory.update', 'memory.forget'].includes(tool.capability) &&
@@ -114,6 +118,7 @@ export function composePilot(
       memoryCapabilities(memory, config.get<string>('MEMORY_OWNER_ID'), (invocation) =>
         authorize(invocation),
       ),
+      redis ? new ScheduledNotices(redis) : undefined,
     ),
     allowedUserMentions: memberMentions(members),
     trace,
