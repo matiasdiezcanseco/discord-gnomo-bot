@@ -35,7 +35,7 @@ import { PilotMemory } from './pilot-memory'
           undefined,
           undefined,
           undefined,
-      memory.dependencies,
+          memory.dependencies,
         ),
     },
   ],

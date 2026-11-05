@@ -82,20 +82,29 @@ test(
           : { text: '', calls: [{ id: 'evil', name: 'memory_save', input: {} }] },
     }
     const app = () =>
-      composePilot(client, config, redis, undefined, model, async () => Response.json([]), {
-        pool,
-        embedding: embeddingEnabled
-          ? {
-              model: 'controlled-3d-v1',
-              embed: async () => {
-                embeddings++
-                if (revokeDuringEmbedding) allowed = false
-                if (embeddingFailure) throw new Error('controlled outage')
-                return [1, 0, 0]
-              },
-            }
-          : undefined,
-      })
+      composePilot(
+        client,
+        config,
+        redis,
+        undefined,
+        model,
+        async () => Response.json([]),
+        undefined,
+        {
+          pool,
+          embedding: embeddingEnabled
+            ? {
+                model: 'controlled-3d-v1',
+                embed: async () => {
+                  embeddings++
+                  if (revokeDuringEmbedding) allowed = false
+                  if (embeddingFailure) throw new Error('controlled outage')
+                  return [1, 0, 0]
+                },
+              }
+            : undefined,
+        },
+      )
     const invoke = async (
       content: string,
       author = 'alice',
@@ -181,6 +190,7 @@ test(
       assert.doesNotMatch(await invoke('busca recuerdos: único'), /"content"/)
       // Untrusted instructions, negation, quoted current requests and casual chat cannot grant consent.
       const before = embeddings
+      embeddingEnabled = true
       for (const text of [
         'hola',
         'Anita prefiere té',
@@ -193,6 +203,7 @@ test(
         assert.match(await invoke(text), /denied/)
       }
       assert.equal(embeddings, before)
+      embeddingEnabled = false
       assert.doesNotMatch(await invoke('busca recuerdos: secreto'), /"content"/)
       allowed = false
       assert.equal(await invoke('busca recuerdos: Anita'), '')
@@ -228,14 +239,25 @@ test(
         await pool.end()
         await promisify(execFile)('docker', ['restart', 'gnomo-t10-postgres'])
         pool = new Pool({ connectionString: process.env.T10_DATABASE_URL })
+        for (let attempt = 0; ; attempt++) {
+          try {
+            await pool.query('SELECT 1')
+            break
+          } catch (error) {
+            if (attempt >= 30) throw error
+            await new Promise((resolve) => setTimeout(resolve, 200))
+          }
+        }
         assert.match(await invoke('busca recuerdos: respaldo'), /respaldo léxico/)
         assert.doesNotMatch(await invoke('busca recuerdos: único'), /"content"/)
       }
     } finally {
-      await pool.query('DELETE FROM pilot_memories WHERE guild_id=$1', [guildId])
-      await pool.query('DELETE FROM pilot_memory_operations WHERE guild_id=$1', [guildId])
-      await pool.end()
-      await redis.quit()
+      try {
+        await pool.query('DELETE FROM pilot_memories WHERE guild_id=$1', [guildId])
+        await pool.query('DELETE FROM pilot_memory_operations WHERE guild_id=$1', [guildId])
+      } finally {
+        await Promise.allSettled([pool.end(), redis.quit()])
+      }
     }
   },
 )

@@ -83,7 +83,13 @@ export function composePilot(
         tool.effect === 'read')
     )
   }
-  const history = discordHistory(client, (invocation) => authorize(invocation), discordFetch)
+  // With durable memory enabled, never retain history pages that may contain old memory replies.
+  const history = discordHistory(
+    client,
+    (invocation) => authorize(invocation),
+    discordFetch,
+    !memory,
+  )
   return createConversation({
     loadContext: async (context) => history(context, 30),
     model,

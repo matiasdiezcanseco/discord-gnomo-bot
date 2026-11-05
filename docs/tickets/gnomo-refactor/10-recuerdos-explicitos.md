@@ -23,3 +23,22 @@ Un miembro pide guardar un recuerdo, puede recuperarlo en el mismo canal y su au
 ## Blocked by
 
 - [T02 / #4: Conversación por invocación mediante un harness autorizado](https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/4)
+
+## Implementación y verificación
+
+Implementado en `feat/explicit-memory`. Contratos públicos, sintaxis explícita,
+configuración Nest, instalación nueva reproducible e interfaces de extensión T11:
+[10-storage-contract.md](10-storage-contract.md). No se importaron recuerdos
+anteriores ni se modificó producción.
+
+Frontera aprobada: invocación → `composePilot`/catálogo/ejecutor → respuesta y
+efectos recuperables. PostgreSQL 17 con pgvector y Redis 7 reales en contenedores
+`gnomo-t10-postgres` y `gnomo-t10-redis`, puertos locales 16410/16411. Modelo,
+Discord y embeddings controlados. Incluye reinicio real de PostgreSQL, creación de
+nuevos pilotos, persistencia vectorial, corrección/borrado, pérdida de reclamación
+Redis sin duplicación/resurrección, claves concurrentes, permisos revocados,
+aislamiento, autor frente a sujeto, propietario y coincidencias ambiguas.
+
+Se conserva la ruta y datos anteriores para T11. No se activó el piloto ni se
+desplegó, empujó, creó PR o cerró issue. La ausencia de URLs de pruebas omite de
+forma explícita el caso de persistencia; no lo reemplaza por almacenamiento fake.

@@ -127,7 +127,12 @@ async function execute(
     }
   }
   signal.throwIfAborted()
-  const db = await dependencies.pool.connect()
+  const db = await dependencies.pool.connect().catch(() => undefined)
+  if (!db) {
+    signal.throwIfAborted()
+    return 'unavailable: almacenamiento de memoria no disponible.'
+  }
+  let mutationAttempted = false
   try {
     await db.query('BEGIN')
     await db.query("SET LOCAL statement_timeout='2000ms'")
@@ -179,6 +184,8 @@ async function execute(
       if (record.author_id !== invocation.requester.id && ownerId !== invocation.requester.id)
         return 'denied: solo autor o propietario puede modificar este recuerdo.'
       id = record.id
+      signal.throwIfAborted()
+      mutationAttempted = true
       if (intent.operation === 'forget') {
         await db.query('DELETE FROM pilot_memories WHERE guild_id=$1 AND channel_id=$2 AND id=$3', [
           ...scope,
@@ -209,6 +216,8 @@ async function execute(
         ))
       if (duplicate && duplicate.rowCount)
         return 'conflict: tu clave ya existe; corrige usando su ID.'
+      signal.throwIfAborted()
+      mutationAttempted = true
       await db.query(
         `INSERT INTO pilot_memories (id,guild_id,channel_id,author_id,subject,key,category,
       content,source_message_id,last_message_id,last_editor_id,origin,embedding,embedding_model)
@@ -246,6 +255,9 @@ async function execute(
       id,
       editor: invocation.requester.id,
     })
+  } catch (error) {
+    if (mutationAttempted || signal.aborted) throw error
+    return 'unavailable: almacenamiento/esquema de memoria no disponible; ninguna escritura iniciada.'
   } finally {
     await db.query('ROLLBACK').catch(() => undefined)
     db.release()
