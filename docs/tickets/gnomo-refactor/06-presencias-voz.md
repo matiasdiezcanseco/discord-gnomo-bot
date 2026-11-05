@@ -24,8 +24,8 @@ Preguntar quién está conectado en Discord o quién está en una llamada y reci
 
 ## Implementación y contratos de extensión
 
-`pilotCatalog(collection?, members?, history?, live?)` conserva los tres argumentos
-existentes. El cuarto registra `presence_list` (`discord.presence`) y `voice_list`
+`pilotCatalog(collection?, members?, history?, search?, live?)` conserva los tres argumentos
+de la base y la búsqueda T07 integrada como cuarto argumento. El quinto registra `presence_list` (`discord.presence`) y `voice_list`
 (`discord.voice`) independientemente. `composePilot` compone los adaptadores Discord
 reales y autoriza ambas capacidades solo como lecturas. No se modifica el bucle ni
 el registro legado, no se activa el piloto ni se conceden permisos administrativos.

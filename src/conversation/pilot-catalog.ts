@@ -1,3 +1,4 @@
+import { searchCapabilities, type PublicSearch } from './public-search'
 import { z } from 'zod'
 import { Catalog, defineCapability } from './catalog'
 import { memberCapabilities } from './member-capabilities'
@@ -11,11 +12,13 @@ export function pilotCatalog(
   collection?: CollectionSource,
   members?: MemberDirectory,
   history?: HistoryReader,
+  search?: PublicSearch,
   live?: Partial<LiveMembers>,
 ) {
   return new Catalog([
     messagesHistory(history),
     ...collectionCapabilities(collection),
+    ...searchCapabilities(search),
     ...(members ? memberCapabilities(members) : []),
     ...(live?.presence ? [presenceCapability(live.presence)] : []),
     ...(live?.voice ? [voiceCapability(live.voice)] : []),

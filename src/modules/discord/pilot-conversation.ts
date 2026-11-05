@@ -1,3 +1,4 @@
+import { tavilySearch } from '../../conversation/public-search'
 import type { Client } from 'discord.js'
 import { ChannelType, PermissionFlagsBits } from 'discord.js'
 import type { ConfigService } from '@nestjs/config'
@@ -67,6 +68,8 @@ export function composePilot(
         'discord.members',
         'discord.presence',
         'discord.voice',
+        'web.search',
+        'web.news',
       ].includes(tool.capability) &&
         tool.effect === 'read')
     )
@@ -79,6 +82,7 @@ export function composePilot(
       bucketCollection(config.get<string>('BUCKET_URL')),
       members,
       history,
+      tavilySearch(config.get<string>('TAVILY_API_KEY')),
       discordLiveMembers(client, members),
     ),
     allowedUserMentions: memberMentions(members),

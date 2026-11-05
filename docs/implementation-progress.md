@@ -14,11 +14,11 @@ Los tickets siguen abiertos hasta la resolución mediante el PR; integrado no si
 | T03 / #5 | Integrado | 0829860; 40 pruebas con Redis real, tipos, build y lint aprobados en integración |
 | T04 / #6 | Integrado | 4987e72; 65 pruebas combinadas, Redis real, tipos, build y lint aprobados |
 | T05 / #7 | Integrado | cfbfa2d; miembros/menciones conservados al integrar historial |
-| T06 / #8 | Próximo implementador | Presencia y voz |
-| T07 / #9 | Implementador en ejecución | Reanudado tras límite de uso, mismo proveedor/modelo |
-| T08 / #10 | Próximo implementador | Lectura pública de páginas |
+| T06 / #8 | Implementador en ejecución | Presencia y voz |
+| T07 / #9 | Integrado | ff762ac; 84 pruebas combinadas, Redis real, tipos, build y lint aprobados |
+| T08 / #10 | Implementador en ejecución | Lectura pública de páginas |
 | T09 / #11 | Pendiente de T08 | Adjuntos visuales |
-| T10 / #12 | Frontera disponible | Recuerdos explícitos |
+| T10 / #12 | Próximo implementador | Recuerdos explícitos |
 | T11 / #13 | Pendiente de T10 | Migración de recuerdos |
 | T12 / #14 | Frontera disponible | Recordatorios recuperables |
 | T13 / #15 | Pendiente de T12 | Cumpleaños |
