@@ -31,6 +31,13 @@ test('pilot channel routes through the only receiver and never invokes legacy or
     },
   )
   await handler.handleMessage({
+    guildId: 'g',
+    channelId: 'c',
+    content: 'hola sin invocación',
+    author: { id: 'u', username: 'Ana', bot: false },
+  } as unknown as Message)
+  assert.equal(replies.length, 0)
+  await handler.handleMessage({
     id: '1',
     guildId: 'g',
     channelId: 'c',

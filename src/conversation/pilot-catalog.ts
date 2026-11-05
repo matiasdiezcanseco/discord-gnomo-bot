@@ -1,9 +1,11 @@
 import { z } from 'zod'
 import { Catalog, defineCapability } from './catalog'
+import { messagesHistory, type HistoryReader } from './channel-history'
 
 /** Single composition point. Future capability modules export definitions, never edit the loop. */
-export function pilotCatalog() {
+export function pilotCatalog(history?: HistoryReader) {
   return new Catalog([
+    messagesHistory(history),
     defineCapability({
       name: 'pilot_status',
       description: 'Comprueba que la conversación usa el harness autorizado del piloto.',

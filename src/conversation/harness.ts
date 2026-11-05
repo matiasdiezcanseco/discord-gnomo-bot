@@ -1,5 +1,6 @@
 import type { Invocation } from '../core/conversation/invocation'
-import { Catalog, type Capability } from './catalog'
+import { Catalog, type Capability, type ExecutionContext } from './catalog'
+import type { HistoryResult } from './channel-history'
 import { Budget, systemClock, type Clock } from './budget'
 import { splitReply } from './delivery'
 import { Admission } from './admission'
@@ -31,6 +32,7 @@ export interface ToolResult {
   value?: unknown
 }
 export interface ModelInput {
+  recentContext?: HistoryResult
   invocation: Invocation
   signal: AbortSignal
   results: ToolResult[]
@@ -46,6 +48,8 @@ export interface Trace {
   steps: number
 }
 export interface ConversationPorts {
+  /** Called only after invocation authorization; absent means no ambient context. */
+  loadContext?(context: ExecutionContext): Promise<HistoryResult | undefined>
   model: { generate(input: ModelInput): Promise<ModelTurn> }
   catalog?: Catalog
   clock?: Clock
@@ -109,12 +113,27 @@ export function createConversation(ports: ConversationPorts) {
           trace('authorization', 'denied')
         } else {
           trace('authorization', 'allowed')
+          const recentContext = await budget.wait(
+            () =>
+              ports.loadContext?.({
+                invocation,
+                signal,
+                idempotencyKey: invocation.messageId,
+                external: (work) => budget.external(work),
+              }) ?? Promise.resolve(undefined),
+          )
           for (; budget.steps < 5; ) {
             budget.check()
             budget.steps++
             const visible = await executor.available()
             const turn = await budget.external(() =>
-              ports.model.generate({ invocation, signal, results: [...results], tools: visible }),
+              ports.model.generate({
+                invocation,
+                signal,
+                results: [...results],
+                tools: visible,
+                recentContext,
+              }),
             )
             if (turn.text) text = turn.text
             if (!turn.calls.length) break
