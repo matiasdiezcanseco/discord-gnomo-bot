@@ -5,6 +5,8 @@ import { memberCapabilities } from './member-capabilities'
 import type { MemberDirectory } from './member-directory'
 import { messagesHistory, type HistoryReader } from './channel-history'
 import { collectionCapabilities, type CollectionSource } from './collection-content'
+import { webRead } from './web-read'
+import { safeReader, type SafeReader } from '../web/safe-reader'
 import { presenceCapability, voiceCapability, type LiveMembers } from './live-members'
 
 /** Single composition point. Future capability modules export definitions, never edit the loop. */
@@ -14,8 +16,10 @@ export function pilotCatalog(
   history?: HistoryReader,
   search?: PublicSearch,
   live?: Partial<LiveMembers>,
+  web: SafeReader = safeReader(),
 ) {
   return new Catalog([
+    webRead(web),
     messagesHistory(history),
     ...collectionCapabilities(collection),
     ...searchCapabilities(search),
