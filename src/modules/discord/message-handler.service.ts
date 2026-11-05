@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common'
+import { Injectable, OnModuleInit, Optional, Inject } from '@nestjs/common'
 import { ChannelType, type Message } from 'discord.js'
 import { ConfigService } from '@nestjs/config'
 import { OrchestratorService } from '../../core/orchestrator/orchestrator.service'
@@ -16,6 +16,7 @@ import {
 import { normalizeInvocation } from './normalize-invocation'
 import { respondToInvocation } from '../../core/conversation/invocation'
 import type { BotContext } from '../../core/context/bot-context'
+import type { createConversation } from '../../conversation/harness'
 
 @Injectable()
 export class MessageHandlerService implements OnModuleInit {
@@ -27,6 +28,9 @@ export class MessageHandlerService implements OnModuleInit {
     private readonly orchestrator: OrchestratorService,
     private readonly redisHistory: RedisHistoryService,
     loggerService: LoggerService,
+    @Optional()
+    @Inject('PILOT_CONVERSATION')
+    private readonly pilot?: Pick<ReturnType<typeof createConversation>, 'handle'>,
   ) {
     this.logger = loggerService.createLogger('message-handler')
   }
@@ -41,6 +45,18 @@ export class MessageHandlerService implements OnModuleInit {
     const botUserId = this.discord.getClient().user?.id
     const invocation = normalizeInvocation(msg, this.config.get<string>('GUILD_ID'), botUserId)
     if (!invocation || msg.channel.type === ChannelType.GroupDM) return
+
+    const pilotChannels = this.config
+      .get<string>('CONVERSATION_PILOT_CHANNEL_IDS', '')
+      .split(',')
+      .map((id) => id.trim())
+    if (pilotChannels.includes(invocation.channelId)) {
+      if (!this.pilot) return // Fail closed; never silently fall back to unapproved legacy tools.
+      await this.pilot.handle(invocation, async (_origin, reply) => {
+        await msg.reply(reply)
+      })
+      return
+    }
 
     const channel = msg.channel
     const content = replaceUserMentionsWithNames(invocation.content, botUserId!, (userId) => {

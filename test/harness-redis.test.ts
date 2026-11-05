@@ -1,0 +1,63 @@
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import Redis from 'ioredis'
+import { randomUUID } from 'node:crypto'
+import { redisClaims } from '../src/conversation/redis-claims'
+import { createConversation } from '../src/conversation/harness'
+import type { Invocation } from '../src/core/conversation/invocation'
+
+test(
+  'Redis atomically deduplicates concurrent events across clients and reconnects, with scoped expiry',
+  { skip: !process.env.T02_REDIS_URL },
+  async () => {
+    const url = process.env.T02_REDIS_URL!
+    const namespace = `test:t02:${randomUUID()}`
+    const first = new Redis(url),
+      second = new Redis(url)
+    const input: Invocation = {
+      messageId: '1',
+      guildId: 'g',
+      channelId: 'c',
+      requester: { id: 'u', username: 'Ana' },
+      content: 'hola',
+      createdAt: 0,
+      attachments: [],
+    }
+    const replies: string[] = []
+    const build = (client: Redis) =>
+      createConversation({
+        claim: redisClaims(client, namespace, 1),
+        authorize: async () => true,
+        model: {
+          generate: async ({ invocation }) => ({ text: invocation.requester.id, calls: [] }),
+        },
+        reply: async (origin, reply) => {
+          replies.push(`${origin.messageId}:${reply.content}`)
+        },
+      })
+    try {
+      await Promise.all([build(first).handle(input), build(second).handle(input)])
+      assert.deepEqual(replies, ['1:u'])
+      await first.quit()
+      const restarted = new Redis(url)
+      try {
+        await build(restarted).handle(input)
+        assert.equal(replies.length, 1)
+      } finally {
+        await restarted.quit()
+      }
+      await build(second).handle({
+        ...input,
+        messageId: '2',
+        requester: { id: 'other', username: 'Luis' },
+      })
+      assert.deepEqual(replies, ['1:u', '2:other'])
+      await new Promise((resolve) => setTimeout(resolve, 1100))
+      await build(second).handle(input)
+      assert.equal(replies.length, 3)
+    } finally {
+      first.disconnect()
+      await second.quit()
+    }
+  },
+)

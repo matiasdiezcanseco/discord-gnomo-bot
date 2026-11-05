@@ -12,6 +12,8 @@ const envSchema = z.object({
   GUILD_ID: z.string().min(1, 'GUILD_ID is required'),
   GNOMOS_CHANNEL_ID: z.string().min(1, 'GNOMOS_CHANNEL_ID is required'),
   TEST_CHANNEL_ID: z.string().optional(),
+  CONVERSATION_PILOT_CHANNEL_IDS: z.string().default(''),
+  CONVERSATION_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
 
   // External Services
   BUCKET_URL: z.string().url('BUCKET_URL must be a valid URL'),
