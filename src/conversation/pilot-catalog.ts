@@ -4,17 +4,21 @@ import { memberCapabilities } from './member-capabilities'
 import type { MemberDirectory } from './member-directory'
 import { messagesHistory, type HistoryReader } from './channel-history'
 import { collectionCapabilities, type CollectionSource } from './collection-content'
+import { presenceCapability, voiceCapability, type LiveMembers } from './live-members'
 
 /** Single composition point. Future capability modules export definitions, never edit the loop. */
 export function pilotCatalog(
   collection?: CollectionSource,
   members?: MemberDirectory,
   history?: HistoryReader,
+  live?: Partial<LiveMembers>,
 ) {
   return new Catalog([
     messagesHistory(history),
     ...collectionCapabilities(collection),
     ...(members ? memberCapabilities(members) : []),
+    ...(live?.presence ? [presenceCapability(live.presence)] : []),
+    ...(live?.voice ? [voiceCapability(live.voice)] : []),
     defineCapability({
       name: 'pilot_status',
       description: 'Comprueba que la conversación usa el harness autorizado del piloto.',

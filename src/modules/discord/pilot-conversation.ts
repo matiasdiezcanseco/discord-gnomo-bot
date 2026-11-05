@@ -11,6 +11,7 @@ import { discordMembers } from './members'
 import { memberMentions } from '../../conversation/member-mentions'
 import { discordHistory } from './channel-history'
 import { bucketCollection } from '../../conversation/collection-content'
+import { discordLiveMembers } from './live-members'
 
 export function composePilot(
   client: Client,
@@ -64,6 +65,8 @@ export function composePilot(
         'collection.phrase',
         'collection.photo',
         'discord.members',
+        'discord.presence',
+        'discord.voice',
       ].includes(tool.capability) &&
         tool.effect === 'read')
     )
@@ -72,7 +75,12 @@ export function composePilot(
   return createConversation({
     loadContext: async (context) => history(context, 30),
     model,
-    catalog: pilotCatalog(bucketCollection(config.get<string>('BUCKET_URL')), members, history),
+    catalog: pilotCatalog(
+      bucketCollection(config.get<string>('BUCKET_URL')),
+      members,
+      history,
+      discordLiveMembers(client, members),
+    ),
     allowedUserMentions: memberMentions(members),
     trace,
     concurrency: config.get<number>('CONVERSATION_CONCURRENCY', 4),
