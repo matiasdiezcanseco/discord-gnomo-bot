@@ -25,11 +25,24 @@ function parse(invocation: Invocation) {
       : null
   }
   const tomorrow = /^ma[ñn]ana a las (\d{2}:\d{2})\s+(.+)$/i.exec(body)
-  const dated = /^(\d{4}-\d{2}-\d{2}) a las (\d{2}:\d{2})\s+(.+)$/i.exec(body) ?? (tomorrow ? ['', dayjs(invocation.createdAt).tz('America/Lima').add(1, 'day').format('YYYY-MM-DD'), tomorrow[1], tomorrow[2]] : null)
+  const dated =
+    /^(\d{4}-\d{2}-\d{2}) a las (\d{2}:\d{2})\s+(.+)$/i.exec(body) ??
+    (tomorrow
+      ? [
+          '',
+          dayjs(invocation.createdAt).tz('America/Lima').add(1, 'day').format('YYYY-MM-DD'),
+          tomorrow[1],
+          tomorrow[2],
+        ]
+      : null)
   if (dated) {
     const literal = `${dated[1]} ${dated[2]}`
     let date: dayjs.Dayjs
-    try { date = dayjs.tz(literal, 'America/Lima') } catch { return null }
+    try {
+      date = dayjs.tz(literal, 'America/Lima')
+    } catch {
+      return null
+    }
     if (
       date.isValid() &&
       date.format('YYYY-MM-DD HH:mm') === literal &&

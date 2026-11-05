@@ -29,9 +29,30 @@ export function discordScheduledDelivery(client: Client, config: ConfigService):
     return channel
   }
   return {
-    authorize: async (origin) => !!(await channelFor(origin)),
+    authorize: async (origin) => {
+      try {
+        return !!(await channelFor(origin))
+      } catch (error) {
+        const status =
+          typeof error === 'object' && error !== null && 'status' in error ? error.status : null
+        throw new NoticeFailure(
+          status === 403 || status === 404 ? 'permanent' : 'transient',
+          'Discord authorization lookup failed before send',
+        )
+      }
+    },
     send: async (origin, reply) => {
-      const channel = await channelFor(origin)
+      let channel: Awaited<ReturnType<typeof channelFor>>
+      try {
+        channel = await channelFor(origin)
+      } catch (error) {
+        const status =
+          typeof error === 'object' && error !== null && 'status' in error ? error.status : null
+        throw new NoticeFailure(
+          status === 403 || status === 404 ? 'permanent' : 'transient',
+          'Discord revalidation lookup failed before send',
+        )
+      }
       if (!channel) throw new NoticeFailure('permanent', 'permission revoked before send')
       try {
         await channel.send(reply)
