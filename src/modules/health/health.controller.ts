@@ -33,7 +33,7 @@ export class HealthController {
           'PILOT_MEMORY_EMBEDDING_MODEL',
         ].map((key) => [key, Boolean(this.config.get(key))]),
       ),
-      migrations: 'explicit-operator-only',
+      migrations: 'automatic-before-runtime',
     }
   }
   @Get()

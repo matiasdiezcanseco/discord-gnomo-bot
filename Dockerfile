@@ -17,7 +17,7 @@ EXPOSE 3000
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
 COPY --from=builder /app/dist ./dist
-# Explicit SQL and operator sources remain available; startup never runs migrations.
+# Startup applies pending Drizzle migrations before Discord; operator CLI remains available.
 COPY drizzle ./drizzle
 COPY scripts ./scripts
 COPY src ./src

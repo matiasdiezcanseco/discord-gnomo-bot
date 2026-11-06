@@ -19,11 +19,12 @@ Its local-only user/password/database are `gnomo` / `gnomo-local` / `gnomo`.
 The new `postgres_data` volume persists data. The existing `redis_data` volume
 is retained. Do not run `docker compose down --volumes` against retained data.
 
-Schema installation is an explicit Drizzle migration, for fresh and existing
+Schema installation uses Drizzle migrations, for fresh and existing
 volumes. It creates the vector extension, memory tables and migration journal;
 compatible existing tables are adopted without rewriting records. It does not
-import old memories. Bot startup never installs or migrates schema.
-Use the compiled operator service:
+import old memories. Bot startup automatically applies pending schema migrations
+before Discord/jobs/HTTP and aborts on failure; applied migrations are skipped.
+To install/check schema manually without starting the server, use the operator service:
 
 ```powershell
 docker compose --profile tools build migrate
@@ -70,8 +71,8 @@ path at runtime; it is not included in the image. A server certificate trusted b
 Node's system roots needs only `sslmode=verify-full`. Do not disable certificate
 verification. See [Supabase SSL guidance](https://supabase.com/docs/guides/platform/ssl-enforcement).
 
-Before activation, an operator runs `npm run db:migrate` with the intended database
-URL and a role permitted to install/use vector and create tables/journal. The
+Startup requires the intended direct database URL and a role permitted to install/
+use vector and create tables/journal. Manual `npm run db:migrate` remains available. The
 runtime role needs the corresponding memory-table/index/extension access. Legacy
 imports remain the separate backup/dry-run/import process in
 [migration operations](tickets/gnomo-refactor/11-migration-operations.md); neither

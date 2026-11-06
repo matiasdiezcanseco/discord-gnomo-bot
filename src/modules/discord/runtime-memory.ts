@@ -6,7 +6,7 @@ import { openai } from '@ai-sdk/openai'
 import type { MemoryDependencies } from '../../conversation/explicit-memory'
 import { databasePoolConfig, databaseVariables } from '../../database/configuration'
 
-/** Owns only the new pilot pool. Startup never creates schema or imports legacy data. */
+/** Owns the runtime pool; the startup barrier handles schema, never legacy data import. */
 @Injectable()
 export class RuntimeMemory implements OnModuleDestroy {
   readonly dependencies?: MemoryDependencies

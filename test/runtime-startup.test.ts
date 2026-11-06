@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { execFileSync } from 'node:child_process'
+import { Pool } from 'pg'
 
 test('production Nest composition starts paused without credentials, has one receiver and two notice jobs, and closes', () => {
   execFileSync(process.execPath, ['node_modules/@nestjs/cli/bin/nest.js', 'build'], {
@@ -123,5 +124,93 @@ test(
       execFileSync(process.execPath, ['-e', script], { env, encoding: 'utf8', timeout: 15000 }),
       /active smoke passed/,
     )
+  },
+)
+
+test(
+  'server migrates before Discord login, skips applied migrations and aborts on failure',
+  {
+    skip: !process.env.STARTUP_TEST_DATABASE_URL || !process.env.T02_REDIS_URL,
+  },
+  async () => {
+    const url = process.env.STARTUP_TEST_DATABASE_URL!
+    assert.equal(new URL(url).hostname, '127.0.0.1')
+    assert.equal(new URL(url).pathname, '/gnomo_startup')
+    const pool = new Pool({ connectionString: url })
+    execFileSync(process.execPath, ['node_modules/@nestjs/cli/bin/nest.js', 'build'], {
+      stdio: 'pipe',
+    })
+    const script = `
+    require('reflect-metadata');
+    const assert = require('node:assert/strict');
+    const { Pool } = require('pg');
+    const { Client } = require('discord.js');
+    let logins = 0;
+    Client.prototype.login = async () => {
+      logins++;
+      const db = new Pool({connectionString:process.env.DATABASE_URL});
+      try {
+        const result = await db.query("SELECT to_regclass('drizzle.__drizzle_migrations') AS name");
+        assert.ok(result.rows[0].name, 'schema migrations must complete before Discord login');
+        assert.equal((await db.query('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations')).rows[0].n, 1);
+      } finally { await db.end(); }
+      return 'controlled';
+    };
+    const { NestFactory } = require('@nestjs/core');
+    const { AppModule } = require('./dist/app.module');
+    (async () => {
+      let app, failure;
+      try { app = await NestFactory.create(AppModule,{logger:false,abortOnError:false}); await app.init(); }
+      catch(error) { failure = error; }
+      if(app) await app.close();
+      if(process.env.EXPECT_STARTUP_FAILURE === 'yes') {
+        assert.ok(failure, 'failed migration must stop startup');
+        assert.match(failure.message, /Startup migrations failed/);
+        assert.equal(logins, 0, 'Discord must never log in after migration failure');
+      } else { if(failure) throw failure; assert.equal(logins,1); }
+      console.log('startup barrier passed');
+      process.exit(0);
+    })().catch(error=>{console.error(error);process.exit(1)});
+  `
+    const run = (failure = false) =>
+      execFileSync(process.execPath, ['-e', script], {
+        env: {
+          ...process.env,
+          DATABASE_URL: url,
+          DATABASE_URL_POOLED: 'postgresql://fixture:fixture@127.0.0.1:1/unreachable',
+          PILOT_MEMORY_DATABASE_URL: undefined,
+          REDIS_URL: process.env.T02_REDIS_URL,
+          NODE_ENV: 'production',
+          RUNTIME_MODE: 'pilot',
+          RUNTIME_CHANNEL_IDS: 'c',
+          GUILD_ID: 'g',
+          BOT_TOKEN: 'controlled',
+          OPENAI_API_KEY: 'controlled',
+          BUCKET_URL: undefined,
+          EXPECT_STARTUP_FAILURE: failure ? 'yes' : 'no',
+        },
+        encoding: 'utf8',
+        timeout: 30000,
+      })
+    try {
+      await pool.query(
+        'DROP TABLE IF EXISTS pilot_memory_operations; DROP TABLE IF EXISTS pilot_memories CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE',
+      )
+      assert.match(run(), /startup barrier passed/)
+      await pool.query(
+        "INSERT INTO pilot_memories(id,guild_id,channel_id,content,origin) VALUES('a1111111-1111-4111-8111-111111111111','g','c','existing record','explicit_request')",
+      )
+      assert.match(run(), /startup barrier passed/)
+      assert.equal(
+        (await pool.query('SELECT content FROM pilot_memories')).rows[0].content,
+        'existing record',
+      )
+      await pool.query(
+        'DROP SCHEMA drizzle CASCADE; ALTER TABLE pilot_memories ALTER COLUMN content DROP NOT NULL',
+      )
+      assert.match(run(true), /startup barrier passed/)
+    } finally {
+      await pool.end()
+    }
   },
 )

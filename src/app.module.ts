@@ -6,11 +6,13 @@ import { BucketModule } from './modules/services/bucket/bucket.module'
 import { DiscordModule } from './modules/discord/discord.module'
 import { ScheduleModule } from './modules/schedule/schedule.module'
 import { HealthModule } from './modules/health/health.module'
+import { DatabaseModule } from './database/database.module'
 
 @Global()
 @Module({
   imports: [
     ConfigModule,
+    DatabaseModule,
     LoggerModule.registerAsync({
       imports: [ConfigModule],
       inject: [],

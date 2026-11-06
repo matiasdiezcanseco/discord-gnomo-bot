@@ -6,7 +6,7 @@ import { memoryDatabase } from './connection'
 import { validateBaseline } from './baseline'
 import { databasePoolConfig } from './configuration'
 
-/** Explicit operator command only. A session lock serializes journal creation and adoption. */
+/** Shared startup/operator migrator. A session lock serializes journal creation and adoption. */
 export async function migrateMemoryDatabase(pool: Pool) {
   const client = await pool.connect()
   const db = memoryDatabase(client)

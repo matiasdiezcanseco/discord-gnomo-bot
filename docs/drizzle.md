@@ -33,8 +33,18 @@ and metadata under `drizzle/`. Review and commit these files together.
 operator invocation; `DB_ENV_FILE` selects another private file. Exported variables
 take precedence. Never point test URLs at production.
 
-Startup/build do not migrate databases. The runtime role needs table access;
-the migration operator additionally needs schema/table/extension creation rights.
+Server startup automatically applies pending migrations when SQL memory is configured,
+before Discord lifecycle hooks, scheduled jobs and HTTP listening. This also applies
+in paused mode. With no database configured, the optional SQL subsystem is skipped.
+Migration failure aborts startup with a sanitized error; nothing retries silently
+in the background. Applied migrations are skipped using the Drizzle journal, and
+the session advisory lock serializes concurrent server/CLI starts.
+
+The startup migration uses direct `DATABASE_URL` (or the legacy fallback), and
+closes its temporary pool before proceeding. Its role needs schema/table/extension
+creation rights; the pooled runtime role needs table access. Pooled-only Neon
+configuration refuses startup. Builds and sandbox conversations do not migrate;
+sandbox setup remains explicit. Historical-data imports remain operator-only.
 Keep the public memory tables and vector extension visible on the connection's
 search path. Supabase direct/session connection URLs and verified TLS are
 configured as in [local and deployment setup](local-testing.md).
@@ -111,6 +121,22 @@ mount, sandbox recall retained the previous memory ID/content/timestamps. The
 packaged image contains Drizzle SQL/journal/compiled CLI and no Prisma directory
 or client. Local services are retained; temporary regression resources removed.
 Supabase connectivity, live providers and Discord acceptance remain unperformed.
+
+## Automatic startup verification
+
+The compiled Nest startup regression proves fresh schema installation before a
+simulated Discord login, repeated startup with one journal entry and preserved
+records, and startup failure before login when schema validation fails. With no
+database configured, the existing credential-free startup test still passes.
+The startup checks share one serial test file to avoid concurrent compiler cleanup
+of the common `dist` directory.
+
+Final suite: **195/195 tests, zero skipped**, types/build/lint passed with isolated
+PostgreSQL/pgvector and separate Redis AOF restarts. Log:
+`plans/startup-verify-final.log`. Real Docker fresh startup and container restart
+both reported `automatic-before-runtime` and exactly one migration journal entry.
+The local app was refreshed in paused mode; temporary smoke databases/containers
+and regression containers were removed. No production database was accessed.
 
 Implementation references: [Drizzle with node-postgres](https://orm.drizzle.team/docs/get-started-postgresql),
 [migration history](https://orm.drizzle.team/docs/drizzle-kit-migrate),

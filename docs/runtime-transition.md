@@ -1,9 +1,9 @@
 # T15: runtime and transition preparation
 
 Code/preparation only. Live Discord/provider measurement, human acceptance,
-ACTUAL pilot and production cutover are **UNPERFORMED**. Two private configuration
-cards expired without credentials. T14/T15 acceptance remains gated; PR18 stays a
-draft, issues remain open. Controlled replies never certify production latency.
+ACTUAL pilot and production cutover are **UNPERFORMED**. T14/T15 acceptance remains
+gated; PR18 is published for code review, while operational acceptance remains
+pending. Controlled replies never certify production latency.
 
 ## Final architecture
 
@@ -54,8 +54,11 @@ startup. Old CONVERSATION_PILOT_CHANNEL_IDS no longer selects a legacy branch.
 1. Before a real pilot, obtain the owner's private configuration, review intents,
    permissions, model identity and bucket resources, and take controlled durable
    backups. Stop/drain every older receiver and scheduler. Keep default paused.
-2. Operator explicitly runs `npm run db:migrate` against the chosen PostgreSQL/
-   pgvector database. Startup never executes DDL. For existing
+2. Startup applies pending Drizzle migrations against the direct PostgreSQL/
+   pgvector database before connecting to Discord, starting jobs or listening.
+   Already-applied migrations are skipped; failure aborts startup. The direct role
+   needs migration privileges even for paused startup. Manual `db:migrate` remains
+   available for preparation. For existing
    memories, follow [T11 operations](tickets/gnomo-refactor/11-migration-operations.md):
    dry-run, backup, import, verify. T11 needs old and new tables in the same database.
    Do not replace or drop the ledger/triggers/tombstones. The application role must
@@ -101,16 +104,16 @@ receiver and Redis claim and yields one safe collection reply; no real model is 
 
 Legacy characterization outcomes remain at the new seams:
 
-| Outcome | Current coverage |
-| --- | --- |
-| Greeting/persona reply, no ambient/bot/foreign work | conversation, invocation, harness-routing |
-| Saved phrase and photo URL | collection-content, active runtime-startup |
-| Member nickname resolution | members (complete REST boundary, ambiguity and mention safety) |
-| Memory unavailable without false success | explicit-memory (also actual SQL save/search/update/forget) |
+| Outcome                                                | Current coverage                                                  |
+| ------------------------------------------------------ | ----------------------------------------------------------------- |
+| Greeting/persona reply, no ambient/bot/foreign work    | conversation, invocation, harness-routing                         |
+| Saved phrase and photo URL                             | collection-content, active runtime-startup                        |
+| Member nickname resolution                             | members (complete REST boundary, ambiguity and mention safety)    |
+| Memory unavailable without false success               | explicit-memory (also actual SQL save/search/update/forget)       |
 | Reminder unavailable, saved requester/channel delivery | reminders (real Redis, safe mentions, no lost transient failures) |
-| Birthday with no Redis sends nothing | birthdays, runtime-startup (no legacy send exists) |
-| Web result and source visible | public-search, public-web, compound-conversation |
-| Attached image reaches model | attached-images (verified bytes rather than trusting remote URL) |
+| Birthday with no Redis sends nothing                   | birthdays, runtime-startup (no legacy send exists)                |
+| Web result and source visible                          | public-search, public-web, compound-conversation                  |
+| Attached image reaches model                           | attached-images (verified bytes rather than trusting remote URL)  |
 
 Old behavior that conflicts with approved scope (global recall, autosave, unsafe
 mentions, discard-on-send-error) is intentionally not preserved. The previous 12

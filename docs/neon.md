@@ -27,8 +27,11 @@ See [node-postgres SSL/channel binding](https://node-postgres.com/features/ssl).
 
 Export `DATABASE_URL` and run `npm run db:migrate`, or run the packaged
 `node dist/database/migrate.js` with that secret. The initial migration creates
-pgvector and memory tables; compatible existing records are preserved. Startup
-never runs migrations or copies data between providers. `MEMORY_OWNER_ID` remains
+pgvector and memory tables; compatible existing records are preserved. Server startup
+also applies pending schema migrations automatically using the direct URL before
+Discord login, jobs or HTTP listening, including in paused mode. Applied migrations
+are skipped; migration failure aborts startup. The direct role must have DDL rights.
+No data is copied between providers. `MEMORY_OWNER_ID` remains
 required for memory tools. Redis and Discord settings remain unchanged; use the
 paused/pilot rollout before enabling production replies.
 
