@@ -13,16 +13,29 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     private readonly discord: DiscordService,
     private readonly logger: LoggerService,
-    @Inject('CONVERSATION') private readonly conversation: Pick<ReturnType<typeof createConversation>, 'handle'>,
+    @Inject('CONVERSATION')
+    private readonly conversation: Pick<ReturnType<typeof createConversation>, 'handle'>,
   ) {}
   private readonly receive = (message: Message) => {
-    void this.handleMessage(message).catch(() => this.logger.error('Invocation failed', 'conversation'))
+    void this.handleMessage(message).catch(() =>
+      this.logger.error('Invocation failed', 'conversation'),
+    )
   }
-  onModuleInit() { this.discord.getClient().on('messageCreate', this.receive) }
-  onModuleDestroy() { this.discord.getClient().off('messageCreate', this.receive) }
+  onModuleInit() {
+    this.discord.getClient().on('messageCreate', this.receive)
+  }
+  onModuleDestroy() {
+    this.discord.getClient().off('messageCreate', this.receive)
+  }
   async handleMessage(message: Message): Promise<void> {
-    const invocation = normalizeInvocation(message, this.config.get<string>('GUILD_ID'), this.discord.getClient().user?.id)
+    const invocation = normalizeInvocation(
+      message,
+      this.config.get<string>('GUILD_ID'),
+      this.discord.getClient().user?.id,
+    )
     if (!invocation || !runtimeAllows(this.config, invocation)) return
-    await this.conversation.handle(invocation, async (_origin, reply) => { await message.reply(reply) })
+    await this.conversation.handle(invocation, async (_origin, reply) => {
+      await message.reply(reply)
+    })
   }
 }

@@ -73,7 +73,9 @@ function discordFixture() {
       }),
     },
   } as unknown as Client
-  const values: Record<string, string> = { RUNTIME_MODE: 'guild', BUCKET_URL: 'https://bucket.example/',
+  const values: Record<string, string> = {
+    RUNTIME_MODE: 'guild',
+    BUCKET_URL: 'https://bucket.example/',
     GUILD_ID: destination.guildId,
     GNOMOS_CHANNEL_ID: destination.channelId,
   }
@@ -281,7 +283,8 @@ test(
         if (mode === 'revoked') fixture.revoke()
         if (mode === 'destination') {
           const get = fixture.config.get.bind(fixture.config)
-          fixture.config.get = ((key: string) => key === 'GNOMOS_CHANNEL_ID' ? 'foreign' : get(key)) as ConfigService['get']
+          fixture.config.get = ((key: string) =>
+            key === 'GNOMOS_CHANNEL_ID' ? 'foreign' : get(key)) as ConfigService['get']
         }
         if (mode === 'transient') fixture.fail(429)
         if (mode === 'permanent') fixture.fail(403)
@@ -344,11 +347,15 @@ test(
       BigInt('123456789012345680') + BigInt(Math.floor(Math.random() * 100000000)),
     )
     fixture.config.get = ((key: string) =>
-      key === 'RUNTIME_MODE' ? 'guild' : key === 'BUCKET_URL' ? 'https://bucket.example/' : key === 'GNOMOS_CHANNEL_ID'
-        ? channelId
-        : key === 'GUILD_ID'
-          ? destination.guildId
-          : undefined) as ConfigService['get']
+      key === 'RUNTIME_MODE'
+        ? 'guild'
+        : key === 'BUCKET_URL'
+          ? 'https://bucket.example/'
+          : key === 'GNOMOS_CHANNEL_ID'
+            ? channelId
+            : key === 'GUILD_ID'
+              ? destination.guildId
+              : undefined) as ConfigService['get']
     try {
       const producer = new BirthdayCheckTask(discord, bucket, fixture.config, logger, redis)
       await producer.handleBirthdayCheck(now)
@@ -420,8 +427,7 @@ test(
     const replies: unknown[] = [],
       sent: unknown[] = []
     const app = createConversation({
-      catalog: composeCapabilities({ notices: store }
-      ),
+      catalog: composeCapabilities({ notices: store }),
       claim: async () => true,
       authorize: async () => true,
       model: {

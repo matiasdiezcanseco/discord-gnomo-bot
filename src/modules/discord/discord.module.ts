@@ -26,8 +26,13 @@ import { RuntimeMemory } from './runtime-memory'
         logger: LoggerService,
         memory: RuntimeMemory,
       ) =>
-        composeConversation({ client: discord.getClient(), config: config, redis: redis, trace: (trace) => logger.createLogger('conversation').info(trace), memory: memory.dependencies }
-        ),
+        composeConversation({
+          client: discord.getClient(),
+          config: config,
+          redis: redis,
+          trace: (trace) => logger.createLogger('conversation').info(trace),
+          memory: memory.dependencies,
+        }),
     },
   ],
   exports: [DiscordService],

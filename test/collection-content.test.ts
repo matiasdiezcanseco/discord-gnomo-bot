@@ -116,7 +116,8 @@ test(
     const replies: Reply[] = []
     const config = new ConfigService({
       GUILD_ID: 'g1',
-      RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c1',
+      RUNTIME_MODE: 'pilot',
+      RUNTIME_CHANNEL_IDS: 'c1',
       BUCKET_URL: base,
     })
     const model = {
@@ -124,7 +125,8 @@ test(
         throw new Error('Direct path must not use model')
       },
     }
-    const build = (redis: Redis) => composeConversation({ client: client, config: config, redis: redis, model: model })
+    const build = (redis: Redis) =>
+      composeConversation({ client: client, config: config, redis: redis, model: model })
     const reply = async (_: Invocation, value: Reply) => {
       replies.push(value)
     }
@@ -223,7 +225,10 @@ test('empty collections and failed dependencies give useful notices without inve
       requests++
       return response()
     })
-    await createConversation({ ...app.ports, catalog: composeCapabilities({ collection: source }) }).handle(invocation)
+    await createConversation({
+      ...app.ports,
+      catalog: composeCapabilities({ collection: source }),
+    }).handle(invocation)
     assert.match(app.replies[0].content, /No pude consultar/)
     assert.equal(requests, 1)
     assert.equal(app.modelCalls(), 0)
@@ -255,9 +260,11 @@ test('a hung collection read is cancelled at twelve seconds without a model or r
     started()
     return new Promise<Response>(() => {})
   })
-  const running = createConversation({ ...app.ports, clock, catalog: composeCapabilities({ collection: source }) }).handle(
-    invocation,
-  )
+  const running = createConversation({
+    ...app.ports,
+    clock,
+    catalog: composeCapabilities({ collection: source }),
+  }).handle(invocation)
   await ready
   time = 12000
   for (const [callback, at] of timers) if (at <= time) callback()

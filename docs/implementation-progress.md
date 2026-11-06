@@ -48,3 +48,12 @@ Integración T09/T13: e316f6b, 175/175 pruebas, cero omisiones, tipos/build/lint
 T14 integrado desde `t3-58cc2b81`, rama `feat/conversation-flows`, commit cf52357. Suite conjunta 181/181 con PostgreSQL/pgvector y reinicios AOF Redis T12/T13 separados, tipos/build/lint/diff correctos. Lenguaje natural, consultas compuestas, presupuesto independiente y descubrimiento sin REST repetido por herramienta comprobados con fronteras controladas. Runner: `npm run measure:live`; guía `docs/compound-conversations.md`.
 
 Dos tarjetas privadas vencieron sin configuración: no existe archivo de credenciales, benchmark vivo ni aceptación humana. Continuar la preparación de código y pruebas de T15 es trabajo autorizado sobre las interfaces T14 ya integradas; no equivale a aprobar su activación. Mantener pendientes los criterios operativos T14/T15 y el PR en borrador hasta validar o registrar explícitamente sus límites. No cerrar tickets ni certificar latencia mediante mocks.
+
+## T15 preparation (2026-11-06)
+
+Runtime retirement and controlled rollout implemented in isolated branch `t3/d21c6460`,
+base 5dd43fe (ancestry verified before edits). Architecture, supported configuration,
+explicit transfer, safe rollback and characterization mapping: [runtime-transition.md](runtime-transition.md).
+Legacy consumers removed; T11 managed infrastructure retained. Live measurement,
+human acceptance and actual pilot/cutover remain UNPERFORMED. No credentials received,
+production migration/deployment, push, PR mutation or issue closure.

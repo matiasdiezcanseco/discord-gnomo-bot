@@ -6,44 +6,52 @@ import { DEFAULT_OPENAI_MODEL } from './constants'
 /**
  * Environment variables schema with Zod validation
  */
-const envSchema = z.object({
-  // Discord
-  BOT_TOKEN: z.string().min(1).optional(),
-  GUILD_ID: z.string().min(1).optional(),
-  GNOMOS_CHANNEL_ID: z.string().min(1).optional(),
-  RUNTIME_MODE: z.enum(['paused', 'pilot', 'guild']).default('paused'),
-  RUNTIME_CHANNEL_IDS: z.string().default(''),
-  CONVERSATION_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
+const envSchema = z
+  .object({
+    // Discord
+    BOT_TOKEN: z.string().min(1).optional(),
+    GUILD_ID: z.string().min(1).optional(),
+    GNOMOS_CHANNEL_ID: z.string().min(1).optional(),
+    RUNTIME_MODE: z.enum(['paused', 'pilot', 'guild']).default('paused'),
+    RUNTIME_CHANNEL_IDS: z.string().default(''),
+    CONVERSATION_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
 
-  // External Services
-  BUCKET_URL: z.string().url().optional(),
-  OPENAI_API_KEY: z.string().min(1).optional(),
-  OPENAI_MODEL: z.string().default(DEFAULT_OPENAI_MODEL),
-  TAVILY_API_KEY: z.string().optional(),
+    // External Services
+    BUCKET_URL: z.string().url().optional(),
+    OPENAI_API_KEY: z.string().min(1).optional(),
+    OPENAI_MODEL: z.string().default(DEFAULT_OPENAI_MODEL),
+    TAVILY_API_KEY: z.string().optional(),
 
-  // Redis (optional - history feature disabled if not configured)
-  REDIS_URL: z.string().optional(),
-  PILOT_MEMORY_DATABASE_URL: z.string().url().optional(),
-  PILOT_MEMORY_EMBEDDING_MODEL: z.string().min(1).optional(),
-  MEMORY_OWNER_ID: z.string().regex(/^\d{17,20}$/).optional(),
+    // Durable admission and scheduled notices; active runtime requires Redis.
+    REDIS_URL: z.string().optional(),
+    PILOT_MEMORY_DATABASE_URL: z.string().url().optional(),
+    PILOT_MEMORY_EMBEDDING_MODEL: z.string().min(1).optional(),
+    MEMORY_OWNER_ID: z
+      .string()
+      .regex(/^\d{17,20}$/)
+      .optional(),
 
-  // Runtime
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).optional(),
+    // Runtime
+    NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).optional(),
 
-  // Timezone
-  USER_TIMEZONE: z.string().default('America/Lima'), // UTC-5
-
-  // Health check port
-  PORT: z.coerce.number().default(3000),
-}).superRefine((env, ctx) => {
-  if (env.RUNTIME_MODE !== 'paused') {
-    for (const key of ['BOT_TOKEN', 'GUILD_ID', 'OPENAI_API_KEY', 'REDIS_URL'] as const) {
-      if (!env[key]) ctx.addIssue({ code: 'custom', path: [key], message: 'Required for active runtime' })
+    // Health check port
+    PORT: z.coerce.number().default(3000),
+  })
+  .superRefine((env, ctx) => {
+    if (env.RUNTIME_MODE !== 'paused') {
+      for (const key of ['BOT_TOKEN', 'GUILD_ID', 'OPENAI_API_KEY', 'REDIS_URL'] as const) {
+        if (!env[key])
+          ctx.addIssue({ code: 'custom', path: [key], message: 'Required for active runtime' })
+      }
+      if (env.RUNTIME_MODE === 'pilot' && !env.RUNTIME_CHANNEL_IDS.trim())
+        ctx.addIssue({
+          code: 'custom',
+          path: ['RUNTIME_CHANNEL_IDS'],
+          message: 'Pilot requires explicit channels',
+        })
     }
-    if (env.RUNTIME_MODE === 'pilot' && !env.RUNTIME_CHANNEL_IDS.trim()) ctx.addIssue({ code: 'custom', path: ['RUNTIME_CHANNEL_IDS'], message: 'Pilot requires explicit channels' })
-  }
-})
+  })
 
 /**
  * Type for the validated environment

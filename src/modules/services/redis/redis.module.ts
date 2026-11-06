@@ -1,17 +1,28 @@
-import { Inject, Injectable, OnModuleDestroy, DynamicModule, Module, Provider, Type, ForwardReference } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import IORedis from 'ioredis';
+import {
+  Inject,
+  Injectable,
+  OnModuleDestroy,
+  DynamicModule,
+  Module,
+  Provider,
+  Type,
+  ForwardReference,
+} from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import IORedis from 'ioredis'
 
 export interface RedisModuleAsyncOptions {
-  imports?: (Type<unknown> | DynamicModule | Promise<DynamicModule> | ForwardReference<unknown>)[];
-  inject?: unknown[];
-  useFactory?: (...args: unknown[]) => { url?: string | null };
+  imports?: (Type<unknown> | DynamicModule | Promise<DynamicModule> | ForwardReference<unknown>)[]
+  inject?: unknown[]
+  useFactory?: (...args: unknown[]) => { url?: string | null }
 }
 
 @Injectable()
 class RedisLifecycle implements OnModuleDestroy {
   constructor(@Inject('REDIS_CONNECTION') private readonly redis: IORedis | null) {}
-  onModuleDestroy() { this.redis?.disconnect() }
+  onModuleDestroy() {
+    this.redis?.disconnect()
+  }
 }
 
 @Module({})
@@ -20,18 +31,24 @@ export class RedisModule {
     const redisProvider: Provider = {
       provide: 'REDIS_CONNECTION',
       useFactory: async (config: ConfigService) => {
-        const redisUrl = config.get<string>('REDIS_URL');
-        
+        const redisUrl = config.get<string>('REDIS_URL')
+
         if (!redisUrl) {
-          return null;
+          return null
         }
-        
-        const redis = new IORedis(redisUrl, { maxRetriesPerRequest: 0, connectTimeout: 1000, retryStrategy: () => null });
-        redis.on('error', () => undefined);
-        return redis;
+
+        const redis = new IORedis(redisUrl, {
+          maxRetriesPerRequest: 0,
+          connectTimeout: 1000,
+          commandTimeout: 2000,
+          enableOfflineQueue: false,
+          retryStrategy: (attempt) => Math.min(attempt * 100, 2000),
+        })
+        redis.on('error', () => undefined)
+        return redis
       },
       inject: [ConfigService],
-    };
+    }
 
     return {
       module: RedisModule,
@@ -39,6 +56,6 @@ export class RedisModule {
       providers: [redisProvider, RedisLifecycle],
       exports: ['REDIS_CONNECTION'],
       global: true,
-    };
+    }
   }
 }

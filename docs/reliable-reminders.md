@@ -1,3 +1,5 @@
+> T15 current runtime/setup/rollout supersedes positional composition, legacy routing and Prisma setup below: see [runtime-transition.md](runtime-transition.md). Historical implementation evidence remains below.
+
 # Reliable own reminders (T12)
 
 The pilot accepts a current authenticated request such as `recuérdame en 2 minutos

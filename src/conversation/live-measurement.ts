@@ -106,13 +106,19 @@ async function main() {
   const config = new ConfigService({
     ...process.env,
     CONVERSATION_CONCURRENCY: Number(process.env.CONVERSATION_CONCURRENCY ?? 4),
-    RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: channel,
+    RUNTIME_MODE: 'pilot',
+    RUNTIME_CHANNEL_IDS: channel,
   })
   const memory = new RuntimeMemory(config)
   const samples: Sample[] = []
   const pending = new Set<Promise<void>>()
-  const app = composeConversation({ client: client, config: config, redis: redis, trace: (trace) => samples.find((s) => s.id === trace.invocationId)?.traces.push(trace), memory: memory.dependencies }
-  )
+  const app = composeConversation({
+    client: client,
+    config: config,
+    redis: redis,
+    trace: (trace) => samples.find((s) => s.id === trace.invocationId)?.traces.push(trace),
+    memory: memory.dependencies,
+  })
   let finish!: () => void
   const done = new Promise<void>((resolve) => {
     finish = resolve

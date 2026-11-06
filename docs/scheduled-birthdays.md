@@ -1,3 +1,5 @@
+> T15 current runtime/setup/rollout supersedes positional composition, legacy routing and Prisma setup below: see [runtime-transition.md](runtime-transition.md). Historical implementation evidence remains below.
+
 # Scheduled birthdays (T13)
 
 The sole birthday producer is `BirthdayCheckTask`; its old direct Discord send is

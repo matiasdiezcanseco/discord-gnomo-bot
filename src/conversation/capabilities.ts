@@ -37,9 +37,9 @@ export function composeCapabilities({ collection, members, history, search, live
     ...(live?.presence ? [presenceCapability(live.presence)] : []),
     ...(live?.voice ? [voiceCapability(live.voice)] : []),
     defineCapability({
-      name: 'pilot_status',
-      description: 'Comprueba que la conversación usa el harness autorizado del piloto.',
-      capability: 'pilot.status',
+      name: 'runtime_status',
+      description: 'Comprueba la disponibilidad de la conversación autorizada.',
+      capability: 'runtime.status',
       scope: 'channel',
       effect: 'read',
       input: z.strictObject({}),

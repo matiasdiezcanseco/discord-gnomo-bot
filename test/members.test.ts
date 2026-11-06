@@ -61,8 +61,13 @@ function fixture(
     ? new Redis(process.env.T02_REDIS_URL)
     : ({ set: async () => 'OK' } as unknown as Redis)
   if (process.env.T02_REDIS_URL) clients.push(redis)
-  const conversation = composeConversation({ client: client, config: new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' }), redis: redis, model: { generate: (input) => plan(input) }, discordFetch: fetcher }
-  )
+  const conversation = composeConversation({
+    client: client,
+    config: new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' }),
+    redis: redis,
+    model: { generate: (input) => plan(input) },
+    discordFetch: fetcher,
+  })
   return {
     requests,
     replies,

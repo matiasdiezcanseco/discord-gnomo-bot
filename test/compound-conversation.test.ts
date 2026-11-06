@@ -136,18 +136,21 @@ test('conversation plus news preserves actual channel evidence when news stalls 
         return () => {}
       },
     },
-    catalog: composeCapabilities({ history: history, search: {
-      search: async (_, context) =>
-        context.external(
-          () =>
-            new Promise((_, reject) => {
-              searchSignal = context.signal
-              context.signal.addEventListener('abort', () => reject(Error('cancelled')), {
-                once: true,
-              })
-            }),
-        ),
-    } }),
+    catalog: composeCapabilities({
+      history: history,
+      search: {
+        search: async (_, context) =>
+          context.external(
+            () =>
+              new Promise((_, reject) => {
+                searchSignal = context.signal
+                context.signal.addEventListener('abort', () => reject(Error('cancelled')), {
+                  once: true,
+                })
+              }),
+          ),
+      },
+    }),
     claim: async () => true,
     authorize: async () => true,
     trace: (event) => {

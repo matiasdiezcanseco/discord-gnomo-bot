@@ -1,3 +1,5 @@
+> T15 current runtime/setup/rollout supersedes positional composition, legacy routing and Prisma setup below: see [runtime-transition.md](../../runtime-transition.md). Historical implementation evidence remains below.
+
 # T10: contrato público y almacenamiento
 
 Actualización T14: `recuerda que ...` también autoriza guardado; `memory_search`

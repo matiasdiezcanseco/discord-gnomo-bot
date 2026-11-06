@@ -47,7 +47,8 @@ test('search then source reading uses structured provenance, never page instruct
   })
   const replies: string[] = []
   await createConversation({
-    catalog: composeCapabilities({ search: {
+    catalog: composeCapabilities({
+      search: {
         search: async () => ({
           outcome: 'ok',
           message: '',
@@ -72,8 +73,9 @@ test('search then source reading uses structured provenance, never page instruct
             note: '',
           },
         }),
-      }, web: safeReader(a.net) }
-    ),
+      },
+      web: safeReader(a.net),
+    }),
     claim: async () => true,
     authorize: async () => true,
     reply: async (_, r) => {
@@ -178,7 +180,11 @@ test('invocation reads an explicit URL through the composed executor and replies
     },
   } as unknown as Client
   const replies: string[] = []
-  const pilot = composeConversation({ client: client, config: new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' }), redis: { set: async () => 'OK' } as unknown as Redis, model: {
+  const pilot = composeConversation({
+    client: client,
+    config: new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' }),
+    redis: { set: async () => 'OK' } as unknown as Redis,
+    model: {
       generate: async ({ results }) => {
         if (!results.length)
           return {
@@ -190,8 +196,10 @@ test('invocation reads an explicit URL through the composed executor and replies
         assert.equal(results[0].status, 'success')
         return { text: JSON.stringify(results[0].value), calls: [] }
       },
-    }, discordFetch: async () => new Response('[]'), web: safeReader(a.net) }
-  )
+    },
+    discordFetch: async () => new Response('[]'),
+    web: safeReader(a.net),
+  })
   await pilot.handle(
     {
       messageId: 'web-1',

@@ -145,7 +145,7 @@ test('empty and unavailable services explain that current information was not ve
   await empty.run()
   assert.match(empty.text(), /"outcome":"empty"/)
   const missing = setup({ results: [article] })
-  missing.ports.catalog = composeCapabilities({  })
+  missing.ports.catalog = composeCapabilities({})
   await missing.run()
   assert.match(missing.text(), /"outcome":"unavailable"/)
   assert.match(missing.text(), /TAVILY_API_KEY/)
@@ -198,7 +198,8 @@ test('cached sources expire and never cross channels', async () => {
   const app = setup({ results: [article] })
   let now = Date.parse('2026-11-05T12:00:00Z'),
     requests = 0
-  app.ports.catalog = composeCapabilities({ search: tavilySearch(
+  app.ports.catalog = composeCapabilities({
+    search: tavilySearch(
       'test-key',
       axios.create({
         adapter: async (config) => {
@@ -213,8 +214,8 @@ test('cached sources expire and never cross channels', async () => {
         },
       }),
       () => now,
-    ) }
-  )
+    ),
+  })
   const conversation = createConversation(app.ports)
   await conversation.handle(invocation)
   await conversation.handle({ ...invocation, channelId: 'another' })
@@ -400,7 +401,8 @@ test(
     } as unknown as Client
     const config = new ConfigService({
       GUILD_ID: 'g',
-      RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c',
+      RUNTIME_MODE: 'pilot',
+      RUNTIME_CHANNEL_IDS: 'c',
       TAVILY_API_KEY: 'test-key',
     })
     const replies: Reply[] = []
@@ -416,7 +418,13 @@ test(
             ? { period: { startDate: '2026-11-01', endDate: '2026-11-05' } }
             : {}),
         }
-        const app = composeConversation({ client: client, config: config, redis: redis, model: model(name, input), discordFetch: discordFetch })
+        const app = composeConversation({
+          client: client,
+          config: config,
+          redis: redis,
+          model: model(name, input),
+          discordFetch: discordFetch,
+        })
         const event = { ...invocation, messageId: randomUUID() }
         await Promise.all([app.handle(event, reply), app.handle(event, reply)])
       }
@@ -427,8 +435,13 @@ test(
         ['general', 'news'],
       )
       allowed = false
-      await composeConversation({ client: client, config: config, redis: redis, model: model('public_search', { query: 'blocked' }), discordFetch: discordFetch }
-      ).handle({ ...invocation, messageId: randomUUID() }, reply)
+      await composeConversation({
+        client: client,
+        config: config,
+        redis: redis,
+        model: model('public_search', { query: 'blocked' }),
+        discordFetch: discordFetch,
+      }).handle({ ...invocation, messageId: randomUUID() }, reply)
       assert.equal(replies.length, 2)
       assert.equal(requests.length, 2)
     } finally {

@@ -30,8 +30,9 @@ test(
     const replies: string[] = []
     try {
       const app = createConversation({
-        catalog: composeCapabilities({ notices: new ScheduledNotices(redis, `test:t12:${randomUUID()}`) }
-        ),
+        catalog: composeCapabilities({
+          notices: new ScheduledNotices(redis, `test:t12:${randomUUID()}`),
+        }),
         authorize: async () => true,
         claim: async () => true,
         model: {
@@ -72,8 +73,7 @@ test(
       sent: unknown[] = []
     const store = new ScheduledNotices(redis, ns)
     const app = createConversation({
-      catalog: composeCapabilities({ notices: store }
-      ),
+      catalog: composeCapabilities({ notices: store }),
       authorize: async () => true,
       claim: async () => true,
       model: {
@@ -127,8 +127,7 @@ test(
     const replies: string[] = [],
       sent: unknown[] = []
     const app = createConversation({
-      catalog: composeCapabilities({ notices: store }
-      ),
+      catalog: composeCapabilities({ notices: store }),
       authorize: async () => true,
       claim: async () => true,
       model: {
@@ -227,12 +226,21 @@ test(
         }),
       },
     } as unknown as Client
-    const config = new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' })
-    const app = composeConversation({ client: client, config: config, redis: redis, model: {
-      generate: async () => {
-        throw Error('no model for reminder')
+    const config = new ConfigService({
+      GUILD_ID: 'g',
+      RUNTIME_MODE: 'pilot',
+      RUNTIME_CHANNEL_IDS: 'c',
+    })
+    const app = composeConversation({
+      client: client,
+      config: config,
+      redis: redis,
+      model: {
+        generate: async () => {
+          throw Error('no model for reminder')
+        },
       },
-    } })
+    })
     const store = new ScheduledNotices(redis)
     try {
       await app.handle(
@@ -343,8 +351,7 @@ test(
       writer.options.commandTimeout = 40
       await control.call('CLIENT', 'PAUSE', '60000', 'WRITE')
       const app = createConversation({
-        catalog: composeCapabilities({ notices: new ScheduledNotices(writer, ns) }
-        ),
+        catalog: composeCapabilities({ notices: new ScheduledNotices(writer, ns) }),
         authorize: async () => true,
         claim: async () => true,
         model: {
@@ -430,8 +437,7 @@ test(
     const ns = `test:t12:restart:${randomUUID()}`
     const replies: string[] = []
     const app = createConversation({
-      catalog: composeCapabilities({ notices: new ScheduledNotices(redis, ns) }
-      ),
+      catalog: composeCapabilities({ notices: new ScheduledNotices(redis, ns) }),
       authorize: async () => true,
       claim: async () => true,
       model: {
@@ -462,29 +468,57 @@ test(
     }
   },
 )
-test('configuration rollback retains queued notices without consuming attempts and resumes one safe delivery', { skip: !process.env.T02_REDIS_URL }, async () => {
-  const redis = new Redis(process.env.T02_REDIS_URL!)
-  const store = new ScheduledNotices(redis, `test:t15:${randomUUID()}`)
-  const config = new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'paused', RUNTIME_CHANNEL_IDS: 'c' })
-  const sent: unknown[] = []
-  const channel = { isTextBased: () => true, isSendable: () => true, isThread: () => false,
-    permissionsFor: () => ({ has: () => true }), send: async (reply: unknown) => { sent.push(reply) } }
-  const client = { user: { id: 'bot' }, guilds: { fetch: async () => ({
-    channels: { fetch: async () => channel }, members: { fetch: async () => ({ id: 'u' }) },
-  }) } } as unknown as Client
-  try {
-    const notice = await store.save(origin, 'agua @everyone <@&123>', 10)
-    const delivery = discordScheduledDelivery(client, config)
-    await store.dispatch(10, delivery)
-    assert.equal((await store.get(notice.id))?.state, 'pending')
-    assert.equal((await store.get(notice.id))?.attempts, 0)
-    config.set('RUNTIME_MODE', 'pilot')
-    config.set('RUNTIME_CHANNEL_IDS', 'other')
-    await store.dispatch(10, delivery)
-    assert.equal((await store.get(notice.id))?.state, 'pending')
-    config.set('RUNTIME_CHANNEL_IDS', 'c')
-    await Promise.all([store.dispatch(10, delivery), store.dispatch(10, delivery)])
-    assert.deepEqual(sent, [{ content: '<@u> ¡Recordatorio! agua @everyone <@&123>', allowedMentions: { parse: [], users: ['u'], roles: [], repliedUser: false } }])
-    assert.equal((await store.get(notice.id))?.state, 'sent')
-  } finally { await redis.quit() }
-})
+test(
+  'configuration rollback retains queued notices without consuming attempts and resumes one safe delivery',
+  { skip: !process.env.T02_REDIS_URL },
+  async () => {
+    const redis = new Redis(process.env.T02_REDIS_URL!)
+    const store = new ScheduledNotices(redis, `test:t15:${randomUUID()}`)
+    const config = new ConfigService({
+      GUILD_ID: 'g',
+      RUNTIME_MODE: 'paused',
+      RUNTIME_CHANNEL_IDS: 'c',
+    })
+    const sent: unknown[] = []
+    const channel = {
+      isTextBased: () => true,
+      isSendable: () => true,
+      isThread: () => false,
+      permissionsFor: () => ({ has: () => true }),
+      send: async (reply: unknown) => {
+        sent.push(reply)
+      },
+    }
+    const client = {
+      user: { id: 'bot' },
+      guilds: {
+        fetch: async () => ({
+          channels: { fetch: async () => channel },
+          members: { fetch: async () => ({ id: 'u' }) },
+        }),
+      },
+    } as unknown as Client
+    try {
+      const notice = await store.save(origin, 'agua @everyone <@&123>', 10)
+      const delivery = discordScheduledDelivery(client, config)
+      await store.dispatch(10, delivery)
+      assert.equal((await store.get(notice.id))?.state, 'pending')
+      assert.equal((await store.get(notice.id))?.attempts, 0)
+      config.set('RUNTIME_MODE', 'pilot')
+      config.set('RUNTIME_CHANNEL_IDS', 'other')
+      await store.dispatch(10, delivery)
+      assert.equal((await store.get(notice.id))?.state, 'pending')
+      config.set('RUNTIME_CHANNEL_IDS', 'c')
+      await Promise.all([store.dispatch(10, delivery), store.dispatch(10, delivery)])
+      assert.deepEqual(sent, [
+        {
+          content: '<@u> ¡Recordatorio! agua @everyone <@&123>',
+          allowedMentions: { parse: [], users: ['u'], roles: [], repliedUser: false },
+        },
+      ])
+      assert.equal((await store.get(notice.id))?.state, 'sent')
+    } finally {
+      await redis.quit()
+    }
+  },
+)

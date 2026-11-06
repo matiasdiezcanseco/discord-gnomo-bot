@@ -18,7 +18,11 @@ async function main() {
         channelGuild: async (id) => {
           const response = await fetch(
             `https://discord.com/api/v10/channels/${encodeURIComponent(id)}`,
-            { headers: { Authorization: `Bot ${BOT_TOKEN}` }, signal: AbortSignal.timeout(5000), redirect: 'error' },
+            {
+              headers: { Authorization: `Bot ${BOT_TOKEN}` },
+              signal: AbortSignal.timeout(5000),
+              redirect: 'error',
+            },
           )
           if (!response.ok) return null
           const data = (await response.json()) as { guild_id?: string }

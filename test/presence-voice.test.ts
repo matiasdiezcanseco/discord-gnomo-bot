@@ -78,13 +78,18 @@ function fixture() {
   }
   const replies: Reply[] = []
   async function run(name = 'presence_list', input: unknown = {}) {
-    const app = composeConversation({ client: client, config: new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' }), redis: { set: async () => 'OK' } as unknown as Redis, model: {
+    const app = composeConversation({
+      client: client,
+      config: new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' }),
+      redis: { set: async () => 'OK' } as unknown as Redis,
+      model: {
         generate: async ({ results }) =>
           results.length
             ? { text: JSON.stringify(results), calls: [] }
             : { text: '', calls: [{ id: 'query', name, input }] },
-      }, discordFetch: fetcher }
-    )
+      },
+      discordFetch: fetcher,
+    })
     await app.handle(
       {
         messageId: randomUUID(),

@@ -52,15 +52,24 @@ test(
         },
       },
     } as unknown as Client
-    const config = new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' })
-    const conversation = composeConversation({ client: client, config: config, redis: redis, model: {
-      generate: async ({ results }) => {
-        turns++
-        return results.length
-          ? { text: String(results[0].status), calls: [] }
-          : { text: '', calls: [{ id: 'probe', name: 'pilot_status', input: {} }] }
+    const config = new ConfigService({
+      GUILD_ID: 'g',
+      RUNTIME_MODE: 'pilot',
+      RUNTIME_CHANNEL_IDS: 'c',
+    })
+    const conversation = composeConversation({
+      client: client,
+      config: config,
+      redis: redis,
+      model: {
+        generate: async ({ results }) => {
+          turns++
+          return results.length
+            ? { text: String(results[0].status), calls: [] }
+            : { text: '', calls: [{ id: 'probe', name: 'runtime_status', input: {} }] }
+        },
       },
-    } })
+    })
     const invocation = {
       messageId: randomUUID(),
       guildId: 'g',

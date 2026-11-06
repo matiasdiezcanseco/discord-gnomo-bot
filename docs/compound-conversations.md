@@ -1,3 +1,5 @@
+> T15 current runtime/setup/rollout supersedes positional composition, legacy routing and Prisma setup below: see [runtime-transition.md](runtime-transition.md). Historical implementation evidence remains below.
+
 # T14: conversación integrada y medición
 
 Implementación en `feat/conversation-flows`, worktree `t3-58cc2b81`. Antes de editar,

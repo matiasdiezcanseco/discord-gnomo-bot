@@ -1,3 +1,5 @@
+> T15 current runtime/setup/rollout supersedes positional composition, legacy routing and Prisma setup below: see [runtime-transition.md](../../runtime-transition.md). Historical implementation evidence remains below.
+
 # T11: operación explícita y recuperación
 
 `npm run memory:migrate -- dry-run|backup|import|rollback` es una herramienta del

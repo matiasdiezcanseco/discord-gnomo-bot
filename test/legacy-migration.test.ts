@@ -71,12 +71,18 @@ test(
         GUILD_ID: options.guildId,
         GNOMOS_CHANNEL_ID: options.channelId,
         MEMORY_OWNER_ID: '323456789012345678',
-        RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: `${options.channelId},other`,
+        RUNTIME_MODE: 'pilot',
+        RUNTIME_CHANNEL_IDS: `${options.channelId},other`,
       })
       const invoke = async (content: string, author = 'member', channelId = options.channelId) => {
         const replies: string[] = []
-        const app = composeConversation({ client: client, config: config, redis: redis, model: { generate: async () => ({ text: 'hola', calls: [] }) }, memory: { pool, embedding: { model: 'test-3d', embed: async () => [1, 0, 0] } } }
-        )
+        const app = composeConversation({
+          client: client,
+          config: config,
+          redis: redis,
+          model: { generate: async () => ({ text: 'hola', calls: [] }) },
+          memory: { pool, embedding: { model: 'test-3d', embed: async () => [1, 0, 0] } },
+        })
         await app.handle(
           {
             content,

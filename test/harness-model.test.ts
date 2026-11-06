@@ -47,7 +47,7 @@ test('controlled capability crosses AI SDK, catalog, executor and visible reply'
               {
                 type: 'tool-call' as const,
                 toolCallId: 'probe',
-                toolName: 'pilot_status',
+                toolName: 'runtime_status',
                 input: '{}',
               },
             ]
@@ -67,7 +67,7 @@ test('controlled capability crosses AI SDK, catalog, executor and visible reply'
     statuses: string[] = []
   await createConversation({
     model: aiSdkModel(model),
-    catalog: composeCapabilities({  }),
+    catalog: composeCapabilities({}),
     authorize: async () => true,
     claim: async () => true,
     trace: (event) => {

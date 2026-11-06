@@ -75,7 +75,7 @@ export function composeConversation({ client, config, redis, trace,
           (['memory.save', 'memory.update', 'memory.forget'].includes(tool.capability) &&
             tool.effect === 'write'))) ||
       ([
-        'pilot.status',
+        'runtime.status',
         'messages.history',
         'collection.phrase',
         'collection.photo',

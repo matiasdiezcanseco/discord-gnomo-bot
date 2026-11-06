@@ -17,7 +17,7 @@ import { composeCapabilities } from '../src/conversation/capabilities'
 test('unconfigured memory is explicit and ordinary chat remains available', async () => {
   const replies: string[] = []
   const app = createConversation({
-    catalog: composeCapabilities({  }),
+    catalog: composeCapabilities({}),
     authorize: async () => true,
     claim: async () => true,
     reply: async (_, reply) => {
@@ -72,7 +72,8 @@ test(
     } as unknown as Client
     const config = new ConfigService({
       GUILD_ID: guildId,
-      RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c,d',
+      RUNTIME_MODE: 'pilot',
+      RUNTIME_CHANNEL_IDS: 'c,d',
       MEMORY_OWNER_ID: '123456789012345678',
     })
     const model: ConversationPorts['model'] = {
@@ -87,7 +88,13 @@ test(
             : { text: '', calls: [{ id: 'evil', name: 'memory_save', input: {} }] },
     }
     const app = () =>
-      composeConversation({ client: client, config: config, redis: redis, model: model, discordFetch: async () => Response.json([]), memory: {
+      composeConversation({
+        client: client,
+        config: config,
+        redis: redis,
+        model: model,
+        discordFetch: async () => Response.json([]),
+        memory: {
           pool,
           embedding: embeddingEnabled
             ? {
@@ -100,8 +107,8 @@ test(
                 },
               }
             : undefined,
-        } }
-      )
+        },
+      })
     const invoke = async (
       content: string,
       author = 'alice',
@@ -133,7 +140,10 @@ test(
       assert.equal(await invoke('guarda recuerdo: should never persist'), '')
       config.set('RUNTIME_MODE', 'guild')
       assert.match(await invoke('busca recuerdos: Valorant'), /Juan juega Valorant/)
-      assert.doesNotMatch(await invoke('busca recuerdos: should never persist'), /"content":"should never persist"/)
+      assert.doesNotMatch(
+        await invoke('busca recuerdos: should never persist'),
+        /"content":"should never persist"/,
+      )
       config.set('RUNTIME_MODE', 'pilot')
 
       assert.match(await invoke('quién juega Valorant'), /Juan juega Valorant/)
