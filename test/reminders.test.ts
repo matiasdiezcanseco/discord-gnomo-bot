@@ -371,7 +371,6 @@ test(
     const control = new Redis(process.env.T02_REDIS_URL!)
     const writer = new Redis(process.env.T02_REDIS_URL!, {
       lazyConnect: true,
-      commandTimeout: 40,
       maxRetriesPerRequest: 0,
       enableOfflineQueue: false,
     })
@@ -379,7 +378,10 @@ test(
       replies: string[] = []
     try {
       await writer.connect()
-      await control.call('CLIENT', 'PAUSE', '200', 'WRITE')
+      await writer.ping()
+      // Time out the write under test, not the connection handshake.
+      writer.options.commandTimeout = 40
+      await control.call('CLIENT', 'PAUSE', '60000', 'WRITE')
       const app = createConversation({
         catalog: pilotCatalog(
           undefined,
@@ -403,9 +405,9 @@ test(
         },
       })
       await app.handle(origin)
+      await control.call('CLIENT', 'UNPAUSE')
       assert.match(replies[0], /incierto/)
       assert.doesNotMatch(replies[0], /guardado para/)
-      await new Promise((resolve) => setTimeout(resolve, 250))
       let count = 0
       const store = new ScheduledNotices(control, ns)
       await store.save(origin, 'tomar agua', origin.createdAt + 120000)
@@ -417,8 +419,12 @@ test(
       })
       assert.equal(count, 1)
     } finally {
-      writer.disconnect()
-      await control.quit()
+      try {
+        await control.call('CLIENT', 'UNPAUSE')
+      } finally {
+        writer.disconnect()
+        await control.quit()
+      }
     }
   },
 )

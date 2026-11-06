@@ -19,9 +19,9 @@ Los tickets siguen abiertos hasta la resolución mediante el PR; integrado no si
 | T08 / #10 | Integrado | 712777f; 127 pruebas con Redis real, tipos, build y lint aprobados |
 | T09 / #11 | Implementador en ejecución | Adjuntos visuales sobre lector seguro |
 | T10 / #12 | Integrado | 54cdf24; 129 pruebas sin omisiones, PostgreSQL/pgvector y Redis reales, reinicio PostgreSQL comprobado |
-| T11 / #13 | Implementador en ejecución | Migración de recuerdos, reanudada en el mismo worktree tras límite |
+| T11 / #13 | Integrado | 5962a7e; 139 pruebas sin omisiones tras endurecer el timeout de escritura Redis, migración real y reinicio AOF aprobados |
 | T12 / #14 | Integrado | efc7d37; 138 pruebas sin omisiones, PostgreSQL y Redis reales, reinicio AOF Redis comprobado |
-| T13 / #15 | Próximo implementador | Cumpleaños sobre entrega recuperable |
+| T13 / #15 | Implementador en ejecución | Cumpleaños sobre entrega recuperable |
 | T14 / #16 | Pendiente de capacidades | Integración y latencia |
 | T15 / #17 | Pendiente de T14 | Piloto y transición |
 
@@ -29,7 +29,7 @@ Frontera de pruebas confirmada: invocación normalizada hasta respuesta/efectos,
 
 Worktrees a limpiar después de la integración y revisión completas: implementador T01 en `t3-98d57475`, rama `feat/t01-invocation`; T02 en `t3-7364b802`, rama `feat/conversation-harness`; T03 en `t3-d71d5f54`, rama `feat/fast-phrase-photo`. Preservar cualquier edición no integrada antes de limpiar mediante herramientas de T3.
 
-También conservar hasta la limpieza final: T04 en `t3-52eab9dc`, rama `feat/recent-channel-context`; T05 en `t3-eb4c3e3e`, rama `feat/member-search-mentions`; T07 en ejecución en `t3-47fe69fd`, rama `feat/t07-news-search`.
+También conservar hasta la limpieza final: T04 en `t3-52eab9dc`, rama `feat/recent-channel-context`; T05 en `t3-eb4c3e3e`, rama `feat/member-search-mentions`; T07 integrado desde `t3-47fe69fd`, rama `feat/t07-news-search`.
 
 T06 integrado desde `t3-36f1523d`, rama `feat/presence-voice`. La integración reveló una carrera en la prueba de reconexión Redis con TTL de un segundo: reconexión y expiración se verifican ahora con eventos separados y un TTL holgado para la primera, manteniendo Redis real y la suite concurrente.
 
@@ -39,4 +39,6 @@ T10 integrado desde `t3-b7b28ee9`, rama `feat/explicit-memory`. Contratos de alm
 
 T12 integrado desde `t3-b288b963`, rama `feat/reliable-reminders`. Tras interrupción por límite, el merger conservó las 138 pruebas aprobadas y completó tipos/build/lint. Solo retiró sus recursos aislados; no tocó los recursos de imágenes o migración. Contratos y transición explícita de avisos: `docs/reliable-reminders.md`.
 
-Worktrees activos a conservar: T09 en `t3-1243cee0`, rama `feat/attached-image-inputs`; T11 en `t3-6699debc`, rama `feat/migrate-legacy-memories`. Ambos retomaron su trabajo parcial con el mismo proveedor/modelo.
+T11 integrado desde `t3-6699debc`, rama `feat/migrate-legacy-memories`. La suite inicial descubrió un timeout de 40 ms aplicado también al handshake de Redis en una prueba T12: se aplica ahora solo después de conectar, y CLIENT UNPAUSE coordina el fin de la pausa sin sleep arbitrario. La suite concurrente completa pasó 139/139, cero omisiones, con PostgreSQL/pgvector (bases T10/T11 separadas), Redis principal y Redis AOF reiniciado. Operación de migración validada con datos sintéticos, sin aplicar cambios a recuerdos reales.
+
+Worktree activo a conservar: T09 en `t3-1243cee0`, rama `feat/attached-image-inputs`. T11 ya terminó tras retomar su trabajo parcial con el mismo proveedor/modelo.
