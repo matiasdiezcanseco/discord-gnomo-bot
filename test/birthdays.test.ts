@@ -319,7 +319,8 @@ import type { LoggerService } from '../src/modules/services/logger/logger.servic
 test(
   'sole runtime birthday producer preserves nonpilot group greetings through the shared dispatcher',
   { skip: !process.env.T02_REDIS_URL },
-  async () => {
+  async (t) => {
+    t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-05T13:00:00Z') })
     const redis = new Redis(process.env.T02_REDIS_URL!)
     const fixture = discordFixture()
     const now = Date.now()
@@ -351,14 +352,7 @@ test(
       await producer.handleBirthdayCheck(now)
       const dispatcher = new ReliableNoticesTask(redis, discord, fixture.config, logger, bucket)
       await dispatcher.dispatch()
-      const hour = Number(
-        new Intl.DateTimeFormat('en-GB', {
-          timeZone: 'America/Lima',
-          hour: '2-digit',
-          hourCycle: 'h23',
-        }).format(now),
-      )
-      assert.equal(fixture.sent.length, hour >= 8 ? 1 : 0)
+      assert.equal(fixture.sent.length, 1)
     } finally {
       await redis.quit()
     }
