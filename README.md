@@ -12,6 +12,10 @@ required variables before selecting `RUNTIME_MODE=pilot` (explicit comma-separat
 `OPENAI_MODEL` is honored; the example retains gpt-5-mini and the established code
 fallback remains gpt-4o-mini. No silent model replacement is performed.
 
+For local PostgreSQL/pgvector, the existing Redis and an optional containerized bot,
+follow [local testing and Supabase deployment](docs/local-testing.md). The same
+Docker image accepts the Supabase connection URL at deployment time.
+
 Active mode requires BOT_TOKEN, GUILD_ID, OPENAI_API_KEY and REDIS_URL. Redis stores
 deduplication and durable notices, not a permanent conversation archive. Context
 comes from the current channel/thread, bounded and reauthorized. Ambient messages,
