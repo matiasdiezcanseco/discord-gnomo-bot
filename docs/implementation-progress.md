@@ -23,7 +23,7 @@ Los tickets siguen abiertos hasta la resolución mediante el PR; integrado no si
 | T12 / #14 | Integrado | efc7d37; 138 pruebas sin omisiones, PostgreSQL y Redis reales, reinicio AOF Redis comprobado |
 | T13 / #15 | Integrado | e316f6b; avisos de cumpleaños compartidos y reinicio AOF propio aprobado |
 | T14 / #16 | Código integrado; validación viva pendiente | cf52357; 181 pruebas sin omisiones, tipos/build/lint; runner real preparado sin credenciales |
-| T15 / #17 | Código integrado; revisión pendiente | 0642f681; 174/174 aisladas y smoke Nest; Dockerfile pendiente de corregir; activación/aceptación viva pendientes |
+| T15 / #17 | Código y correcciones integrados; aceptación viva pendiente | 00529b1; 182/182 aisladas, tipos/build/lint, construcción Docker y arranque paused aprobados; activación/aceptación viva pendientes |
 
 Frontera de pruebas confirmada: invocación normalizada hasta respuesta/efectos, modelo/Discord/web controlados y persistencia real aislada para migraciones/concurrencia. Docker Desktop está disponible (motor 27.4.0). PostgreSQL 17/pgvector y Redis 7 aislados verifican el almacenamiento nuevo, incluida recuperación tras reinicio real de PostgreSQL. No se han ejecutado servicios de producción, migraciones sobre datos reales, piloto ni mediciones reales de latencia.
 
@@ -76,5 +76,40 @@ Revisión independiente final completada contra 490459b: Standards no encuentra
 infracciones documentadas y propone dos deduplicaciones; Spec encuentra imagen
 rota (P1), starvation de avisos excluidos y subconsultas de autorización tras
 vencimiento (P2). Informe separado por ejes: `docs/final-code-review.md`.
-Un único implementador corregirá los cinco puntos con regresiones y verificación
+Un único implementador corrigió los cinco puntos con regresiones y verificación
 de contenedor; el PR sigue en borrador y la aceptación viva sigue pendiente.
+
+## Verificación final integrada (2026-11-06)
+
+Correcciones integradas por fast-forward a `00529b168b8b5bf17ba4f8c137f301ccf9977956`.
+Los dos juicios Standards y los tres defectos Spec tienen resolución y evidencia en
+[final-code-review.md](final-code-review.md); no se afirma una segunda revisión independiente.
+
+La raíz repitió **182/182 pruebas, cero omisiones**, tipos, compilación, lint y
+`git diff --check`. PostgreSQL/pgvector aislado con bases T10/T11 separadas,
+Redis principal y reinicios AOF independientes T12/T13. No se repitió el reinicio
+del servidor PostgreSQL en esta ejecución final.
+
+Construcción Docker real aprobada, imagen
+`sha256:54b632faea1d5605f9e000279455cb8ac39f86ecee23f29bbc8ad264b662e187`.
+Arranque sin credenciales: diagnóstico HTTP 200 en modo paused y readiness HTTP 503
+por Discord desconectado, como corresponde. No se ejecutaron migraciones al arrancar.
+Logs locales preservados en `plans/refactor-artifacts/`, incluidos
+`gnomo-merger-final-verify.log` y `gnomo-merger-final-docker.log`.
+
+El trabajo de código y sus correcciones está integrado. El piloto, proveedores
+reales, aceptación humana, mediciones de tres/quince segundos y transición de
+producción permanecen **UNPERFORMED**. PR en borrador, tickets abiertos hasta
+resolver la aceptación; ningún despliegue ni migración de datos reales.
+
+Limpieza final: retirados los 16 registros de worktree de implementación/corrección,
+conservando sus ramas y commits. Logs T09 y logs temporales de verificación
+preservados en `plans/refactor-artifacts/` (ignorados por Git). Retirados los 19
+contenedores retenidos de T09/T11/T14/T15/revisión y los tags de revisión propios;
+el contenedor ajeno `gnomo-redis` no se tocó. Checkout principal, integración y
+worktree ajeno `t3-b490ece7` conservados.
+
+Excepción de limpieza: `git worktree remove` retiró el registro T15, pero no pudo
+borrar todos los archivos de `t3-d21c6460` por Permission denied. La revisión
+automática rechazó el borrado recursivo posterior con blocked by policy; ese
+directorio residual permanece sin forzar su eliminación.

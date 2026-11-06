@@ -159,3 +159,21 @@ No unaddressed code finding. No real API credentials, live provider benchmark,
 Discord pilot, production migration/deployment, subagents, push, PR edit/watch,
 issue closure or merge into integration. Owned containers are retained for inspection;
 no other implementer's resources were used or stopped.
+
+## Integrated verification and cleanup — 2026-11-06
+
+Root fast-forwarded integration to `00529b168b8b5bf17ba4f8c137f301ccf9977956` and
+repeated verification: **182/182**, zero skips, types/build/lint/diff passed with
+separate isolated PostgreSQL/pgvector databases, Redis and actual T12/T13 AOF
+restarts. The PostgreSQL server restart was not repeated. Real Docker build and
+paused startup passed again: diagnostics 200, readiness 503 with Discord offline.
+This confirms execution evidence, not an independent second review or live acceptance.
+
+The retained review containers/image tags described above have now been removed,
+along with the other completed implementers' owned test resources. Root merger
+resources were also removed. Logs are preserved locally under
+`plans/refactor-artifacts/`, including `gnomo-merger-final-verify.log` and
+`gnomo-merger-final-docker.log`. Worktree cleanup and its T15 residual-directory
+exception are recorded in [implementation-progress.md](implementation-progress.md).
+PR remains draft; live providers, Discord pilot, human acceptance and latency
+targets remain UNPERFORMED. Production data and services were not changed.
