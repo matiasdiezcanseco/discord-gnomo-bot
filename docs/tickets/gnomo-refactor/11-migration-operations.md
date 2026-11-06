@@ -129,3 +129,18 @@ El guard de reinicio T10 solo permite gnomo-t10-postgres/16410/gnomo_t10; no se
 modificó ni se volvió a ejecutar ese reinicio opcional (ya verificado por root).
 No se verifican credenciales, Discord/proveedor reales, relevancia semántica
 externa ni un crash en el instante del commit. No se ejecutó producción.
+
+Verificación final del implementador (2026-11-05): ascendencia requerida
+`7631af3137dbce9d9cec48ad5ad1126570236d4a` comprobada antes de editar; integración
+local `6678cb5105adc05d63abaadc7c484eaadc786be9` incorporada por merge `4490412`.
+`npm run verify` posterior al merge terminó con exit 0: **138/139 pruebas pasan,
+una omitida**, tipos, build y lint correctos. La omisión es el reinicio opcional
+del servidor Redis de T12 (no se configuraron sus variables); T10 y T11 usaron
+PostgreSQL/pgvector real en bases distintas del contenedor T11 y Redis real T11.
+No se repitió el reinicio opcional de PostgreSQL T10. Único aviso lint previo:
+MODULE_TYPELESS_PACKAGE_JSON. Log conservado en
+`C:/Users/matia/AppData/Local/Temp/gnomo-t11-verify.log`. `git diff --check` correcto.
+Rama `feat/migrate-legacy-memories`, worktree `t3-6699debc`. Recursos propios
+`gnomo-t11-postgres` (16421) y `gnomo-t11-redis` (16422) conservados; no se tocaron
+contenedores de otros agentes. Sin delegación, producción, push, despliegue,
+creación/modificación del PR ni cierre de issue; checks/reviews remotos no consultados.
