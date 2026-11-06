@@ -104,7 +104,8 @@ controlados en la frontera externa. Nunca usar URLs de producción.
 docker run --detach --name gnomo-t11-postgres --publish 127.0.0.1:16421:5432 --env POSTGRES_PASSWORD=t11-only --env POSTGRES_DB=gnomo_t11 pgvector/pgvector:pg17
 docker run --detach --name gnomo-t11-redis --publish 127.0.0.1:16422:6379 redis:7-alpine
 $env:T11_DATABASE_URL='postgresql://postgres:t11-only@127.0.0.1:16421/gnomo_t11'
-$env:T10_DATABASE_URL=$env:T11_DATABASE_URL
+docker exec gnomo-t11-postgres psql -U postgres -c 'CREATE DATABASE gnomo_t10_isolated'
+$env:T10_DATABASE_URL='postgresql://postgres:t11-only@127.0.0.1:16421/gnomo_t10_isolated'
 $env:T02_REDIS_URL='redis://127.0.0.1:16422'
 Remove-Item Env:T10_RESTART_CONTAINER -ErrorAction SilentlyContinue
 npm run verify
