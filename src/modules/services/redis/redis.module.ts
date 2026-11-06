@@ -1,21 +1,7 @@
-import {
-  Inject,
-  Injectable,
-  OnModuleDestroy,
-  DynamicModule,
-  Module,
-  Provider,
-  Type,
-  ForwardReference,
-} from '@nestjs/common'
+import { Global, Inject, Injectable, Module, OnModuleDestroy } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import IORedis from 'ioredis'
-
-export interface RedisModuleAsyncOptions {
-  imports?: (Type<unknown> | DynamicModule | Promise<DynamicModule> | ForwardReference<unknown>)[]
-  inject?: unknown[]
-  useFactory?: (...args: unknown[]) => { url?: string | null }
-}
+import { ConfigModule } from '../../config/config.module'
 
 @Injectable()
 class RedisLifecycle implements OnModuleDestroy {
@@ -25,19 +11,19 @@ class RedisLifecycle implements OnModuleDestroy {
   }
 }
 
-@Module({})
-export class RedisModule {
-  static forRootAsync(options: RedisModuleAsyncOptions): DynamicModule {
-    const redisProvider: Provider = {
+@Global()
+@Module({
+  imports: [ConfigModule],
+  providers: [
+    RedisLifecycle,
+    {
       provide: 'REDIS_CONNECTION',
+      inject: [ConfigService],
       useFactory: async (config: ConfigService) => {
-        const redisUrl = config.get<string>('REDIS_URL')
-
-        if (!redisUrl) {
-          return null
-        }
-
-        const redis = new IORedis(redisUrl, {
+        const url = config.get<string>('REDIS_URL')
+        if (!url) return null
+        const redis = new IORedis(url, {
+          lazyConnect: true,
           maxRetriesPerRequest: 0,
           connectTimeout: 1000,
           commandTimeout: 2000,
@@ -45,17 +31,16 @@ export class RedisModule {
           retryStrategy: (attempt) => Math.min(attempt * 100, 2000),
         })
         redis.on('error', () => undefined)
+        try {
+          await redis.connect()
+        } catch {
+          redis.disconnect()
+          throw new Error('Redis unavailable at startup')
+        }
         return redis
       },
-      inject: [ConfigService],
-    }
-
-    return {
-      module: RedisModule,
-      imports: options.imports || [],
-      providers: [redisProvider, RedisLifecycle],
-      exports: ['REDIS_CONNECTION'],
-      global: true,
-    }
-  }
-}
+    },
+  ],
+  exports: ['REDIS_CONNECTION'],
+})
+export class RedisModule {}

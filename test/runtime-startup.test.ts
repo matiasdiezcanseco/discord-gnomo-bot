@@ -29,7 +29,7 @@ test('production Nest composition starts paused without credentials, has one rec
       console.log('smoke passed');
     })().catch(e => { console.error(e); process.exit(1); });
   `
-  const env = { ...process.env }
+  const env: Record<string, string | undefined> = { ...process.env }
   for (const key of [
     'BOT_TOKEN',
     'GUILD_ID',
@@ -98,7 +98,7 @@ test(
       console.log('active smoke passed');
     })().catch(e => { console.error(e); process.exit(1); });
   `
-    const env = {
+    const env: Record<string, string | undefined> = {
       ...process.env,
       NODE_ENV: 'production',
       RUNTIME_MODE: 'pilot',

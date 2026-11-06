@@ -16,13 +16,7 @@ import { HealthModule } from './modules/health/health.module'
       inject: [],
       useFactory: () => ({}),
     }),
-    RedisModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [],
-      useFactory: () => ({
-        url: undefined,
-      }),
-    }),
+    RedisModule,
     BucketModule,
     DiscordModule,
     ScheduleModule,

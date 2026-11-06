@@ -158,3 +158,21 @@ distinct owned AOF servers; ECONNREFUSED during reconnect is expected before rec
 Missing persistence URLs explicitly skip their cases; never count that as full
 verification. No real latency, semantic provider benchmark or human acceptance is
 inferred from these tests. Owner controls later cleanup of the four named resources.
+
+Final local evidence, 2026-11-06: merged latest LOCAL integration/gnomo-harness
+before final checks (Already up to date at 5dd43fe9bbab2618a125a96675ff5537116f2ba3).
+Fresh `npm ci --ignore-scripts` succeeds without Prisma/code generation. Final
+`npm run verify` exits 0: **174/174 tests, zero skipped**, types, build and lint.
+`git diff --check` passes. Log: `%TEMP%/gnomo-t15-final-verify.log`. Only the existing
+ESLint MODULE_TYPELESS_PACKAGE_JSON warning remains. The startup test caught and
+fixed both undefined logger level and Redis admission-before-ready. Redis provider
+now waits for its bounded initial connection, rejects startup failure safely,
+reconnects after disconnection and disconnects on module shutdown. No implicit
+startup queue or legacy fallback was introduced.
+
+Owned resources retained for inspection: gnomo-t15-d21c-postgres (16550, separate
+T10/T11 DBs), gnomo-t15-d21c-redis (16551), gnomo-t15-d21c-t12 (16552, AOF),
+gnomo-t15-d21c-t13 (16553, AOF). No other containers were used or stopped.
+No PostgreSQL server restart repeated; no skipped test hides that optional branch.
+No subagents, push, PR changes/watch, merges into integration, real migrations,
+production activation or issue closures. Remote checks/reviews were not queried.

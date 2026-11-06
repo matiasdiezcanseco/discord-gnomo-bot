@@ -28,3 +28,10 @@ con proveedor/Discord reales y el piloto siguen UNPERFORMED por falta de configu
 - En la transición final, retirar consumidores y módulos antiguos, simplificar los contratos posicionales de composición y verificar arranque/composición Nest con fronteras externas controladas.
 - Mantener el ledger, triggers y protección contra resurrección de recuerdos de T11. No eliminar infraestructura de migración como si fuera un artefacto temporal.
 - Verificación completa: bases PostgreSQL separadas para T10/T11, Redis principal y Redis AOF independientes para reinicios T12/T13. Documentar cualquier omisión; no presentar mocks como persistencia o latencia reales.
+
+Final T15 controlled verification: 174/174, zero skips, types/build/lint and diff
+checks pass after merging the latest local integration tip (5dd43fe, already current).
+Fresh lockfile install succeeds; no shared-package versions changed. See the T15
+runbook for source retirement mapping, owned resources, TDD failures fixed,
+PostgreSQL-restart limitation and the UNPERFORMED external gates. These results do
+not certify live model/Discord latency or actual cutover.
