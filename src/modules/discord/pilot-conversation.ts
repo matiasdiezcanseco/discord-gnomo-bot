@@ -15,6 +15,7 @@ import { bucketCollection } from '../../conversation/collection-content'
 import { memoryCapabilities, type MemoryDependencies } from '../../conversation/explicit-memory'
 import { safeReader, type SafeReader } from '../../web/safe-reader'
 import { discordLiveMembers } from './live-members'
+import { attachedImages } from '../../conversation/attached-images'
 import { ScheduledNotices } from '../../conversation/scheduled-notices'
 
 export function composePilot(
@@ -95,6 +96,16 @@ export function composePilot(
     !memory,
   )
   return createConversation({
+    loadImages: async (context) => {
+      const images = await attachedImages(web)({
+        ...context,
+        external: async (work) => {
+          if (!(await authorize(context.invocation))) throw new Error('permission revoked')
+          return context.external(work)
+        },
+      })
+      return images
+    },
     loadContext: async (context) => history(context, 30),
     model,
     catalog: pilotCatalog(

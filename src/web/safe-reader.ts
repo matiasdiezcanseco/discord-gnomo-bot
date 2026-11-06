@@ -188,7 +188,14 @@ export function safeReader(net: ReaderNetwork = nodeReaderNetwork()) {
                         }
                       })
                       res.on('end', () =>
-                        resolve({ bytes: Buffer.concat(chunks), contentType, partial: false }),
+                        resolve({
+                          bytes: Buffer.concat(chunks),
+                          contentType,
+                          partial:
+                            !res.complete ||
+                            res.statusCode === 206 ||
+                            !!res.headers['content-range'],
+                        }),
                       )
                       res.on('aborted', () => reject(new Error('inaccessible')))
                     },

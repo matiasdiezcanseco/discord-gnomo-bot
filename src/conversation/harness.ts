@@ -5,6 +5,7 @@ import { Budget, systemClock, type Clock } from './budget'
 import { splitReply } from './delivery'
 import { Admission } from './admission'
 import { Executor } from './executor'
+import { AttachmentError, type VerifiedImage } from './attached-images'
 
 export interface Reply {
   content: string
@@ -32,6 +33,7 @@ export interface ToolResult {
   value?: unknown
 }
 export interface ModelInput {
+  images?: VerifiedImage[]
   recentContext?: HistoryResult
   invocation: Invocation
   signal: AbortSignal
@@ -48,6 +50,7 @@ export interface Trace {
   steps: number
 }
 export interface ConversationPorts {
+  loadImages?(context: ExecutionContext): Promise<VerifiedImage[]>
   /** Called only after invocation authorization; absent means no ambient context. */
   loadContext?(context: ExecutionContext): Promise<HistoryResult | undefined>
   model: { generate(input: ModelInput): Promise<ModelTurn> }
@@ -74,11 +77,13 @@ export function createConversation(ports: ConversationPorts) {
         requester: Object.freeze({ ...source.requester }),
         attachments: source.attachments.map((a) => Object.freeze({ ...a })),
       })
+      Object.freeze(invocation.attachments)
       const clock = ports.clock ?? systemClock
       const budget = new Budget(clock, clock.now())
       const signal = budget.controller.signal
       const results: ToolResult[] = []
-      const tools = ports.catalog?.tools ?? []
+      // Image interpretation has no tool authority. Text-only invocations retain all capabilities.
+      const tools = invocation.attachments.length ? [] : (ports.catalog?.tools ?? [])
       const trace = (event: string, status?: string, tool?: string) => {
         try {
           ports.trace?.({
@@ -117,6 +122,18 @@ export function createConversation(ports: ConversationPorts) {
           trace('authorization', 'denied')
         } else {
           trace('authorization', 'allowed')
+          const images = invocation.attachments.length
+            ? await budget.wait(() => {
+                if (!ports.loadImages)
+                  throw new AttachmentError('No puedo leer adjuntos en esta configuración.')
+                return ports.loadImages({
+                  invocation,
+                  signal,
+                  idempotencyKey: invocation.messageId,
+                  external: (work) => budget.external(work),
+                })
+              })
+            : undefined
           const direct = tools.filter((tool) => tool.direct?.matches(invocation))
           if (direct.length === 1) {
             const tool = direct[0]
@@ -143,6 +160,8 @@ export function createConversation(ports: ConversationPorts) {
                 )
           for (; direct.length !== 1 && budget.steps < 5; ) {
             budget.check()
+            if (images?.length && !(await budget.wait(() => ports.authorize(invocation))))
+              throw new AttachmentError('Se revocó el permiso para responder aquí.')
             budget.steps++
             const visible = await executor.available()
             const turn = await budget.external(() =>
@@ -152,6 +171,7 @@ export function createConversation(ports: ConversationPorts) {
                 results: [...results],
                 tools: visible,
                 recentContext,
+                images,
               }),
             )
             if (turn.text) text = turn.text
@@ -176,12 +196,15 @@ export function createConversation(ports: ConversationPorts) {
             if (!Array.isArray(resolved) && resolved.clarification) text = resolved.clarification
           }
         }
-      } catch {
+      } catch (error) {
         trace('stopped', signal.aborted ? 'timeout' : 'error')
         if (!claimed) return
-        text = signal.aborted
-          ? 'Se agotó el tiempo disponible.'
-          : 'Se agotó el presupuesto o falló un servicio.'
+        text =
+          error instanceof AttachmentError
+            ? error.message
+            : signal.aborted
+              ? 'Se agotó el tiempo disponible.'
+              : 'Se agotó el presupuesto o falló un servicio.'
         const confirmed = results.filter((r) => r.status === 'success' || r.status === 'partial')
         if (confirmed.length)
           text += ` Resultados confirmados:\n${confirmed.map((r) => `${r.status === 'partial' ? 'Cobertura parcial: ' : ''}${JSON.stringify(r.value)}`).join('\n')}`

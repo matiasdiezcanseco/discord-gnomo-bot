@@ -315,7 +315,8 @@ test('ambiguous, quoted, negated, combined, and attachment requests stay on the 
       },
     ],
   })
-  assert.equal(app.modelCalls(), 1)
+  assert.equal(app.modelCalls(), 0)
+  assert.match(app.replies[0].content, /adjuntos/)
   assert.equal(app.requests.length, 0)
 })
 
