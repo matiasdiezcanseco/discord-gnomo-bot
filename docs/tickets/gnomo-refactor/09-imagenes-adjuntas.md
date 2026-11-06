@@ -153,3 +153,9 @@ minimizado `plans/t09-inherited-timeout-targeted.log`, la sonda de diagnóstico
 claramente identificada en `plans/t09-redis-diagnose.cjs`/`.log` y el verde aislado
 `plans/t09-inherited-timeout-fixed.log`. La verificación completa se repite tras
 este ajuste. No hay instrumentación de diagnóstico en código distribuido.
+
+Resultado final tras el ajuste y merge del último tip local: `npm run verify`
+terminó con exit 0, **166/166 pruebas, cero omitidas**, tipos, build y lint
+aprobados; `git diff --check` correcto. Log final preservado en
+`plans/t09-verify-final.log`. Se conserva el aviso previo de ESLint y la
+reconexión esperada durante el reinicio Redis aislado.
