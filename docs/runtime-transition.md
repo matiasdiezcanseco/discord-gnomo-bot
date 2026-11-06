@@ -176,3 +176,9 @@ gnomo-t15-d21c-t13 (16553, AOF). No other containers were used or stopped.
 No PostgreSQL server restart repeated; no skipped test hides that optional branch.
 No subagents, push, PR changes/watch, merges into integration, real migrations,
 production activation or issue closures. Remote checks/reviews were not queried.
+
+Final-review implementation evidence (S1/S2 and F1–F3 separately, 182 tests with no
+skips, isolated persistence and real Docker smoke) is recorded in
+[the review report](final-code-review.md#implementation-resolutions--2026-11-06).
+This supersedes the earlier 174-test local code verification only. Live measurement,
+human acceptance and pilot remain UNPERFORMED; runtime acceptance is still gated.

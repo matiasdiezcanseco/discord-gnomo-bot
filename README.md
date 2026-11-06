@@ -48,3 +48,11 @@ Architecture, transition/rollback, coverage and external acceptance gates:
 [docs/runtime-transition.md](docs/runtime-transition.md). Live runner and unchanged
 sampling limits: [docs/compound-conversations.md](docs/compound-conversations.md).
 No startup, build or test command migrates real data or activates production.
+
+Build the production image with `docker build -t gnomo .`; it starts with
+`node dist/main.js` and requires no Prisma generation. For a local paused smoke,
+use `docker run --rm -p 127.0.0.1:3000:3000 gnomo`. Diagnostics should report paused;
+`/health` returns 503 while Discord is deliberately disconnected. SQL/operator
+artifacts remain packaged, and startup never runs migrations. Run TypeScript
+operator scripts from an operator installation with development dependencies.
+Real Docker validation evidence is in [the final review report](docs/final-code-review.md).
