@@ -1,5 +1,7 @@
 # Drizzle persistence and migrations
 
+For Neon production with the two database variables, see [Neon deployment](neon.md).
+
 Drizzle ORM 0.45.4 owns the typed memory schema and query construction; the
 node-postgres driver still owns connections. Drizzle Kit 0.31.11 generates schema
 changes. Prisma client, generator, schema and migration artifacts are removed.
@@ -19,7 +21,7 @@ do not expose Drizzle's SQL/parameter payloads.
 ```powershell
 npm run db:generate
 npm run db:check
-$env:PILOT_MEMORY_DATABASE_URL='<reviewed PostgreSQL connection URL>'
+$env:DATABASE_URL='<reviewed direct PostgreSQL connection URL>'
 npm run db:migrate
 ```
 

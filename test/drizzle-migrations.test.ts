@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { Pool } from 'pg'
 import { migrateMemoryDatabase } from '../src/database/migrate'
 import { createSandbox } from '../src/sandbox/sandbox'
+import { execFileSync } from 'node:child_process'
 
 test(
   'Drizzle installs fresh storage and adopts existing memories once under concurrent migration',
@@ -22,6 +23,27 @@ test(
     try {
       await reset()
       await migrateMemoryDatabase(pool)
+      assert.match(
+        execFileSync(
+          process.execPath,
+          [
+            'node_modules/tsx/dist/cli.mjs',
+            '--tsconfig',
+            'tsconfig.nest.json',
+            'src/database/migrate.ts',
+          ],
+          {
+            env: {
+              ...process.env,
+              DATABASE_URL: url,
+              DATABASE_URL_POOLED: 'postgresql://fixture:fixture@127.0.0.1:1/unreachable',
+              PILOT_MEMORY_DATABASE_URL: undefined,
+            },
+            encoding: 'utf8',
+          },
+        ),
+        /Drizzle memory migrations applied/,
+      )
       let sandbox = createSandbox({ session: 'drizzle-test', memory: { pool } })
       assert.match(
         (await sandbox.ask('guarda recuerdo [clave=fresh]: Portal')).replies[0].content,

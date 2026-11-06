@@ -34,6 +34,8 @@ services:
     command: ['node', 'dist/database/migrate.js']
     environment:
       PILOT_MEMORY_DATABASE_URL: postgresql://gnomo:gnomo-local@postgres:5432/gnomo
+      DATABASE_URL: postgresql://gnomo:gnomo-local@postgres:5432/gnomo
+      DATABASE_URL_POOLED: ''
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,6 +70,8 @@ services:
     environment:
       # These endpoints are for containers; .env-example uses host endpoints.
       PILOT_MEMORY_DATABASE_URL: postgresql://gnomo:gnomo-local@postgres:5432/gnomo
+      DATABASE_URL: postgresql://gnomo:gnomo-local@postgres:5432/gnomo
+      DATABASE_URL_POOLED: ''
       REDIS_URL: redis://:gnomo123@redis:6379/15
       # Starting the local stack alone never logs into Discord.
       RUNTIME_MODE: ${RUNTIME_MODE:-paused}

@@ -37,6 +37,8 @@ test('production Nest composition starts paused without credentials, has one rec
     'REDIS_URL',
     'BUCKET_URL',
     'PILOT_MEMORY_DATABASE_URL',
+    'DATABASE_URL',
+    'DATABASE_URL_POOLED',
     'MEMORY_OWNER_ID',
     'PILOT_MEMORY_EMBEDDING_MODEL',
   ])
@@ -111,6 +113,8 @@ test(
     }
     for (const key of [
       'PILOT_MEMORY_DATABASE_URL',
+      'DATABASE_URL',
+      'DATABASE_URL_POOLED',
       'MEMORY_OWNER_ID',
       'PILOT_MEMORY_EMBEDDING_MODEL',
     ])

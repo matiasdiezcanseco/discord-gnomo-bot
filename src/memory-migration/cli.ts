@@ -2,6 +2,7 @@ import { Pool } from 'pg'
 import { embed } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import { migrateLegacy, type MigrationAction } from './service'
+import { databasePoolConfig } from '../database/configuration'
 
 /** Same entry point used by the executable; only external HTTP/output are injectable. */
 export async function migrationCli(
@@ -12,13 +13,11 @@ export async function migrationCli(
 ) {
   if (args.length !== 1 || !['dry-run', 'backup', 'import', 'rollback'].includes(args[0]))
     throw new Error('Usage: npm run memory:migrate -- dry-run|backup|import|rollback')
-  for (const key of ['PILOT_MEMORY_DATABASE_URL', 'GUILD_ID', 'GNOMOS_CHANNEL_ID', 'BOT_TOKEN'])
+  for (const key of ['GUILD_ID', 'GNOMOS_CHANNEL_ID', 'BOT_TOKEN'])
     if (!env[key]) throw new Error(`Missing ${key}`)
-  const pool = new Pool({
-    connectionString: env.PILOT_MEMORY_DATABASE_URL,
-    max: 1,
-    connectionTimeoutMillis: 3000,
-  })
+  const options = databasePoolConfig(env, 'migration')
+  if (!options) throw new Error('Missing DATABASE_URL (or PILOT_MEMORY_DATABASE_URL)')
+  const pool = new Pool(options)
   pool.on('error', () => undefined)
   const model = env.PILOT_MEMORY_EMBEDDING_MODEL
   try {

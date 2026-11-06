@@ -19,7 +19,7 @@ fallback remains gpt-4o-mini. No silent model replacement is performed.
 
 For local PostgreSQL/pgvector, the existing Redis and an optional containerized bot,
 follow [local testing and Supabase deployment](docs/local-testing.md). The same
-Docker image accepts the Supabase connection URL at deployment time.
+Docker image accepts Neon or Supabase connection URLs at deployment time.
 
 Active mode requires BOT_TOKEN, GUILD_ID, OPENAI_API_KEY and REDIS_URL. Redis stores
 deduplication and durable notices, not a permanent conversation archive. Context
@@ -27,9 +27,11 @@ comes from the current channel/thread, bounded and reauthorized. Ambient message
 bots, other guilds and DMs do not invoke Gnomo.
 
 Optional capabilities require BUCKET_URL (phrases/photos/birthday JSON),
-TAVILY_API_KEY (search/news), or PILOT_MEMORY_DATABASE_URL plus trusted
+TAVILY_API_KEY (search/news), or DATABASE_URL/DATABASE_URL_POOLED plus trusted
 MEMORY_OWNER_ID (17–20 digit Discord ID) for explicit memories. Optional
 PILOT_MEMORY_EMBEDDING_MODEL enables embeddings; omission uses lexical retrieval.
+Neon runtime uses the pooled URL; migrations use the direct URL. The older
+PILOT_MEMORY_DATABASE_URL remains a fallback alias. See [Neon deployment](docs/neon.md).
 GNOMOS_CHANNEL_ID is required for birthdays and the approved memory migration
 destination. Time expressions and birthdays use America/Lima. Omit unused optional
 variables. Missing capability configuration produces unavailable results.

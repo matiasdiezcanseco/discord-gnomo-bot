@@ -1,5 +1,8 @@
 # Local testing and deployed PostgreSQL
 
+For Neon production with `DATABASE_URL` / `DATABASE_URL_POOLED`, see
+[Neon deployment](neon.md). Local/sandbox storage stays local.
+
 The bot uses `PILOT_MEMORY_DATABASE_URL` with Drizzle/node-postgres in both environments.
 The Docker image contains no database credentials or fixed host. Local Compose
 provides PostgreSQL 17/pgvector and reuses the existing `gnomo-redis` container and

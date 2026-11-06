@@ -24,6 +24,14 @@ const envSchema = z
 
     // Durable admission and scheduled notices; active runtime requires Redis.
     REDIS_URL: z.string().optional(),
+    DATABASE_URL: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.string().url().optional(),
+    ),
+    DATABASE_URL_POOLED: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.string().url().optional(),
+    ),
     PILOT_MEMORY_DATABASE_URL: z.string().url().optional(),
     PILOT_MEMORY_EMBEDDING_MODEL: z.string().min(1).optional(),
     MEMORY_OWNER_ID: z

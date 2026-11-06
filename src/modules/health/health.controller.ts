@@ -27,6 +27,8 @@ export class HealthController {
           'BUCKET_URL',
           'TAVILY_API_KEY',
           'PILOT_MEMORY_DATABASE_URL',
+          'DATABASE_URL',
+          'DATABASE_URL_POOLED',
           'MEMORY_OWNER_ID',
           'PILOT_MEMORY_EMBEDDING_MODEL',
         ].map((key) => [key, Boolean(this.config.get(key))]),
