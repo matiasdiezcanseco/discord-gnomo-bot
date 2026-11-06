@@ -17,12 +17,12 @@ Los tickets siguen abiertos hasta la resolución mediante el PR; integrado no si
 | T06 / #8 | Integrado | 6da5ba3; 91 pruebas con Redis real tras separar reconexión y expiración |
 | T07 / #9 | Integrado | ff762ac; 84 pruebas combinadas, Redis real, tipos, build y lint aprobados |
 | T08 / #10 | Integrado | 712777f; 127 pruebas con Redis real, tipos, build y lint aprobados |
-| T09 / #11 | Implementador en ejecución | Adjuntos visuales sobre lector seguro |
+| T09 / #11 | Integrado | e316f6b; imágenes verificadas como bytes, 175 pruebas conjuntas sin omisiones |
 | T10 / #12 | Integrado | 54cdf24; 129 pruebas sin omisiones, PostgreSQL/pgvector y Redis reales, reinicio PostgreSQL comprobado |
 | T11 / #13 | Integrado | 5962a7e; 139 pruebas sin omisiones tras endurecer el timeout de escritura Redis, migración real y reinicio AOF aprobados |
 | T12 / #14 | Integrado | efc7d37; 138 pruebas sin omisiones, PostgreSQL y Redis reales, reinicio AOF Redis comprobado |
-| T13 / #15 | Implementador en ejecución | Cumpleaños sobre entrega recuperable |
-| T14 / #16 | Pendiente de capacidades | Integración y latencia |
+| T13 / #15 | Integrado | e316f6b; avisos de cumpleaños compartidos y reinicio AOF propio aprobado |
+| T14 / #16 | Siguiente frontera | Integración, lenguaje natural y latencia; configuración privada real aún no recibida |
 | T15 / #17 | Pendiente de T14 | Piloto y transición |
 
 Frontera de pruebas confirmada: invocación normalizada hasta respuesta/efectos, modelo/Discord/web controlados y persistencia real aislada para migraciones/concurrencia. Docker Desktop está disponible (motor 27.4.0). PostgreSQL 17/pgvector y Redis 7 aislados verifican el almacenamiento nuevo, incluida recuperación tras reinicio real de PostgreSQL. No se han ejecutado servicios de producción, migraciones sobre datos reales, piloto ni mediciones reales de latencia.
@@ -41,4 +41,6 @@ T12 integrado desde `t3-b288b963`, rama `feat/reliable-reminders`. Tras interrup
 
 T11 integrado desde `t3-6699debc`, rama `feat/migrate-legacy-memories`. La suite inicial descubrió un timeout de 40 ms aplicado también al handshake de Redis en una prueba T12: se aplica ahora solo después de conectar, y CLIENT UNPAUSE coordina el fin de la pausa sin sleep arbitrario. La suite concurrente completa pasó 139/139, cero omisiones, con PostgreSQL/pgvector (bases T10/T11 separadas), Redis principal y Redis AOF reiniciado. Operación de migración validada con datos sintéticos, sin aplicar cambios a recuerdos reales.
 
-Worktree activo a conservar: T09 en `t3-1243cee0`, rama `feat/attached-image-inputs`. T11 ya terminó tras retomar su trabajo parcial con el mismo proveedor/modelo.
+Conservar para limpieza final: T09 en `t3-1243cee0`, rama `feat/attached-image-inputs`; T13 en `t3-795e221b`, rama `feat/scheduled-birthday-notices`. Los implementadores T09/T11 dejaron contenedores propios disponibles; no confundirlos con producción ni con recursos de tareas activas.
+
+Integración T09/T13: e316f6b, 175/175 pruebas, cero omisiones, tipos/build/lint/diff correctos. PostgreSQL/vector y Redis reales; reinicios AOF T12/T13 separados. La tarjeta privada para configuración del piloto venció sin datos: no hay archivo privado ni mediciones de servicios reales. La implementación y pruebas aisladas continúan; no se certifica piloto/latencia.
