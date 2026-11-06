@@ -96,6 +96,18 @@ Se verifican clientes nuevos/recuperación SQL, no otro reinicio PostgreSQL.
 T12/T13 sí reinician servidores Redis distintos, con AOF. Sus reconexiones pueden
 emitir ECONNREFUSED transitorio; el resultado de cada prueba verifica recuperación.
 
+Verificación final local 2026-11-05: `git merge --no-edit integration/gnomo-harness`
+confirmó Already up to date con tip `3c646aa4250faeb7d839be2385886d56861455a1`
+antes de los checks finales. `npm run verify` posterior terminó con exit 0:
+**181/181 pruebas, cero omitidas**, tipos, build y lint aprobados. `git diff --check`
+correcto. Log reproducible local: `%TEMP%/gnomo-t14-final-verify.log`.
+Se conserva únicamente el aviso previo MODULE_TYPELESS_PACKAGE_JSON de ESLint.
+`npm run measure:live -- report docs/t14-measurement-template.json` verificó el
+formato vacío con métricas null; no ejecutó proveedores ni Discord. Contenedores
+propios `gnomo-t14-postgres`, `gnomo-t14-redis`, `gnomo-t14-t12`, `gnomo-t14-t13`
+conservados para inspección. No se tocaron recursos ajenos. No hubo push, cambios
+de PR, cierre de issue, migración de producción, piloto ni despliegue.
+
 ## Runner vivo acotado para root
 
 **UNPERFORMED**: no se recibió dotenv privado; no existen mediciones reales de

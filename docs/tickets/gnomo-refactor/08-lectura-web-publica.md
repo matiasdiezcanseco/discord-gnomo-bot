@@ -1,5 +1,9 @@
 # T08: Leer páginas públicas con acceso de red limitado
 
+Actualización T14: también se pueden leer fuentes estructuradas de búsquedas
+autorizadas de la misma invocación. No se concede autoridad al texto recuperado.
+Ver [contrato actual](../../compound-conversations.md).
+
 Estado: aprobado y publicado con ready-for-agent. Issue: https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/10
 
 ## Parent

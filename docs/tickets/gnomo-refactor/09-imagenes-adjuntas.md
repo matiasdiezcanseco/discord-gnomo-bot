@@ -1,5 +1,9 @@
 # T09: Responder sobre imágenes adjuntas a una invocación
 
+Actualización T14: imágenes validadas pueden acompañar herramientas. Se sustituye
+la prohibición global de herramientas por las políticas de consentimiento/permisos
+del ejecutor. Ver [contrato actual](../../compound-conversations.md).
+
 Estado: aprobado y publicado con ready-for-agent. Issue: https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/11
 
 ## Parent

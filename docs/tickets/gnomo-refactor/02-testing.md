@@ -1,5 +1,8 @@
 # T02 — Conversación y contratos de extensión
 
+Actualización T14: los cinco pasos y ocho herramientas/subllamadas son independientes;
+las generaciones no consumen llamadas. Ver [contrato actual](../../compound-conversations.md).
+
 ## Composición y piloto
 
 El único receptor sigue siendo `MessageHandlerService`. Después de normalizar, selecciona la nueva conversación exclusivamente para IDs de canal/hilo en `CONVERSATION_PILOT_CHANNEL_IDS` (lista separada por comas, vacía por defecto). Los demás eventos conservan la ruta anterior. No existe fallback del piloto hacia herramientas antiguas ni un segundo listener. Quitar un ID revierte la selección sin migrar datos. El piloto requiere Redis; sin él falla cerrado y registra el fallo, sin efectos ni respuesta potencialmente duplicada.

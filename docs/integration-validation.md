@@ -2,6 +2,10 @@
 
 Estas comprobaciones concretan el comportamiento conversacional ya aprobado; no introducen nuevas decisiones de producto. La base integrada tiene 175 pruebas aprobadas con persistencia aislada real, pero los casos controlados no certifican comportamiento ni latencia de servicios reales.
 
+Implementación y reproducción T14: [compound-conversations.md](compound-conversations.md).
+La cobertura controlada de los gaps siguientes está implementada; su validación
+con proveedor/Discord reales y el piloto siguen UNPERFORMED por falta de configuración privada.
+
 ## Lenguaje natural y composición
 
 - Comprobar guardado con «recuerda que Juan juega Valorant» y recuperación con «quién juega Valorant». La forma técnica actual «guarda recuerdo: ...» puede mantenerse como atajo, pero no debe ser obligatoria. Las escrituras siguen requiriendo consentimiento explícito actual comprobado en código; una búsqueda de memoria pertinente puede elegirse como lectura sin enriquecimiento automático en cada saludo.

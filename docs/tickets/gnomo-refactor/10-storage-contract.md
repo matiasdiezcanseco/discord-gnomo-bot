@@ -1,5 +1,10 @@
 # T10: contrato público y almacenamiento
 
+Actualización T14: `recuerda que ...` también autoriza guardado; `memory_search`
+acepta `{query?: string}` para recall pertinente elegido por el modelo. Los esquemas
+de escritura siguen vacíos y el texto actual fija contenido/autor/ámbito.
+Ver [contrato actual](../../compound-conversations.md).
+
 La ruta nueva usa NestJS → `PilotMemory` → `composePilot` → catálogo/ejecutor
 reales → PostgreSQL/pgvector. Redis conserva exclusivamente reclamaciones sin
 contenido. No se llama al servicio legado ni se importa nada al arrancar.
