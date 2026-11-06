@@ -82,6 +82,10 @@ certify crash durability.
 
 ## Inputs still needed for live acceptance
 
+For unrestricted local conversations without reaching Discord, use the
+[sandbox](sandbox.md). It needs no Discord credentials or human server messages.
+The following requirements apply specifically to later Discord transport acceptance.
+
 - Private `BOT_TOKEN`, `OPENAI_API_KEY`, an explicit `OPENAI_MODEL`, and
   `TAVILY_API_KEY` for real search/news. `BUCKET_URL` is needed to test the existing
   phrases/photos/birthday collection; an embedding model is optional.

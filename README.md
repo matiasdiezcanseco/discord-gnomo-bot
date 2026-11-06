@@ -5,6 +5,11 @@ request phrases/photos, channel history, members/presence/voice, public search a
 web reading, image understanding, explicit channel memories and own reminders.
 Birthdays use the approved collection and the same reliable notice dispatcher.
 
+To interact without connecting to Discord, run `npm run sandbox:setup` once, then
+`npm run sandbox`. The sandbox uses local fixtures and isolated storage; opt-in
+real-model/web modes also keep replies and scheduled deliveries local.
+See [sandbox usage](docs/sandbox.md).
+
 Install Node 24 and run `npm ci --ignore-scripts`. Copy `.env-example` to `.env`.
 `npm start` defaults to **paused**, without logging into Discord. Configure the
 required variables before selecting `RUNTIME_MODE=pilot` (explicit comma-separated

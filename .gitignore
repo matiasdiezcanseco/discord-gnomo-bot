@@ -1,5 +1,6 @@
 .env
 .env.local
+.env.sandbox
 node_modules/
 dist
 /src/generated/prisma

@@ -19,6 +19,7 @@ import { safeReader, type SafeReader } from '../../web/safe-reader'
 import { discordLiveMembers } from './live-members'
 import { attachedImages } from '../../conversation/attached-images'
 import { ScheduledNotices } from '../../conversation/scheduled-notices'
+import { capabilityAllowed } from '../../conversation/execution-policy'
 
 export interface ConversationComposition {
   client: Client
@@ -60,31 +61,8 @@ export function composeConversation({
     if (!(await effectiveChannelAccess(channel, requester, bot, signal, true))) return false
     return enabled(invocation, tool)
   }
-  const enabled: ConversationPorts['authorize'] = async (invocation, tool) => {
-    return (
-      !tool ||
-      (tool.capability === 'reminders.own' &&
-        tool.effect === 'write' &&
-        /^(?:por favor,?\s+)?(?:recu[eé]rdame|recordarme)\s+/i.test(invocation.content.trim())) ||
-      (tool.capability.startsWith('memory.') &&
-        ((tool.capability === 'memory.search' && tool.effect === 'read') ||
-          (['memory.save', 'memory.update', 'memory.forget'].includes(tool.capability) &&
-            tool.effect === 'write'))) ||
-      ([
-        'runtime.status',
-        'messages.history',
-        'collection.phrase',
-        'collection.photo',
-        'discord.members',
-        'web.read',
-        'discord.presence',
-        'discord.voice',
-        'web.search',
-        'web.news',
-      ].includes(tool.capability) &&
-        tool.effect === 'read')
-    )
-  }
+  const enabled: ConversationPorts['authorize'] = async (invocation, tool) =>
+    capabilityAllowed(invocation, tool)
   // With durable memory enabled, never retain history pages that may contain old memory replies.
   const history = discordHistory(
     client,

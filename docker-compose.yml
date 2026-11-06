@@ -28,6 +28,23 @@ services:
       timeout: 3s
       retries: 20
 
+  sandbox:
+    profiles: ['sandbox']
+    build:
+      context: .
+      target: runtime
+    command: ['node', 'dist/sandbox/cli.js']
+    stdin_open: true
+    tty: true
+    environment:
+      SANDBOX_DATABASE_URL: postgresql://gnomo:gnomo-local@postgres:5432/gnomo_sandbox
+      SANDBOX_REDIS_URL: redis://:gnomo123@redis:6379/14
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
   bot:
     profiles: ['bot']
     build:
