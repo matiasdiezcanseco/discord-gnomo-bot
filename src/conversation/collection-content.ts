@@ -1,3 +1,4 @@
+import { readBoundedBody } from '../web/bounded-body'
 import { z } from 'zod'
 import { defineCapability, type ExecutionContext } from './catalog'
 import type { ToolResult } from './harness'
@@ -26,24 +27,11 @@ export function bucketCollection(
     async read(file, signal) {
       const response = await transport(new URL(file, url), { signal, redirect: 'error' })
       if (!response.ok || !response.body) throw new Error('Collection unavailable')
-      const reader = response.body.getReader()
-      const chunks: Uint8Array[] = []
-      let bytes = 0
-      try {
-        for (;;) {
-          const { done, value } = await reader.read()
-          if (done) break
-          bytes += value.byteLength
-          if (bytes > 524288) throw new Error('Collection too large')
-          chunks.push(value)
-        }
-      } finally {
-        await reader.cancel()
-      }
+      const bytes = await readBoundedBody(response.body, 524288, signal)
       return z
         .array(z.string().min(1).max(8000))
         .max(10000)
-        .parse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+        .parse(JSON.parse(bytes.toString('utf8')))
     },
     photoUrl(path) {
       const photo = new URL(path, url)

@@ -350,3 +350,37 @@ test('model arguments cannot redirect collection reads or grant requester identi
   assert.equal(app.replies[0].content, 'Resultado: invalid')
   assert.equal(app.requests.length, 0)
 })
+
+test('collection cancellation stops a pending body read even when the transport ignores abort', async () => {
+  const controller = new AbortController()
+  let started!: () => void
+  const reading = new Promise<void>(resolve => { started = resolve })
+  let cancelled = 0
+  const collection = bucketCollection('https://collection.example/', async (_, init) => {
+    assert.equal(init?.signal, controller.signal)
+    return new Response(new ReadableStream<Uint8Array>({
+      pull() { started(); return new Promise(() => {}) },
+      cancel() { cancelled++ },
+    }))
+  })!
+  const result = collection.read('phrases.json', controller.signal)
+  await reading
+  controller.abort(new Error('invocation cancelled'))
+  await assert.rejects(Promise.race([result, new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('reader did not cancel')), 100))]), /invocation cancelled/)
+  assert.equal(cancelled, 1)
+})
+
+test('collection rejects chunked bytes above its limit and cancels the body before parsing', async () => {
+  let cancelled = false
+  const collection = bucketCollection('https://collection.example/', async () =>
+    new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(524288))
+        controller.enqueue(new Uint8Array(1))
+      },
+      cancel() { cancelled = true },
+    })))!
+  await assert.rejects(collection.read('phrases.json', new AbortController().signal), /too large/)
+  assert.equal(cancelled, true)
+})

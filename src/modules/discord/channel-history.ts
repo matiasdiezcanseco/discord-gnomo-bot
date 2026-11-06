@@ -1,3 +1,4 @@
+import { readBoundedBody } from '../../web/bounded-body'
 import type { Client } from 'discord.js'
 import { z } from 'zod'
 import type { Invocation } from '../../core/conversation/invocation'
@@ -14,7 +15,7 @@ const discordMessage = z.object({
 /** Native fetch has no hidden SDK retries; every page shares the invocation budget. */
 export function discordHistory(
   client: Client,
-  authorize: (invocation: Invocation) => Promise<boolean>,
+  authorize: (invocation: Invocation, signal?: AbortSignal) => Promise<boolean>,
   fetcher: typeof fetch = fetch,
   cacheEnabled = true,
 ): HistoryReader {
@@ -26,7 +27,7 @@ export function discordHistory(
   return async (context, limit) => {
     const { invocation, signal } = context
     signal.throwIfAborted()
-    if (!(await authorize(invocation))) throw new Error('History permission denied')
+    if (!(await authorize(invocation, signal))) throw new Error('History permission denied')
     const key = JSON.stringify([
       invocation.guildId,
       invocation.channelId,
@@ -53,7 +54,8 @@ export function discordHistory(
     const seen = new Set([before])
     for (let page = 0; page < Math.ceil(limit / 100); page++) {
       signal.throwIfAborted()
-      if (!(await authorize(invocation))) throw new Error('History permission denied')
+      if (!(await authorize(invocation, signal))) throw new Error('History permission denied')
+      signal.throwIfAborted()
       const size = Math.min(100, limit - page * 100)
       const url = new URL(
         `https://discord.com/api/v10/channels/${encodeURIComponent(invocation.channelId)}/messages`,
@@ -67,24 +69,11 @@ export function discordHistory(
             headers: { Authorization: `Bot ${client.token}` },
           })
           if (!response.ok || !response.body) throw new Error('Discord history unavailable')
-          const reader = response.body.getReader()
-          const chunks: Uint8Array[] = []
-          let bytes = 0
-          try {
-            for (;;) {
-              const { done, value } = await reader.read()
-              if (done) break
-              bytes += value.byteLength
-              if (bytes > 1000000) throw new Error('History response too large')
-              chunks.push(value)
-            }
-          } finally {
-            await reader.cancel()
-          }
+          const bytes = await readBoundedBody(response.body, 1000000, signal)
           return z
             .array(discordMessage)
             .max(100)
-            .parse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+            .parse(JSON.parse(bytes.toString('utf8')))
         })
         for (const message of data) {
           if (message.channel_id !== invocation.channelId || seen.has(message.id)) continue

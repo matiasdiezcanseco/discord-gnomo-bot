@@ -452,3 +452,24 @@ test(
     }
   },
 )
+
+test('history forwards cancellation through reauthorization and fetch, cancels an oversized streamed page', async () => {
+  const { discordHistory } = await import('../src/modules/discord/channel-history')
+  const controller = new AbortController()
+  let cancelled = false
+  const history = discordHistory({ token: 'test-only' } as Client,
+    async (_, signal) => { assert.equal(signal, controller.signal); return true },
+    async (_, init) => {
+      assert.equal(init?.signal, controller.signal)
+      return new Response(new ReadableStream<Uint8Array>({
+        start(stream) {
+          stream.enqueue(new Uint8Array(1000000))
+          stream.enqueue(new Uint8Array(1))
+        },
+        cancel() { cancelled = true },
+      }))
+    })
+  await assert.rejects(history({ invocation: origin, signal: controller.signal,
+    idempotencyKey: 'review', external: work => work() }, 30), /too large/)
+  assert.equal(cancelled, true)
+})
