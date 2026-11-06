@@ -22,10 +22,13 @@ async function main() {
       image: { type: 'string' },
     },
   })
-  // No automatic dotenv loading, ConfigModule, AppModule, Client or Gateway login.
+  // Only sandbox/provider settings; no runtime dotenv files, AppModule or Discord login.
   const env = await sandboxEnvironment()
-  if (values['live-model'] && (!env.OPENAI_API_KEY || !env.OPENAI_MODEL))
-    throw new Error('Live model requires OPENAI_API_KEY and explicit OPENAI_MODEL')
+  const missing = ['OPENAI_API_KEY', 'OPENAI_MODEL'].filter((key) => !env[key]?.trim())
+  if (values['live-model'] && missing.length)
+    throw new Error(
+      `Live model requires ${missing.join(' and ')}. Set the missing settings in .env.sandbox or the process environment; SANDBOX_ENV_FILE selects another file.`,
+    )
   const provider = values['live-model']
     ? createOpenAI({
         apiKey: env.OPENAI_API_KEY,
@@ -161,7 +164,7 @@ if (require.main === module)
     // URLs/SDK exceptions may contain credentials. Only known local validation messages are shown.
     console.error(
       error instanceof Error &&
-        /^(Live model requires|Invalid sandbox session|Local sandbox storage unavailable|Sandbox requires)/.test(
+        /^(Live model requires|Invalid sandbox session|Local sandbox storage unavailable|Sandbox requires|Sandbox configuration file could not be read)/.test(
           error.message,
         )
         ? error.message

@@ -104,14 +104,17 @@ For real conversation, copy `.env.sandbox-example` to ignored `.env.sandbox`,
 provide the OpenAI key and explicit model privately, then:
 
 ```powershell
-$env:SANDBOX_ENV_FILE='.env.sandbox'
 npm.cmd run sandbox -- --live-model
 npm.cmd run sandbox -- --live-model --live-web
 npm.cmd run sandbox -- --live-model --image C:\path\photo.png --ask "describe esta imagen"
 ```
 
-Only the five sandbox/provider settings in the example are accepted from the
-explicit file. It does not auto-load `.env` or `.env.local`. The real model uses
+The CLI automatically reads `.env.sandbox` in the current directory. To select
+another file in PowerShell, use `$env:SANDBOX_ENV_FILE='C:\path\sandbox.env'`.
+Exported process variables take precedence over file values. Windows user/system
+environment changes require a new terminal; a `.env.sandbox` edit is read on the
+next run. Only the five sandbox/provider settings in the example are accepted;
+`.env` and `.env.local` are never auto-loaded. The real model uses
 the production AI SDK adapter/persona and can consume verified local image bytes.
 Real-model mode sends requests to OpenAI and uses the configured API account;
 it still has no Discord token or send transport. No silent model substitution.
@@ -142,7 +145,7 @@ and real-provider testing, the host CLI above is the simplest path.
 
 ## Verification and limits
 
-Seven sandbox regressions cover invocation/reply/context scoping, CLI isolation
+Eight sandbox regressions cover configuration loading, invocation/reply/context scoping, CLI isolation
 from Discord configuration, duplicate suppression, blocked Discord redirects,
 persistent memory/reminders/birthdays and local-only delivery, verified images
 and refusal of runtime/remote storage. Run persistent cases with explicit isolated

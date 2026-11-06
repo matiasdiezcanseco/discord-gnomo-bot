@@ -10,6 +10,48 @@ import { once } from 'node:events'
 import type { ReaderNetwork } from '../src/web/safe-reader'
 import { sandboxStorage } from '../src/sandbox/storage'
 import sharp from 'sharp'
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+
+test('sandbox live-model startup reads the local sandbox file without PowerShell environment exports', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'gnomo-sandbox-env-'))
+  const env = { ...process.env }
+  delete env.SANDBOX_ENV_FILE
+  delete env.OPENAI_API_KEY
+  delete env.OPENAI_MODEL
+  writeFileSync(
+    join(directory, '.env.sandbox'),
+    'OPENAI_API_KEY=nonsecret-sandbox-fixture\nOPENAI_MODEL=sandbox-fixture-model\nBOT_TOKEN=must-not-be-used\n',
+  )
+  try {
+    const output = execFileSync(
+      process.execPath,
+      [
+        resolve('node_modules/tsx/dist/cli.mjs'),
+        '--tsconfig',
+        resolve('tsconfig.nest.json'),
+        resolve('src/sandbox/cli.ts'),
+        '--live-model',
+        '--memoryless',
+        '--ask',
+        'dame una frase',
+        '--json',
+      ],
+      { cwd: directory, env, encoding: 'utf8', stdio: 'pipe' },
+    )
+    const events = output
+      .trim()
+      .split(/\r?\n/)
+      .map((line) => JSON.parse(line))
+    assert.equal(events[0].data.model, 'sandbox-fixture-model')
+    assert.equal(events[0].data.discord, 'disconnected')
+    assert.match(events[1].data.replies[0].content, /Frase del sandbox/)
+    assert.doesNotMatch(output, /nonsecret-sandbox-fixture|must-not-be-used/)
+  } finally {
+    rmSync(directory, { recursive: true })
+  }
+})
 
 test('sandbox conversations use local members and channel context without contacting Discord', async () => {
   const sandbox = createSandbox()
@@ -44,6 +86,7 @@ test('sandbox CLI ignores Discord runtime credentials and accepts piped conversa
       encoding: 'utf8',
       env: {
         ...process.env,
+        SANDBOX_ENV_FILE: resolve('test/fixtures/sandbox.env'),
         BOT_TOKEN: 'must-not-be-used',
         GUILD_ID: 'real-guild',
         RUNTIME_MODE: 'guild',
@@ -201,7 +244,15 @@ test('sandbox CLI refuses runtime/remote databases before attempting a connectio
             '--ask',
             'hola',
           ],
-          { env: { ...process.env, ...overrides }, encoding: 'utf8', stdio: 'pipe' },
+          {
+            env: {
+              ...process.env,
+              SANDBOX_ENV_FILE: resolve('test/fixtures/sandbox.env'),
+              ...overrides,
+            },
+            encoding: 'utf8',
+            stdio: 'pipe',
+          },
         ),
       /Sandbox requires local/,
     )
