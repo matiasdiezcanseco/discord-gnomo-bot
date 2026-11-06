@@ -121,3 +121,21 @@ producción ni nueva persistencia T09. Sin claves no se han probado modelo/Disco
 reales, resistencia semántica, latencia de internet o piloto visible. Sin subagentes,
 push, despliegue, cambios de PR o cierre de issue.
 
+## Cierre del implementador
+
+Base `df0e5f45c6c8ab9ae41b9f179ff417037839c4ce` verificada como ancestro antes de
+editar. Se incorporaron T10 y T12 conservando sus familias del catálogo y la
+composición real; último tip local incorporado
+`6678cb5105adc05d63abaadc7c484eaadc786be9`, merge `a0baab2`. Rama
+`feat/attached-image-inputs`, worktree `t3-1243cee0`.
+
+Suite completa: **166/166 pruebas, cero omitidas**, incluidas 28 visuales T09;
+`ts:check`, build y lint aprobados. Redis 7 real en 16409, PostgreSQL/pgvector 17
+en 16419 y reinicio AOF real de Redis en 16429. El reinicio emite transitoriamente
+ECONNREFUSED del cliente de prueba y luego recupera; no es un fallo de la suite.
+ESLint conserva el aviso previo MODULE_TYPELESS_PACKAGE_JSON. Los logs locales se
+conservan en `plans/t09-verify-integration-164.log`, `plans/t09-verify.log` y
+`plans/t09-verify-final.log`; `plans` está ignorado por el repositorio. Se conservan
+los contenedores propios `gnomo-t09-redis`, `gnomo-t09-postgres` y
+`gnomo-t09-restart`, sin detener recursos ajenos. No se comprobaron checks ni
+revisiones remotas del PR.
