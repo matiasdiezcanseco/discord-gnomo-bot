@@ -43,9 +43,10 @@ are disabled; only explicitly authorized individual recipients may be notified.
 
 `npm run verify` runs behavior tests, types, build and lint. Persistence cases report
 skips without explicit isolated test URLs. For a complete run with your own Docker
-resources, use [the transition runbook](docs/runtime-transition.md). No Prisma client
-or code generation is needed. Historical Prisma schema/migrations are retained as
-source-data documentation; production uses pg and explicit SQL installation.
+resources, use [the transition runbook](docs/runtime-transition.md). Persistence uses
+Drizzle ORM over node-postgres, with a versioned schema and explicit migrations.
+Run `npm run db:migrate` before activating memory, or `npm run sandbox:setup` for
+the isolated sandbox. See [Drizzle operations](docs/drizzle.md).
 
 `GET /health` checks Discord readiness, configured Redis and optional bucket.
 Paused Discord is not ready. `GET /health/diagnostics` reports rollout mode, model
@@ -59,9 +60,10 @@ sampling limits: [docs/compound-conversations.md](docs/compound-conversations.md
 No startup, build or test command migrates real data or activates production.
 
 Build the production image with `docker build -t gnomo .`; it starts with
-`node dist/main.js` and requires no Prisma generation. For a local paused smoke,
+`node dist/main.js`. For a local paused smoke,
 use `docker run --rm -p 127.0.0.1:3000:3000 gnomo`. Diagnostics should report paused;
 `/health` returns 503 while Discord is deliberately disconnected. SQL/operator
-artifacts remain packaged, and startup never runs migrations. Run TypeScript
+artifacts and the compiled Drizzle migrator remain packaged; startup never runs
+migrations. Run TypeScript
 operator scripts from an operator installation with development dependencies.
 Real Docker validation evidence is in [the final review report](docs/final-code-review.md).

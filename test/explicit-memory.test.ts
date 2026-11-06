@@ -2,7 +2,7 @@ import 'reflect-metadata'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { migrateMemoryDatabase } from '../src/database/migrate'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { Pool } from 'pg'
@@ -48,7 +48,7 @@ test(
   async () => {
     let pool = new Pool({ connectionString: process.env.T10_DATABASE_URL })
     const redis = new Redis(process.env.T02_REDIS_URL!)
-    await pool.query(await readFile('prisma/pilot-memory.sql', 'utf8'))
+    await migrateMemoryDatabase(pool)
     const guildId = randomUUID()
     let allowed = true
     let embeddings = 0

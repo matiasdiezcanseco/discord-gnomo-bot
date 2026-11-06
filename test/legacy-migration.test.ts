@@ -1,7 +1,7 @@
 import 'reflect-metadata'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { migrateMemoryDatabase } from '../src/database/migrate'
 import { Pool } from 'pg'
 import { migrateLegacy } from '../src/memory-migration/service'
 import { migrationCli } from '../src/memory-migration/cli'
@@ -23,9 +23,9 @@ test(
     try {
       assert.equal(new URL(process.env.T11_DATABASE_URL!).pathname, '/gnomo_t11')
       await pool.query(
-        'DROP SCHEMA IF EXISTS memory_migration CASCADE; DROP TABLE IF EXISTS public.memories CASCADE; DROP TABLE IF EXISTS pilot_memory_operations; DROP TABLE IF EXISTS pilot_memories CASCADE',
+        'DROP SCHEMA IF EXISTS memory_migration CASCADE; DROP TABLE IF EXISTS public.memories CASCADE; DROP TABLE IF EXISTS pilot_memory_operations; DROP TABLE IF EXISTS pilot_memories CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE',
       )
-      await pool.query(await readFile('prisma/pilot-memory.sql', 'utf8'))
+      await migrateMemoryDatabase(pool)
       await pool.query(`CREATE TABLE memories (id text PRIMARY KEY, key text, content text,
       embedding vector, category text, guild_id text, created_at timestamptz, updated_at timestamptz)`)
       await pool.query(`INSERT INTO memories VALUES ('a1111111-1111-4111-8111-111111111111',
@@ -43,6 +43,17 @@ test(
         model: 'test-3d',
         dimensions: 3,
       }
+      // Empty historical keys still participate in destination collision checks.
+      await pool.query("UPDATE memories SET key=''")
+      await pool.query(
+        `INSERT INTO pilot_memories(id,guild_id,channel_id,key,content,origin)
+        VALUES('f9999999-9999-4999-8999-999999999999',$1,$2,'','existing empty key','legacy_import')`,
+        [options.guildId, options.channelId],
+      )
+      await assert.rejects(migrateLegacy(options, 'dry-run'), /Destination identity\/key collision/)
+      await pool.query(
+        "DELETE FROM pilot_memories WHERE id='f9999999-9999-4999-8999-999999999999'; UPDATE memories SET key='bebida'",
+      )
       assert.equal((await migrateLegacy(options, 'dry-run')).pending, 1)
       assert.equal(
         (await pool.query(`SELECT to_regclass('memory_migration.entries') AS name`)).rows[0].name,

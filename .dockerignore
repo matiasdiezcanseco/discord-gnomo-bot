@@ -7,8 +7,8 @@
 !tsconfig*.json
 !src/
 !src/**
-!prisma/
-!prisma/**
+!drizzle/
+!drizzle/**
 !scripts/
 !scripts/**
 **/.env*

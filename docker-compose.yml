@@ -20,13 +20,23 @@ services:
       - '127.0.0.1:${LOCAL_POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Fresh local databases only. Existing volumes require explicit SQL installation.
-      - ./prisma/pilot-memory.sql:/docker-entrypoint-initdb.d/010-pilot-memory.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U gnomo -d gnomo']
       interval: 2s
       timeout: 3s
       retries: 20
+
+  migrate:
+    profiles: ['tools']
+    build:
+      context: .
+      target: runtime
+    command: ['node', 'dist/database/migrate.js']
+    environment:
+      PILOT_MEMORY_DATABASE_URL: postgresql://gnomo:gnomo-local@postgres:5432/gnomo
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   sandbox:
     profiles: ['sandbox']

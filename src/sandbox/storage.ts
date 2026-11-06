@@ -1,6 +1,8 @@
-import { readFile } from 'node:fs/promises'
 import { Pool } from 'pg'
 import Redis from 'ioredis'
+import { sql } from 'drizzle-orm'
+import { memoryDatabase } from '../database/connection'
+import { migrateMemoryDatabase } from '../database/migrate'
 
 /** Independent names; never fall back to runtime/production database variables. */
 export function sandboxStorage(env: Record<string, string | undefined>) {
@@ -42,17 +44,19 @@ export async function setupSandboxStorage(env: Record<string, string | undefined
   const adminUrl = new URL(config.databaseUrl)
   adminUrl.pathname = '/postgres'
   const admin = pool(adminUrl.href)
+  const adminDb = memoryDatabase(admin)
   try {
     if (
-      !(await admin.query('SELECT 1 FROM pg_database WHERE datname=$1', [config.database])).rowCount
+      !(await adminDb.execute(sql`SELECT 1 FROM pg_database WHERE datname=${config.database}`))
+        .rowCount
     )
-      await admin.query(`CREATE DATABASE "${config.database}"`)
+      await adminDb.execute(sql`CREATE DATABASE ${sql.identifier(config.database)}`)
   } finally {
     await admin.end()
   }
   const memory = pool(config.databaseUrl)
   try {
-    await memory.query(await readFile('prisma/pilot-memory.sql', 'utf8'))
+    await migrateMemoryDatabase(memory)
   } finally {
     await memory.end()
   }
@@ -69,8 +73,8 @@ export async function openSandboxStorage(env: Record<string, string | undefined>
   })
   redis.on('error', () => undefined)
   try {
-    const result = await memory.query(
-      "SELECT to_regclass('pilot_memories') AS memories, to_regclass('pilot_memory_operations') AS operations",
+    const result = await memoryDatabase(memory).execute(
+      sql`SELECT to_regclass('pilot_memories') AS memories, to_regclass('pilot_memory_operations') AS operations`,
     )
     if (!result.rows[0].memories || !result.rows[0].operations)
       throw new Error('Missing sandbox schema')

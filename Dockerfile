@@ -18,7 +18,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
 COPY --from=builder /app/dist ./dist
 # Explicit SQL and operator sources remain available; startup never runs migrations.
-COPY prisma ./prisma
+COPY drizzle ./drizzle
 COPY scripts ./scripts
 COPY src ./src
 COPY tsconfig*.json ./

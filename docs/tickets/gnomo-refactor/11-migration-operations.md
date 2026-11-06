@@ -9,13 +9,13 @@ T10: no modifica el parser ni permite al modelo pedir una migración.
 
 ## Preparación y configuración
 
-Instalar dependencias y generar Prisma como en T10. Aplicar explícitamente
-`prisma/pilot-memory.sql` antes de migrar. La conexión `PILOT_MEMORY_DATABASE_URL`
+Instalar dependencias y ejecutar explícitamente `npm run db:migrate` (Drizzle)
+antes de importar datos. La conexión `PILOT_MEMORY_DATABASE_URL`
 debe contener **ambas** tablas, `public.memories` y `public.pilot_memories`: no se
 admite una copia entre bases porque no permitiría confirmar borrado, importación
 y tombstone juntos. La tabla histórica real tiene ID text/UUID, key, content,
-embedding, category, guild_id, created_at y updated_at. Se lee con pg y JSONB,
-no mediante Prisma: tanto el vector físico como la variante text se admiten.
+embedding, category, guild_id, created_at y updated_at. Se lee mediante Drizzle
+y JSONB: tanto el vector físico como la variante text se admiten.
 
 Configurar explícitamente, sin cargar automáticamente archivos .env:
 
@@ -49,7 +49,7 @@ Configurar explícitamente, sin cargar automáticamente archivos .env:
 1. `dry-run`: transacción PostgreSQL READ ONLY con snapshot repetible; no DDL,
    archivos de backup, filas ni embeddings. Reporta conteos, no contenido.
 2. `backup`: crea explícitamente `memory_migration.entries` y triggers desde
-   `prisma/legacy-memory-migration.sql`, dentro de la misma transacción. Conserva
+   `drizzle/legacy-memory-migration.sql`, dentro de la misma transacción. Conserva
    una copia JSONB recuperable de cada fila, vector y fechas de precisión SQL.
    El original sigue intacto. Un backup repetido debe coincidir exactamente.
 3. `import`: exige backup coincidente, IDs UUID y contenido válido para T10.

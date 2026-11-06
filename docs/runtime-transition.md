@@ -35,9 +35,9 @@ stable storage contracts, not a duplicate runtime.
 Unused packages removed after source-consumer search: opus (no audio), Tavily SDK
 (search uses bounded fetch), node-cron (Nest owns scheduling), tsup (Nest builds),
 class-transformer/class-validator (no request DTOs; unused global ValidationPipe
-removed), Prisma client/adapter/CLI (pg owns SQL; no generated runtime needed).
-Historical Prisma SQL/schema remain. Removed db:* scripts cannot accidentally apply
-an obsolete schema; no replacement no-op scripts were added. No model/SDK version
+removed), Prisma client/adapter/CLI. Persistence now uses Drizzle ORM over pg;
+Prisma schema/tooling is removed. Explicit `db:generate`, `db:check` and `db:migrate`
+manage the new schema; see [Drizzle operations](drizzle.md). No model/AI SDK version
 upgrade was requested or performed.
 
 ## Rollout and rollback
@@ -54,8 +54,8 @@ startup. Old CONVERSATION_PILOT_CHANNEL_IDS no longer selects a legacy branch.
 1. Before a real pilot, obtain the owner's private configuration, review intents,
    permissions, model identity and bucket resources, and take controlled durable
    backups. Stop/drain every older receiver and scheduler. Keep default paused.
-2. Operator explicitly installs `prisma/pilot-memory.sql` with psql against the
-   chosen PostgreSQL/pgvector database. Startup never executes DDL. For existing
+2. Operator explicitly runs `npm run db:migrate` against the chosen PostgreSQL/
+   pgvector database. Startup never executes DDL. For existing
    memories, follow [T11 operations](tickets/gnomo-refactor/11-migration-operations.md):
    dry-run, backup, import, verify. T11 needs old and new tables in the same database.
    Do not replace or drop the ledger/triggers/tombstones. The application role must

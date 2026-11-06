@@ -16,8 +16,8 @@ npm run sandbox:setup
 npm run sandbox
 ```
 
-Setup explicitly creates the **gnomo_sandbox** database and installs the additive
-memory SQL there. It never imports production memories or changes the runtime's
+Setup explicitly creates the **gnomo_sandbox** database and applies the Drizzle
+memory migrations there. It never imports production memories or changes the runtime's
 `gnomo` database. Storage URLs must point to local hosts, a database named
 `gnomo_sandbox` (or `gnomo_sandbox_*`) and Redis database **14**. Runtime variables
 such as `PILOT_MEMORY_DATABASE_URL`, `REDIS_URL`, `BOT_TOKEN`, `GUILD_ID` and

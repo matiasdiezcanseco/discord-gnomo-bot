@@ -1,6 +1,6 @@
 # Local testing and deployed PostgreSQL
 
-The bot uses `PILOT_MEMORY_DATABASE_URL` with node-postgres in both environments.
+The bot uses `PILOT_MEMORY_DATABASE_URL` with Drizzle/node-postgres in both environments.
 The Docker image contains no database credentials or fixed host. Local Compose
 provides PostgreSQL 17/pgvector and reuses the existing `gnomo-redis` container and
 its named volume under the original `discord-gnomo-bot` Compose project.
@@ -16,14 +16,15 @@ Its local-only user/password/database are `gnomo` / `gnomo-local` / `gnomo`.
 The new `postgres_data` volume persists data. The existing `redis_data` volume
 is retained. Do not run `docker compose down --volumes` against retained data.
 
-The local Postgres entrypoint installs `prisma/pilot-memory.sql` only when creating
-an empty volume. This creates the vector extension and new memory tables; it does
-not import any old memories. Bot startup never installs or migrates schema.
-For an existing local database, apply the additive SQL explicitly:
+Schema installation is an explicit Drizzle migration, for fresh and existing
+volumes. It creates the vector extension, memory tables and migration journal;
+compatible existing tables are adopted without rewriting records. It does not
+import old memories. Bot startup never installs or migrates schema.
+Use the compiled operator service:
 
 ```powershell
-docker compose cp prisma/pilot-memory.sql postgres:/tmp/pilot-memory.sql
-docker compose exec -T postgres psql -U gnomo -d gnomo -v ON_ERROR_STOP=1 -f /tmp/pilot-memory.sql
+docker compose --profile tools build migrate
+docker compose --profile tools run --rm --no-deps migrate
 ```
 
 Copy `.env-example` to `.env` only if `.env` does not already exist, then supply
@@ -66,13 +67,14 @@ path at runtime; it is not included in the image. A server certificate trusted b
 Node's system roots needs only `sslmode=verify-full`. Do not disable certificate
 verification. See [Supabase SSL guidance](https://supabase.com/docs/guides/platform/ssl-enforcement).
 
-Before activation, an operator applies `prisma/pilot-memory.sql` to the intended
-database with a role permitted to install/use vector and create the tables. The
+Before activation, an operator runs `npm run db:migrate` with the intended database
+URL and a role permitted to install/use vector and create tables/journal. The
 runtime role needs the corresponding memory-table/index/extension access. Legacy
 imports remain the separate backup/dry-run/import process in
 [migration operations](tickets/gnomo-refactor/11-migration-operations.md); neither
 local setup nor deployment imports old data automatically. Supply the deployment's
 Redis URL separately; local Redis/DB credentials are never deployment defaults.
+See [Drizzle migration and existing-data operations](drizzle.md).
 
 The existing Redis configuration is retained. For durable reminder/birthday
 acceptance, its AOF is currently disabled; enable persistent AOF with

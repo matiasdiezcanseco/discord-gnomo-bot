@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import type { Pool } from 'pg'
 import { z } from 'zod'
+import { and, asc, eq, gte, or, sql } from 'drizzle-orm'
+import { memoryDatabase } from '../database/connection'
+import { memories, memoryOperations, memoryRecord } from '../database/schema'
 import { defineCapability, type ExecutionContext } from './catalog'
 import type { Invocation } from '../core/conversation/invocation'
 
@@ -52,9 +55,6 @@ function request(invocation: Invocation): Request | undefined {
   if (forget) return { operation: 'forget', selector: forget[1] }
   return
 }
-
-const recordColumns = `id, guild_id, channel_id, author_id, subject, key, category, content,
-  source_message_id, last_message_id, last_editor_id, origin, created_at, updated_at`
 
 export function memoryCapabilities(
   dependencies?: MemoryDependencies,
@@ -118,7 +118,7 @@ async function execute(
 ): Promise<string> {
   const { invocation, signal } = context
   signal.throwIfAborted()
-  let vector: string | null = null
+  let vector: number[] | null = null
   let embeddingModel: string | null = null
   if (dependencies.embedding && intent.operation !== 'forget') {
     try {
@@ -132,7 +132,7 @@ async function execute(
         !values.some((value) => value !== 0)
       )
         throw new Error('Invalid embedding')
-      vector = JSON.stringify(values)
+      vector = values
       embeddingModel = dependencies.embedding.model
     } catch {
       signal.throwIfAborted()
@@ -140,124 +140,151 @@ async function execute(
     }
   }
   signal.throwIfAborted()
-  const db = await dependencies.pool.connect().catch(() => undefined)
-  if (!db) {
+  const client = await dependencies.pool.connect().catch(() => undefined)
+  if (!client) {
     signal.throwIfAborted()
     return 'unavailable: almacenamiento de memoria no disponible.'
   }
+  const db = memoryDatabase(client)
   let mutationAttempted = false
   try {
-    await db.query('BEGIN')
-    await db.query("SET LOCAL statement_timeout='2000ms'")
-    await db.query("SET LOCAL lock_timeout='1500ms'")
-    await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [
-      JSON.stringify([invocation.guildId, invocation.channelId]),
-    ])
+    await db.execute(sql`BEGIN`)
+    await db.execute(sql`SET LOCAL statement_timeout='2000ms'`)
+    await db.execute(sql`SET LOCAL lock_timeout='1500ms'`)
+    await db.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify([invocation.guildId, invocation.channelId])},0))`,
+    )
     if (!(await reauthorize(invocation, signal))) return 'denied: permisos actuales insuficientes.'
     signal.throwIfAborted()
-    const scope = [invocation.guildId, invocation.channelId]
+    const scope = and(
+      eq(memories.guildId, invocation.guildId),
+      eq(memories.channelId, invocation.channelId),
+    )
+    const operationScope = and(
+      eq(memoryOperations.guildId, invocation.guildId),
+      eq(memoryOperations.channelId, invocation.channelId),
+      eq(memoryOperations.messageId, invocation.messageId),
+    )
     if (intent.operation === 'search') {
-      const found = await db.query(
-        `WITH scoped AS (
-        SELECT *, CASE WHEN embedding_model=$5 AND vector_dims(embedding)=vector_dims($4::vector)
-          THEN 1-(embedding <=> $4::vector) ELSE NULL END AS similarity
-        FROM pilot_memories WHERE guild_id=$1 AND channel_id=$2)
-        SELECT ${recordColumns} FROM scoped
-        WHERE strpos(lower(content),lower($3))>0 OR key=$3 OR similarity>=0.65
-        ORDER BY similarity DESC NULLS LAST, created_at, id LIMIT 6`,
-        [...scope, intent.selector, vector, embeddingModel],
+      const queryVector = vector ? JSON.stringify(vector) : null
+      const scoped = db.$with('scoped').as(
+        db
+          .select({
+            ...memoryRecord,
+            similarity: sql<number | null>`CASE WHEN ${memories.embeddingModel}=${embeddingModel}
+          AND vector_dims(${memories.embedding})=vector_dims(${queryVector}::vector)
+          THEN 1-(${memories.embedding} <=> ${queryVector}::vector) ELSE NULL END`.as('similarity'),
+          })
+          .from(memories)
+          .where(scope),
       )
+      const found = await db
+        .with(scoped)
+        .select()
+        .from(scoped)
+        .where(
+          or(
+            sql`strpos(lower(${scoped.content}),lower(${intent.selector}))>0`,
+            eq(scoped.key, intent.selector!),
+            gte(scoped.similarity, 0.65),
+          ),
+        )
+        .orderBy(sql`${scoped.similarity} DESC NULLS LAST`, asc(scoped.created_at), asc(scoped.id))
+        .limit(6)
       return JSON.stringify({
         outcome: 'found',
-        records: found.rows.slice(0, 5),
-        limited: found.rows.length > 5,
+        records: found.slice(0, 5).map(({ similarity: _similarity, ...record }) => record),
+        limited: found.length > 5,
         retrieval: vector ? 'lexical+vector' : 'lexical (embedding no configurado o no disponible)',
         attribution:
           'Afirmaciones de sus autores; pueden contradecirse, no son hechos verificados.',
       })
     }
-    const prior = await db.query(
-      `SELECT memory_id FROM pilot_memory_operations
-      WHERE guild_id=$1 AND channel_id=$2 AND message_id=$3`,
-      [...scope, invocation.messageId],
-    )
-    if (prior.rowCount)
-      return JSON.stringify({ outcome: 'already_applied', id: prior.rows[0].memory_id })
-    let id = randomUUID()
+    const prior = await db
+      .select({ memoryId: memoryOperations.memoryId })
+      .from(memoryOperations)
+      .where(operationScope)
+      .limit(1)
+    if (prior.length) return JSON.stringify({ outcome: 'already_applied', id: prior[0].memoryId })
+    let id: string = randomUUID()
     if (intent.operation === 'update' || intent.operation === 'forget') {
-      const matches = await db.query(
-        `SELECT id, author_id FROM pilot_memories
-        WHERE guild_id=$1 AND channel_id=$2 AND (id::text=$3 OR key=$3) LIMIT 2`,
-        [...scope, intent.selector],
-      )
-      if (!matches.rowCount) return 'not_found: no hay coincidencias en este canal.'
-      if (matches.rows.length !== 1)
-        return 'ambiguous: hay varias coincidencias; usa el ID estable.'
-      const record = matches.rows[0]
-      if (record.author_id !== invocation.requester.id && ownerId !== invocation.requester.id)
+      const matches = await db
+        .select({ id: memories.id, authorId: memories.authorId })
+        .from(memories)
+        .where(
+          and(
+            scope,
+            or(sql`${memories.id}::text=${intent.selector}`, eq(memories.key, intent.selector!)),
+          ),
+        )
+        .limit(2)
+      if (!matches.length) return 'not_found: no hay coincidencias en este canal.'
+      if (matches.length !== 1) return 'ambiguous: hay varias coincidencias; usa el ID estable.'
+      const record = matches[0]
+      if (record.authorId !== invocation.requester.id && ownerId !== invocation.requester.id)
         return 'denied: solo autor o propietario puede modificar este recuerdo.'
       id = record.id
       signal.throwIfAborted()
       mutationAttempted = true
       if (intent.operation === 'forget') {
-        await db.query('DELETE FROM pilot_memories WHERE guild_id=$1 AND channel_id=$2 AND id=$3', [
-          ...scope,
-          id,
-        ])
+        await db.delete(memories).where(and(scope, eq(memories.id, id)))
       } else
-        await db.query(
-          `UPDATE pilot_memories SET content=$4, embedding=$7::vector, embedding_model=$8,
-        last_message_id=$5, last_editor_id=$6, updated_at=now()
-        WHERE guild_id=$1 AND channel_id=$2 AND id=$3`,
-          [
-            ...scope,
-            id,
-            intent.content,
-            invocation.messageId,
-            invocation.requester.id,
-            vector,
+        await db
+          .update(memories)
+          .set({
+            content: intent.content!,
+            embedding: vector,
             embeddingModel,
-          ],
-        )
+            lastMessageId: invocation.messageId,
+            lastEditorId: invocation.requester.id,
+            updatedAt: sql`now()`,
+          })
+          .where(and(scope, eq(memories.id, id)))
     } else {
       const duplicate =
         intent.key &&
-        (await db.query(
-          `SELECT id FROM pilot_memories
-        WHERE guild_id=$1 AND channel_id=$2 AND author_id=$3 AND key=$4`,
-          [...scope, invocation.requester.id, intent.key],
-        ))
-      if (duplicate && duplicate.rowCount)
+        (await db
+          .select({ id: memories.id })
+          .from(memories)
+          .where(
+            and(
+              scope,
+              eq(memories.authorId, invocation.requester.id),
+              eq(memories.key, intent.key),
+            ),
+          )
+          .limit(1))
+      if (duplicate && duplicate.length)
         return 'conflict: tu clave ya existe; corrige usando su ID.'
       signal.throwIfAborted()
       mutationAttempted = true
-      await db.query(
-        `INSERT INTO pilot_memories (id,guild_id,channel_id,author_id,subject,key,category,
-      content,source_message_id,last_message_id,last_editor_id,origin,embedding,embedding_model)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$4,'explicit_request',$10::vector,$11)`,
-        [
-          id,
-          ...scope,
-          invocation.requester.id,
-          intent.subject,
-          intent.key,
-          intent.category,
-          intent.content,
-          invocation.messageId,
-          vector,
-          embeddingModel,
-        ],
-      )
+      await db.insert(memories).values({
+        id,
+        guildId: invocation.guildId,
+        channelId: invocation.channelId,
+        authorId: invocation.requester.id,
+        subject: intent.subject,
+        key: intent.key,
+        category: intent.category,
+        content: intent.content!,
+        sourceMessageId: invocation.messageId,
+        lastMessageId: invocation.messageId,
+        lastEditorId: invocation.requester.id,
+        origin: 'explicit_request',
+        embedding: vector,
+        embeddingModel,
+      })
     }
-    await db.query(`INSERT INTO pilot_memory_operations VALUES ($1,$2,$3,$4,$5,$6)`, [
-      ...scope,
-      invocation.messageId,
-      invocation.requester.id,
-      intent.operation,
-      intent.operation === 'forget' ? null : id,
-    ])
+    await db.insert(memoryOperations).values({
+      guildId: invocation.guildId,
+      channelId: invocation.channelId,
+      messageId: invocation.messageId,
+      authorId: invocation.requester.id,
+      operation: intent.operation,
+      memoryId: intent.operation === 'forget' ? null : id,
+    })
     signal.throwIfAborted()
-    await db.query('COMMIT')
+    await db.execute(sql`COMMIT`)
     return JSON.stringify({
       outcome:
         intent.operation === 'save'
@@ -272,7 +299,7 @@ async function execute(
     if (mutationAttempted || signal.aborted) throw error
     return 'unavailable: almacenamiento/esquema de memoria no disponible; ninguna escritura iniciada.'
   } finally {
-    await db.query('ROLLBACK').catch(() => undefined)
-    db.release()
+    await db.execute(sql`ROLLBACK`).catch(() => undefined)
+    client.release()
   }
 }

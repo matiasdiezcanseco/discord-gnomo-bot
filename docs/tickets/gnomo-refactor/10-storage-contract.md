@@ -56,14 +56,12 @@ el pool real y el adaptador opcional. El bucle del harness no cambia.
   OpenAI con AbortSignal y cero reintentos. Ausente no usa credenciales/modelos.
   Un fallo del embedding degrada a recuperación léxica, indicada en la respuesta.
 
-Aplicar **explícitamente** `prisma/pilot-memory.sql` con psql a la base elegida.
-Es transaccional, repetible y funciona en una base vacía con pgvector instalado.
-El arranque no ejecuta DDL. Este SQL es el contrato de almacenamiento nuevo,
-administrado con pg; no usar `prisma db push` como instalador de estas tablas.
-El antiguo SQL `20240101000000_init_vector_extension` presupone `memories` y
-no inicializa una base vacía. `Memory.embedding String?` sigue describiendo la
-ruta histórica: no se modifica ese modelo ni la tabla vieja en T10. No encadenar
-la instalación nueva a ese SQL antiguo ni afirmar que Prisma crea un vector.
+Ejecutar **explícitamente** `npm run db:migrate` sobre la base elegida. Drizzle
+administra el esquema tipado y su historial; la instalación funciona en una base
+vacía y adopta tablas anteriores compatibles sin reescribir recuerdos. El arranque
+no ejecuta DDL. La importación de la tabla histórica es una operación separada;
+ver [operación de Drizzle](../../drizzle.md). No usar sincronización destructiva
+del esquema ni encadenar la instalación a antiguas migraciones de vectores.
 
 `pilot_memories` guarda UUID estable, servidor/canal, autor y sujeto separados,
 clave/categoría/contenido, mensaje fuente autenticado, último mensaje/editor,

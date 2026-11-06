@@ -1,5 +1,8 @@
 # Revisión independiente del refactor de Gnomo
 
+Current storage tooling supersedes the historical Prisma artifact paths in the
+review evidence below: see [Drizzle operations](drizzle.md).
+
 Base: 7c3364e40d1143e6cf7c1fbf109c02d8126d4f9c.
 Head revisado: 490459bac20bc4a1d76a08ddd7779020e566cb36.
 Diff: `git diff 7c3364e40d1143e6cf7c1fbf109c02d8126d4f9c...490459bac20bc4a1d76a08ddd7779020e566cb36`.
