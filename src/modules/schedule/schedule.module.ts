@@ -7,6 +7,7 @@ import { BucketModule } from '../services/bucket/bucket.module';
 import { ReminderModule } from '../services/reminder/reminder.module';
 import { LoggerModule } from '../services/logger/logger.module';
 import { ConfigModule } from '../config/config.module';
+import { ReliableNoticesTask } from './reliable-notices.task';
 
 @Module({
   imports: [
@@ -17,6 +18,6 @@ import { ConfigModule } from '../config/config.module';
     LoggerModule,
     ConfigModule,
   ],
-  providers: [BirthdayCheckTask, ReminderCheckTask],
+  providers: [BirthdayCheckTask, ReminderCheckTask, ReliableNoticesTask],
 })
 export class ScheduleModule {}

@@ -9,6 +9,8 @@ import { memoryCapabilities } from './explicit-memory'
 import { webRead } from './web-read'
 import { safeReader, type SafeReader } from '../web/safe-reader'
 import { presenceCapability, voiceCapability, type LiveMembers } from './live-members'
+import { reminderCapability } from './reminders'
+import type { ScheduledNotices } from './scheduled-notices'
 
 /** Single composition point. Future capability modules export definitions, never edit the loop. */
 export function pilotCatalog(
@@ -19,8 +21,10 @@ export function pilotCatalog(
   live?: Partial<LiveMembers>,
   web: SafeReader = safeReader(),
   memory?: ReturnType<typeof memoryCapabilities>,
+  notices?: ScheduledNotices,
 ) {
   return new Catalog([
+    reminderCapability(notices),
     webRead(web),
     messagesHistory(history),
     ...collectionCapabilities(collection),
