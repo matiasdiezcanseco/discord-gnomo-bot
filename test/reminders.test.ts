@@ -4,7 +4,7 @@ import Redis from 'ioredis'
 import { randomUUID } from 'node:crypto'
 import { createConversation } from '../src/conversation/harness'
 import { composeCapabilities } from '../src/conversation/capabilities'
-import { ScheduledNotices } from '../src/conversation/scheduled-notices'
+import { ScheduledNotices, type ScheduledOrigin } from '../src/conversation/scheduled-notices'
 import { NoticeFailure } from '../src/conversation/scheduled-notices'
 import { composeConversation } from '../src/modules/discord/conversation-composition'
 import { discordScheduledDelivery } from '../src/modules/discord/scheduled-delivery'
@@ -522,3 +522,38 @@ test(
     }
   },
 )
+
+test('bounded dispatch advances beyond multiple excluded batches, including tied due scores and concurrent resume',
+  { skip: !process.env.T02_REDIS_URL }, async () => {
+    const redis = new Redis(process.env.T02_REDIS_URL!)
+    const ns = `test:review:${randomUUID()}`
+    const store = new ScheduledNotices(redis, ns)
+    const sent: string[] = []
+    let admitted = 'c'
+    const delivery = {
+      admits: (o: { channelId: string }) => o.channelId === admitted,
+      authorize: async () => true,
+      send: async (o: ScheduledOrigin) => { if ('messageId' in o) sent.push(o.messageId) },
+    }
+    try {
+      const excluded = await Promise.all(Array.from({ length: 125 }, (_, i) =>
+        store.save({ ...origin, messageId: `excluded-${i}`, channelId: 'excluded' }, 'agua', 1)))
+      const eligible = await store.save({ ...origin, messageId: 'later' }, 'agua', 2)
+      for (let i = 0; i < 6; i++) await store.dispatch(10, delivery)
+      assert.deepEqual(sent, ['later'])
+      assert.equal((await store.get(eligible.id))?.state, 'sent')
+      for (const record of excluded) assert.deepEqual(await store.get(record.id), record)
+      // Recreate workers and change admission, with every old score tied.
+      admitted = 'none'
+      await new ScheduledNotices(redis, ns).dispatch(10, delivery)
+      admitted = 'excluded'
+      const other = new ScheduledNotices(redis, ns)
+      for (let i = 0; i < 8; i++) await Promise.all([store.dispatch(10, delivery), other.dispatch(10, delivery)])
+      assert.equal(sent.length, 126)
+      assert.equal(new Set(sent).size, 126)
+      for (const record of excluded) {
+        assert.equal((await store.get(record.id))?.state, 'sent')
+        assert.equal((await store.get(record.id))?.attempts, 1)
+      }
+    } finally { await redis.quit() }
+  })
