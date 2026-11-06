@@ -23,7 +23,7 @@ Los tickets siguen abiertos hasta la resolución mediante el PR; integrado no si
 | T12 / #14 | Integrado | efc7d37; 138 pruebas sin omisiones, PostgreSQL y Redis reales, reinicio AOF Redis comprobado |
 | T13 / #15 | Integrado | e316f6b; avisos de cumpleaños compartidos y reinicio AOF propio aprobado |
 | T14 / #16 | Código integrado; validación viva pendiente | cf52357; 181 pruebas sin omisiones, tipos/build/lint; runner real preparado sin credenciales |
-| T15 / #17 | Código/preparación implementados en rama aislada | Retirada, política de rollout/pausa, rollback controlado y smoke Nest; 174/174 aisladas; activación/aceptación viva pendientes |
+| T15 / #17 | Código integrado; revisión pendiente | 0642f681; 174/174 aisladas y smoke Nest; Dockerfile pendiente de corregir; activación/aceptación viva pendientes |
 
 Frontera de pruebas confirmada: invocación normalizada hasta respuesta/efectos, modelo/Discord/web controlados y persistencia real aislada para migraciones/concurrencia. Docker Desktop está disponible (motor 27.4.0). PostgreSQL 17/pgvector y Redis 7 aislados verifican el almacenamiento nuevo, incluida recuperación tras reinicio real de PostgreSQL. No se han ejecutado servicios de producción, migraciones sobre datos reales, piloto ni mediciones reales de latencia.
 
@@ -64,3 +64,10 @@ DBs, main Redis and independent T12/T13 AOF restart resources; compiled producti
 Nest paused and active controlled smokes. Test-count change and capability outcome
 mapping are documented in the runbook. Optional PostgreSQL server restart was not
 repeated; no live benchmark, human acceptance, actual pilot or cutover performed.
+
+Integración T15 en raíz: fast-forward a 0642f681, suite repetida con 174/174,
+cero omisiones, tipos/build/lint/diff correctos y recursos propios eliminados.
+La revisión final usa la base inicial documentada. Hallazgo de integración a
+incluir en el implementador único de correcciones: Dockerfile todavía invoca
+db:generate/Prisma retirados; el contenedor no está certificado. No se han
+modificado datos ni servicios de producción.
