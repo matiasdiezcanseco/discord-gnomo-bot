@@ -139,3 +139,17 @@ conservan en `plans/t09-verify-integration-164.log`, `plans/t09-verify.log` y
 los contenedores propios `gnomo-t09-redis`, `gnomo-t09-postgres` y
 `gnomo-t09-restart`, sin detener recursos ajenos. No se comprobaron checks ni
 revisiones remotas del PR.
+
+Verificación adicional del cierre: una repetición completa posterior al merge de
+bitácora pasó 165/166: la fixture heredada T12 perdió la conexión durante el
+handshake al aplicar el timeout de escritura de 40 ms también a la preparación.
+El caso aislado reprodujo el fallo. Una sonda de infraestructura sin código de
+aplicación midió PING de 164 ms; se movió la activación de `commandTimeout: 40`
+a después de `writer.connect()`. Se conserva el timeout deliberado de escritura,
+CLIENT PAUSE y todas las aserciones de incertidumbre/deduplicación. El mismo caso
+pasó tras este ajuste exclusivo de fixture; no se alteró producción T12. Se
+conservan el log rojo `plans/t09-verify-inherited-timeout-failure.log`, el rojo
+minimizado `plans/t09-inherited-timeout-targeted.log`, la sonda de diagnóstico
+claramente identificada en `plans/t09-redis-diagnose.cjs`/`.log` y el verde aislado
+`plans/t09-inherited-timeout-fixed.log`. La verificación completa se repite tras
+este ajuste. No hay instrumentación de diagnóstico en código distribuido.

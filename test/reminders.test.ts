@@ -371,7 +371,6 @@ test(
     const control = new Redis(process.env.T02_REDIS_URL!)
     const writer = new Redis(process.env.T02_REDIS_URL!, {
       lazyConnect: true,
-      commandTimeout: 40,
       maxRetriesPerRequest: 0,
       enableOfflineQueue: false,
     })
@@ -379,6 +378,8 @@ test(
       replies: string[] = []
     try {
       await writer.connect()
+      // The timeout under test belongs to the write, not Redis's connection handshake.
+      writer.options.commandTimeout = 40
       await control.call('CLIENT', 'PAUSE', '200', 'WRITE')
       const app = createConversation({
         catalog: pilotCatalog(
