@@ -76,10 +76,15 @@ test(
       MEMORY_OWNER_ID: '123456789012345678',
     })
     const model: ConversationPorts['model'] = {
-      generate: async ({ results }) =>
+      generate: async ({ results, invocation }) =>
         results.length
           ? { text: JSON.stringify(results), calls: [] }
-          : { text: '', calls: [{ id: 'evil', name: 'memory_save', input: {} }] },
+          : invocation.content === 'quién juega Valorant'
+            ? {
+                text: '',
+                calls: [{ id: 'recall', name: 'memory_search', input: { query: 'Valorant' } }],
+              }
+            : { text: '', calls: [{ id: 'evil', name: 'memory_save', input: {} }] },
     }
     const app = () =>
       composePilot(
@@ -129,6 +134,9 @@ test(
       return replies.map((r) => r.content).join('\n')
     }
     try {
+      assert.match(await invoke('recuerda que Juan juega Valorant'), /saved/)
+      assert.match(await invoke('busca recuerdos: Valorant'), /Juan juega Valorant/)
+      assert.match(await invoke('quién juega Valorant'), /Juan juega Valorant/)
       const saved = await invoke('guarda recuerdo: Anita prefiere té')
       assert.match(saved, /saved/)
       assert.match(await invoke('busca recuerdos: Anita'), /Anita prefiere té/)

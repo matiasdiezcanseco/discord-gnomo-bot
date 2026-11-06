@@ -14,6 +14,8 @@ export interface ExecutionContext {
   readonly invocation: Invocation
   readonly signal: AbortSignal
   readonly idempotencyKey: string
+  /** Structured sources from completed authorized searches in this invocation only. */
+  readonly discoveredUrls?: readonly string[]
   /** Every external subcall/retry must pass through this shared budget. */
   external<T>(work: () => Promise<T>): Promise<T>
 }

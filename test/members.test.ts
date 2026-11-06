@@ -96,6 +96,14 @@ function fixture(
   }
 }
 
+test('natural request to tell a member to join authorizes only that resolved individual', async () => {
+  const f = fixture()
+  f.pages.push(ana)
+  f.plan(async () => ({ text: 'Oye <@111>, únete.', calls: [] }))
+  const reply = await f.run('dile a Anita que se una')
+  assert.deepEqual(reply.allowedMentions.users, ['111'])
+})
+
 test('pilot lists current members in bounded pages without notifying the listed identities', async () => {
   const f = fixture()
   const reply = await f.run()

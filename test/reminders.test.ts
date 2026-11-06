@@ -57,6 +57,18 @@ test(
       })
       await app.handle({ ...origin, content: 'recuérdame mañana a las 08:00 tomar agua' })
       assert.match(replies[0], /guardado para 2026-11-06 08:00 America\/Lima/)
+      await app.handle({
+        ...origin,
+        messageId: 'am',
+        content: 'recuérdame mañana a las 9am tomar agua',
+      })
+      assert.match(replies[1], /guardado para 2026-11-06 09:00 America\/Lima/)
+      await app.handle({
+        ...origin,
+        messageId: 'pm',
+        content: 'recuérdame mañana a las 12:30pm almorzar',
+      })
+      assert.match(replies[2], /guardado para 2026-11-06 12:30 America\/Lima/)
     } finally {
       await redis.quit()
     }

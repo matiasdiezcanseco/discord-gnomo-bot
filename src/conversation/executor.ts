@@ -8,6 +8,7 @@ import type { ConversationPorts, ModelTurn, ToolResult } from './harness'
 export class Executor {
   private uses = new Map<string, number>()
   private uncertain = false
+  private readonly discoveredUrls = new Set<string>()
   pendingWrite = false
   private readonly context: ExecutionContext
   constructor(
@@ -16,6 +17,7 @@ export class Executor {
     private readonly budget: Budget,
     private readonly authorize: ConversationPorts['authorize'],
     private readonly trace: (event: string, status?: string, tool?: string) => void,
+    private readonly discover = authorize,
   ) {
     this.context = {
       invocation,
@@ -28,7 +30,7 @@ export class Executor {
     const visible: Capability[] = []
     for (const tool of this.tools) {
       if (
-        (await this.budget.wait(() => this.authorize(this.invocation, tool))) &&
+        (await this.budget.wait(() => this.discover(this.invocation, tool))) &&
         (await this.budget.wait(() => tool.available(this.context)))
       )
         visible.push(tool)
@@ -59,6 +61,7 @@ export class Executor {
       this.pendingWrite = tool.effect === 'write'
       const scoped = {
         ...this.context,
+        discoveredUrls: Object.freeze([...this.discoveredUrls]),
         idempotencyKey: `${this.invocation.guildId}:${this.invocation.channelId}:${this.invocation.messageId}:${call.id}`,
       }
       try {
@@ -71,6 +74,10 @@ export class Executor {
           return result(this.pendingWrite ? 'uncertain' : 'limit')
         }
         this.pendingWrite = false
+        if (['web.search', 'web.news'].includes(tool.capability)) {
+          const search = value as { sources?: { url: string }[] }
+          for (const source of search.sources ?? []) this.discoveredUrls.add(source.url)
+        }
         return result(
           response instanceof PartialResult ? 'partial' : value == null ? 'empty' : 'success',
           value,

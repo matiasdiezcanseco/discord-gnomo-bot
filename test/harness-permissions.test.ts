@@ -76,6 +76,10 @@ test(
     try {
       await conversation.handle(invocation, reply)
       assert.deepEqual(replies, ['success'])
+      assert.ok(
+        lookups.length <= 24,
+        `catalog discovery repeated permission reads: ${lookups.length}`,
+      )
       assert.ok(lookups.every((id) => ['g', 'c', 'u', 'bot'].includes(id)))
       for (const permission of ['requester', 'bot']) {
         canRead = permission !== 'requester'

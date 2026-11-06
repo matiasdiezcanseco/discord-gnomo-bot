@@ -122,6 +122,43 @@ async function setup(t: TestContext, bytes = png, mime = 'image/png', status = 2
   }
 }
 
+test('image and requested channel history can contribute to the same answer', async (t) => {
+  const a = await setup(t)
+  let turns = 0
+  a.model.doGenerate = async (options) => {
+    if (turns++ === 0)
+      return {
+        ...answer,
+        content: [
+          {
+            type: 'tool-call',
+            toolCallId: 'history',
+            toolName: 'messages_history',
+            input: '{"limit":1}',
+          },
+        ],
+        finishReason: { unified: 'tool-calls', raw: 'tool_calls' },
+      }
+    const user = options.prompt.find((message) => message.role === 'user')!
+    if (user.role !== 'user') throw Error('missing user')
+    const data = user.content.find((part) => part.type === 'text')!
+    if (data.type !== 'text') throw Error('missing data')
+    assert.equal(JSON.parse(data.text).toolResults[0].status, 'success')
+    return {
+      ...answer,
+      content: [
+        {
+          type: 'text',
+          text: 'Veo la imagen; no hay mensajes anteriores disponibles para compararla.',
+        },
+      ],
+    }
+  }
+  await a.run({ ...input(), content: 'compara la imagen con el último mensaje del canal' })
+  assert.match(a.replies[0], /no hay mensajes anteriores/)
+  assert.equal(turns, 2)
+})
+
 test('current authenticated attachment reaches real SDK as verified bytes with message and requester provenance', async (t) => {
   const a = await setup(t)
   await a.run()
@@ -229,7 +266,7 @@ test('image-driven requests for arbitrary reads or writes are denied by the exec
   const a = await setup(t, bytes)
   let turns = 0
   a.model.doGenerate = async (options) => {
-    assert.deepEqual(options.tools, undefined)
+    assert.ok(options.tools?.length)
     if (turns++ === 0)
       return {
         ...answer,
@@ -462,9 +499,9 @@ test('image retrieval and SDK/tool attempts share the eight-call budget', async 
   const i = input()
   i.attachments.push({ ...i.attachments[0], id: 'second' })
   await a.run(i)
-  // Four DNS/HTTP calls, one Discord history read, two generations, one denied tool = eight.
+  // Four DNS/HTTP calls, one history read and three tool attempts = eight; models are separate.
   assert.equal(a.requests(), 2)
-  assert.equal(turns, 2)
+  assert.equal(turns, 4)
   assert.match(a.replies.join(''), /presupuesto/)
 })
 

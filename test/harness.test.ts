@@ -126,7 +126,7 @@ test('tool denials, unavailable dependencies and forged identity never produce e
   assert.throws(() => new Catalog([probe, probe]), /duplicate/)
 })
 
-test('repeated tool attempts consume one shared eight-call budget including model turns', async () => {
+test('repeated tool attempts consume one shared eight-call budget independently of model turns', async () => {
   let effects = 0
   const replies: string[] = []
   const probe = defineCapability({
@@ -165,7 +165,7 @@ test('repeated tool attempts consume one shared eight-call budget including mode
       replies.push(reply.content)
     },
   }).handle(invocation)
-  assert.equal(effects, 7)
+  assert.equal(effects, 8)
   assert.match(replies[0], /presupuesto/)
 })
 
@@ -228,7 +228,7 @@ test('trusted mention subcalls cannot exceed the same eight-call allowance as th
     authorize: async () => true,
     model: { generate: async () => ({ text: '<@111>', calls: [] }) },
     allowedUserMentions: async (_, context) => {
-      for (let call = 0; call < 8; call++)
+      for (let call = 0; call < 9; call++)
         await context.external(async () => {
           effects++
         })
@@ -238,7 +238,7 @@ test('trusted mention subcalls cannot exceed the same eight-call allowance as th
       replies.push(reply)
     },
   }).handle(invocation)
-  assert.equal(effects, 7)
+  assert.equal(effects, 8)
   assert.deepEqual(replies[0].allowedMentions.users, [])
   assert.match(replies[0].content, /presupuesto/)
 })

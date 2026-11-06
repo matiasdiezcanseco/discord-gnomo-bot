@@ -10,8 +10,16 @@ dayjs.extend(utc)
 dayjs.extend(timezone)
 const request = /^(?:por favor,?\s+)?(?:recu[eé]rdame|recordarme)\s+(.+)$/i
 function parse(invocation: Invocation) {
-  const body = request.exec(invocation.content.trim())?.[1]
+  let body = request.exec(invocation.content.trim())?.[1]
   if (!body || /<@|@everyone|@here/.test(body)) return null
+  body = body.replace(
+    /a las (\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i,
+    (literal, hour, minute, period) => {
+      const h = Number(hour)
+      if (h < 1 || h > 12 || Number(minute ?? 0) > 59) return literal
+      return `a las ${String((h % 12) + (period.toLowerCase() === 'pm' ? 12 : 0)).padStart(2, '0')}:${minute ?? '00'}`
+    },
+  )
   const relative = /^en (\d+) (minutos?|horas?|d[ií]as?)\s+(.+)$/i.exec(body)
   if (relative) {
     const units = /^min/i.test(relative[2])

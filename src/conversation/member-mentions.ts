@@ -7,6 +7,9 @@ export function memberMentions(
 ): NonNullable<ConversationPorts['allowedUserMentions']> {
   return async (invocation, context) => {
     const request =
+      /^(?:por favor[, ]+)?dile a (<@!?\d+>|[\p{L}\p{N}_ .-]{1,64}?) que se una[.!]?$/iu.exec(
+        invocation.content.trim(),
+      ) ??
       /^(?:por favor[, ]+)?(?:menciona|mencioná|etiqueta|etiquetá|mention|tag)\s+(?:a\s+)?(<@!?\d+>|[\p{L}\p{N}_ .-]{1,64}?)[.!]?$/iu.exec(
         invocation.content.trim(),
       )

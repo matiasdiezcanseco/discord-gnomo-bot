@@ -58,6 +58,8 @@ export interface ConversationPorts {
   clock?: Clock
   concurrency?: number
   authorize(invocation: Invocation, tool?: Capability): Promise<boolean>
+  /** Pure deployment policy for discovery after authorization; execution always reauthorizes. */
+  discover?: ConversationPorts['authorize']
   claim(invocation: Invocation): Promise<boolean>
   reply(invocation: Invocation, reply: Reply): Promise<void>
   allowedUserMentions?(
@@ -82,8 +84,8 @@ export function createConversation(ports: ConversationPorts) {
       const budget = new Budget(clock, clock.now())
       const signal = budget.controller.signal
       const results: ToolResult[] = []
-      // Image interpretation has no tool authority. Text-only invocations retain all capabilities.
-      const tools = invocation.attachments.length ? [] : (ports.catalog?.tools ?? [])
+      // Attachments are untrusted data; execution still requires current text consent and permissions.
+      const tools = ports.catalog?.tools ?? []
       const trace = (event: string, status?: string, tool?: string) => {
         try {
           ports.trace?.({
@@ -103,7 +105,14 @@ export function createConversation(ports: ConversationPorts) {
           /* Telemetry must not affect execution. */
         }
       }
-      const executor = new Executor(invocation, tools, budget, ports.authorize, trace)
+      const executor = new Executor(
+        invocation,
+        tools,
+        budget,
+        ports.authorize,
+        trace,
+        ports.discover,
+      )
       let text = ''
       let users: string[] = []
       let claimed = false
@@ -116,7 +125,9 @@ export function createConversation(ports: ConversationPorts) {
           trace('duplicate')
           return
         }
+        trace('queued')
         release = await admission.acquire(signal)
+        trace('admitted')
         if (!(await budget.wait(() => ports.authorize(invocation)))) {
           text = 'No tengo permiso para responder aquí.'
           trace('authorization', 'denied')
@@ -134,7 +145,9 @@ export function createConversation(ports: ConversationPorts) {
                 })
               })
             : undefined
-          const direct = tools.filter((tool) => tool.direct?.matches(invocation))
+          const direct = invocation.attachments.length
+            ? []
+            : tools.filter((tool) => tool.direct?.matches(invocation))
           if (direct.length === 1) {
             const tool = direct[0]
             const result = await executor.execute({
@@ -164,7 +177,8 @@ export function createConversation(ports: ConversationPorts) {
               throw new AttachmentError('Se revocó el permiso para responder aquí.')
             budget.steps++
             const visible = await executor.available()
-            const turn = await budget.external(() =>
+            trace('model_started')
+            const turn = await budget.wait(() =>
               ports.model.generate({
                 invocation,
                 signal,
@@ -174,12 +188,26 @@ export function createConversation(ports: ConversationPorts) {
                 images,
               }),
             )
+            trace('model_finished')
             if (turn.text) text = turn.text
             if (!turn.calls.length) break
-            for (const call of turn.calls) {
+            text = ''
+            const run = async (call: ModelTurn['calls'][number]) => {
               const result = await executor.execute(call)
               results.push(result)
               trace('tool_finished', result.status, result.name)
+            }
+            // Only adjacent reads may overlap. Writes are barriers, including uncertain writes.
+            for (let index = 0; index < turn.calls.length; ) {
+              const batch: ModelTurn['calls'] = []
+              while (
+                index < turn.calls.length &&
+                batch.length < 4 &&
+                tools.find((tool) => tool.name === turn.calls[index].name)?.effect === 'read'
+              )
+                batch.push(turn.calls[index++])
+              if (batch.length) await Promise.all(batch.map(run))
+              else await run(turn.calls[index++])
             }
             if (budget.steps === 5) text = ''
           }
@@ -214,6 +242,11 @@ export function createConversation(ports: ConversationPorts) {
         release?.()
         budget.close()
       }
+      if (!text && results.some((r) => r.status === 'success' || r.status === 'partial'))
+        text = `No pude completar toda la petición. Resultados confirmados:\n${results
+          .filter((r) => r.status === 'success' || r.status === 'partial')
+          .map((r) => JSON.stringify(r.value))
+          .join('\n')}`
       if (!text)
         text = results.length
           ? `No pude completar la petición: ${results.map((r) => `${r.name}: ${r.status}`).join(', ')}.`
@@ -237,6 +270,7 @@ export function createConversation(ports: ConversationPorts) {
               allowedMentions: { parse: [], users, roles: [], repliedUser: false },
             }),
           )
+          trace('visible_send', 'confirmed')
         }
       } catch {
         trace('delivery', 'uncertain')

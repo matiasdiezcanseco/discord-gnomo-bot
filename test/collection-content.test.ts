@@ -191,7 +191,7 @@ test('a natural variant uses the registered collection tool and keeps the resour
   assert.equal(app.replies[0].content, 'Así habla Gnomo.')
   assert.equal(turns, 2)
   assert.equal(app.requests.length, 1)
-  assert.equal(app.traces.at(-1)?.calls, 4)
+  assert.equal(app.traces.at(-1)?.calls, 2)
 })
 
 test('empty collections and failed dependencies give useful notices without invented links or model calls', async () => {

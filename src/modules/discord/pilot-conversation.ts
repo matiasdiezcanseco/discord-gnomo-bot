@@ -64,6 +64,9 @@ export function composePilot(
         return false
       }
     }
+    return enabled(invocation, tool)
+  }
+  const enabled: ConversationPorts['authorize'] = async (invocation, tool) => {
     return (
       !tool ||
       (tool.capability === 'reminders.own' &&
@@ -129,6 +132,7 @@ export function composePilot(
           throw new Error('Redis unavailable')
         },
     authorize,
+    discover: enabled,
     // Delivery is bound to the originating Discord message by the sole receiver.
     reply: async () => {
       throw new Error('Origin reply transport required')
