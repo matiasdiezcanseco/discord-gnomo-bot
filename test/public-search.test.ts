@@ -4,7 +4,7 @@ import axios, { type AxiosAdapter, type CreateAxiosDefaults } from 'axios'
 import { MockLanguageModelV3 } from 'ai/test'
 import { aiSdkModel } from '../src/conversation/ai-sdk-model'
 import { createConversation, type Reply } from '../src/conversation/harness'
-import { pilotCatalog } from '../src/conversation/pilot-catalog'
+import { composeCapabilities } from '../src/conversation/capabilities'
 import { tavilySearch } from '../src/conversation/public-search'
 
 const invocation = {
@@ -59,7 +59,7 @@ function setup(data: unknown, name = 'public_search', input: unknown = { query: 
     Date.parse('2026-11-05T12:00:00Z'),
   )
   const ports = {
-    catalog: pilotCatalog(undefined, undefined, undefined, source),
+    catalog: composeCapabilities({ search: source }),
     model: model(name, input),
     claim: async () => true,
     authorize: async () => true,
@@ -145,7 +145,7 @@ test('empty and unavailable services explain that current information was not ve
   await empty.run()
   assert.match(empty.text(), /"outcome":"empty"/)
   const missing = setup({ results: [article] })
-  missing.ports.catalog = pilotCatalog()
+  missing.ports.catalog = composeCapabilities({  })
   await missing.run()
   assert.match(missing.text(), /"outcome":"unavailable"/)
   assert.match(missing.text(), /TAVILY_API_KEY/)
@@ -171,7 +171,7 @@ for (const status of [429, 503]) {
         },
       }),
     )
-    app.ports.catalog = pilotCatalog(undefined, undefined, undefined, source)
+    app.ports.catalog = composeCapabilities({ search: source })
     await app.run()
     await app.run()
     assert.match(app.text(), status === 429 ? /rate_limited/ : /transient/)
@@ -198,11 +198,7 @@ test('cached sources expire and never cross channels', async () => {
   const app = setup({ results: [article] })
   let now = Date.parse('2026-11-05T12:00:00Z'),
     requests = 0
-  app.ports.catalog = pilotCatalog(
-    undefined,
-    undefined,
-    undefined,
-    tavilySearch(
+  app.ports.catalog = composeCapabilities({ search: tavilySearch(
       'test-key',
       axios.create({
         adapter: async (config) => {
@@ -217,7 +213,7 @@ test('cached sources expire and never cross channels', async () => {
         },
       }),
       () => now,
-    ),
+    ) }
   )
   const conversation = createConversation(app.ports)
   await conversation.handle(invocation)
@@ -309,7 +305,7 @@ test('time exhaustion keeps confirmed sources and aborts the next external searc
     }),
   )
   await createConversation({
-    catalog: pilotCatalog(undefined, undefined, undefined, source),
+    catalog: composeCapabilities({ search: source }),
     model: {
       generate: async ({ results }) => ({
         text: '',
@@ -350,7 +346,7 @@ import { mock } from 'node:test'
 import Redis from 'ioredis'
 import { ConfigService } from '@nestjs/config'
 import type { Client } from 'discord.js'
-import { composePilot } from '../src/modules/discord/pilot-conversation'
+import { composeConversation } from '../src/modules/discord/conversation-composition'
 
 test(
   'composed pilot authorizes both searches through real HTTP and isolated Redis',
@@ -404,7 +400,7 @@ test(
     } as unknown as Client
     const config = new ConfigService({
       GUILD_ID: 'g',
-      CONVERSATION_PILOT_CHANNEL_IDS: 'c',
+      RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c',
       TAVILY_API_KEY: 'test-key',
     })
     const replies: Reply[] = []
@@ -420,7 +416,7 @@ test(
             ? { period: { startDate: '2026-11-01', endDate: '2026-11-05' } }
             : {}),
         }
-        const app = composePilot(client, config, redis, undefined, model(name, input), discordFetch)
+        const app = composeConversation({ client: client, config: config, redis: redis, model: model(name, input), discordFetch: discordFetch })
         const event = { ...invocation, messageId: randomUUID() }
         await Promise.all([app.handle(event, reply), app.handle(event, reply)])
       }
@@ -431,13 +427,7 @@ test(
         ['general', 'news'],
       )
       allowed = false
-      await composePilot(
-        client,
-        config,
-        redis,
-        undefined,
-        model('public_search', { query: 'blocked' }),
-        discordFetch,
+      await composeConversation({ client: client, config: config, redis: redis, model: model('public_search', { query: 'blocked' }), discordFetch: discordFetch }
       ).handle({ ...invocation, messageId: randomUUID() }, reply)
       assert.equal(replies.length, 2)
       assert.equal(requests.length, 2)

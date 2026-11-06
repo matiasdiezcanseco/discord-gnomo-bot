@@ -9,15 +9,15 @@ import { Pool } from 'pg'
 import Redis from 'ioredis'
 import { ConfigService } from '@nestjs/config'
 import type { Client } from 'discord.js'
-import { composePilot } from '../src/modules/discord/pilot-conversation'
+import { composeConversation } from '../src/modules/discord/conversation-composition'
 import type { ConversationPorts, Reply } from '../src/conversation/harness'
 import { createConversation } from '../src/conversation/harness'
-import { pilotCatalog } from '../src/conversation/pilot-catalog'
+import { composeCapabilities } from '../src/conversation/capabilities'
 
 test('unconfigured memory is explicit and ordinary chat remains available', async () => {
   const replies: string[] = []
   const app = createConversation({
-    catalog: pilotCatalog(),
+    catalog: composeCapabilities({  }),
     authorize: async () => true,
     claim: async () => true,
     reply: async (_, reply) => {
@@ -72,7 +72,7 @@ test(
     } as unknown as Client
     const config = new ConfigService({
       GUILD_ID: guildId,
-      CONVERSATION_PILOT_CHANNEL_IDS: 'c,d',
+      RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c,d',
       MEMORY_OWNER_ID: '123456789012345678',
     })
     const model: ConversationPorts['model'] = {
@@ -87,15 +87,7 @@ test(
             : { text: '', calls: [{ id: 'evil', name: 'memory_save', input: {} }] },
     }
     const app = () =>
-      composePilot(
-        client,
-        config,
-        redis,
-        undefined,
-        model,
-        async () => Response.json([]),
-        undefined,
-        {
+      composeConversation({ client: client, config: config, redis: redis, model: model, discordFetch: async () => Response.json([]), memory: {
           pool,
           embedding: embeddingEnabled
             ? {
@@ -108,7 +100,7 @@ test(
                 },
               }
             : undefined,
-        },
+        } }
       )
     const invoke = async (
       content: string,
@@ -136,6 +128,14 @@ test(
     try {
       assert.match(await invoke('recuerda que Juan juega Valorant'), /saved/)
       assert.match(await invoke('busca recuerdos: Valorant'), /Juan juega Valorant/)
+      config.set('RUNTIME_MODE', 'paused')
+      assert.equal(await invoke('busca recuerdos: Valorant'), '')
+      assert.equal(await invoke('guarda recuerdo: should never persist'), '')
+      config.set('RUNTIME_MODE', 'guild')
+      assert.match(await invoke('busca recuerdos: Valorant'), /Juan juega Valorant/)
+      assert.doesNotMatch(await invoke('busca recuerdos: should never persist'), /"content":"should never persist"/)
+      config.set('RUNTIME_MODE', 'pilot')
+
       assert.match(await invoke('quién juega Valorant'), /Juan juega Valorant/)
       const saved = await invoke('guarda recuerdo: Anita prefiere té')
       assert.match(saved, /saved/)

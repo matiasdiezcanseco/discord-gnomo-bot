@@ -1,43 +1,48 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule as NestConfigModule } from '@nestjs/config'
 import { z } from 'zod'
-import { DEFAULT_CONVERSATION_TTL, DEFAULT_MAX_MESSAGES, DEFAULT_OPENAI_MODEL } from './constants'
+import { DEFAULT_OPENAI_MODEL } from './constants'
 
 /**
  * Environment variables schema with Zod validation
  */
 const envSchema = z.object({
   // Discord
-  BOT_TOKEN: z.string().min(1, 'BOT_TOKEN is required'),
-  GUILD_ID: z.string().min(1, 'GUILD_ID is required'),
-  GNOMOS_CHANNEL_ID: z.string().min(1, 'GNOMOS_CHANNEL_ID is required'),
-  TEST_CHANNEL_ID: z.string().optional(),
-  CONVERSATION_PILOT_CHANNEL_IDS: z.string().default(''),
+  BOT_TOKEN: z.string().min(1).optional(),
+  GUILD_ID: z.string().min(1).optional(),
+  GNOMOS_CHANNEL_ID: z.string().min(1).optional(),
+  RUNTIME_MODE: z.enum(['paused', 'pilot', 'guild']).default('paused'),
+  RUNTIME_CHANNEL_IDS: z.string().default(''),
   CONVERSATION_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
 
   // External Services
-  BUCKET_URL: z.string().url('BUCKET_URL must be a valid URL'),
-  OPENAI_API_KEY: z.string().min(1, 'OPENAI_API_KEY is required'),
+  BUCKET_URL: z.string().url().optional(),
+  OPENAI_API_KEY: z.string().min(1).optional(),
   OPENAI_MODEL: z.string().default(DEFAULT_OPENAI_MODEL),
   TAVILY_API_KEY: z.string().optional(),
 
   // Redis (optional - history feature disabled if not configured)
   REDIS_URL: z.string().optional(),
-  CONVERSATION_TTL: z.coerce.number().default(DEFAULT_CONVERSATION_TTL),
-  MAX_CONVERSATION_MESSAGES: z.coerce.number().default(DEFAULT_MAX_MESSAGES),
-
-  // Database (optional - memory feature disabled if not configured)
-  DATABASE_URL: z.string().optional(),
+  PILOT_MEMORY_DATABASE_URL: z.string().url().optional(),
+  PILOT_MEMORY_EMBEDDING_MODEL: z.string().min(1).optional(),
+  MEMORY_OWNER_ID: z.string().regex(/^\d{17,20}$/).optional(),
 
   // Runtime
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).optional(),
 
   // Timezone
-  USER_TIMEZONE: z.string().default('America/Bogota'), // UTC-5
+  USER_TIMEZONE: z.string().default('America/Lima'), // UTC-5
 
   // Health check port
   PORT: z.coerce.number().default(3000),
+}).superRefine((env, ctx) => {
+  if (env.RUNTIME_MODE !== 'paused') {
+    for (const key of ['BOT_TOKEN', 'GUILD_ID', 'OPENAI_API_KEY', 'REDIS_URL'] as const) {
+      if (!env[key]) ctx.addIssue({ code: 'custom', path: [key], message: 'Required for active runtime' })
+    }
+    if (env.RUNTIME_MODE === 'pilot' && !env.RUNTIME_CHANNEL_IDS.trim()) ctx.addIssue({ code: 'custom', path: ['RUNTIME_CHANNEL_IDS'], message: 'Pilot requires explicit channels' })
+  }
 })
 
 /**

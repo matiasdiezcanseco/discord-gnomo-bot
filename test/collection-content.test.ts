@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createConversation, type Reply, type Trace } from '../src/conversation/harness'
-import { pilotCatalog } from '../src/conversation/pilot-catalog'
+import { composeCapabilities } from '../src/conversation/capabilities'
 import { bucketCollection } from '../src/conversation/collection-content'
 import type { Invocation } from '../src/core/conversation/invocation'
 
@@ -25,7 +25,7 @@ function setup(data: unknown = ['Soy pequeño pero peligroso.']) {
     return Response.json(data)
   })
   const ports = {
-    catalog: pilotCatalog(collection),
+    catalog: composeCapabilities({ collection: collection }),
     model: {
       generate: async () => {
         modelCalls++
@@ -76,7 +76,7 @@ import { randomUUID } from 'node:crypto'
 import { ConfigService } from '@nestjs/config'
 import type { Client } from 'discord.js'
 import Redis from 'ioredis'
-import { composePilot } from '../src/modules/discord/pilot-conversation'
+import { composeConversation } from '../src/modules/discord/conversation-composition'
 
 test(
   'the real pilot composition delivers collection resources and claims a concurrent event once',
@@ -116,7 +116,7 @@ test(
     const replies: Reply[] = []
     const config = new ConfigService({
       GUILD_ID: 'g1',
-      CONVERSATION_PILOT_CHANNEL_IDS: 'c1',
+      RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c1',
       BUCKET_URL: base,
     })
     const model = {
@@ -124,7 +124,7 @@ test(
         throw new Error('Direct path must not use model')
       },
     }
-    const build = (redis: Redis) => composePilot(client, config, redis, undefined, model)
+    const build = (redis: Redis) => composeConversation({ client: client, config: config, redis: redis, model: model })
     const reply = async (_: Invocation, value: Reply) => {
       replies.push(value)
     }
@@ -206,7 +206,7 @@ test('empty collections and failed dependencies give useful notices without inve
   const app = setup()
   await createConversation({
     ...app.ports,
-    catalog: pilotCatalog(bucketCollection(undefined)),
+    catalog: composeCapabilities({ collection: bucketCollection(undefined) }),
   }).handle(invocation)
   assert.match(app.replies[0].content, /No pude consultar/)
   assert.equal(app.requests.length, 0)
@@ -223,7 +223,7 @@ test('empty collections and failed dependencies give useful notices without inve
       requests++
       return response()
     })
-    await createConversation({ ...app.ports, catalog: pilotCatalog(source) }).handle(invocation)
+    await createConversation({ ...app.ports, catalog: composeCapabilities({ collection: source }) }).handle(invocation)
     assert.match(app.replies[0].content, /No pude consultar/)
     assert.equal(requests, 1)
     assert.equal(app.modelCalls(), 0)
@@ -255,7 +255,7 @@ test('a hung collection read is cancelled at twelve seconds without a model or r
     started()
     return new Promise<Response>(() => {})
   })
-  const running = createConversation({ ...app.ports, clock, catalog: pilotCatalog(source) }).handle(
+  const running = createConversation({ ...app.ports, clock, catalog: composeCapabilities({ collection: source }) }).handle(
     invocation,
   )
   await ready

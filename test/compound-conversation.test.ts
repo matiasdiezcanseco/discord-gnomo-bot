@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { z } from 'zod'
 import { createConversation, type Trace } from '../src/conversation/harness'
 import { Catalog, defineCapability } from '../src/conversation/catalog'
-import { pilotCatalog } from '../src/conversation/pilot-catalog'
+import { composeCapabilities } from '../src/conversation/capabilities'
 import { discordHistory } from '../src/modules/discord/channel-history'
 import type { Client } from 'discord.js'
 
@@ -136,7 +136,7 @@ test('conversation plus news preserves actual channel evidence when news stalls 
         return () => {}
       },
     },
-    catalog: pilotCatalog(undefined, undefined, history, {
+    catalog: composeCapabilities({ history: history, search: {
       search: async (_, context) =>
         context.external(
           () =>
@@ -147,7 +147,7 @@ test('conversation plus news preserves actual channel evidence when news stalls 
               })
             }),
         ),
-    }),
+    } }),
     claim: async () => true,
     authorize: async () => true,
     trace: (event) => {

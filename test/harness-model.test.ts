@@ -37,7 +37,7 @@ test('AI SDK adapter delivers model text through the new invocation path without
 })
 
 test('controlled capability crosses AI SDK, catalog, executor and visible reply', async () => {
-  const { pilotCatalog } = await import('../src/conversation/pilot-catalog')
+  const { composeCapabilities } = await import('../src/conversation/capabilities')
   let generated = 0
   const model = new MockLanguageModelV3({
     doGenerate: async () => ({
@@ -67,7 +67,7 @@ test('controlled capability crosses AI SDK, catalog, executor and visible reply'
     statuses: string[] = []
   await createConversation({
     model: aiSdkModel(model),
-    catalog: pilotCatalog(),
+    catalog: composeCapabilities({  }),
     authorize: async () => true,
     claim: async () => true,
     trace: (event) => {

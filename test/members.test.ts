@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { ConfigService } from '@nestjs/config'
 import { GatewayIntentBits, type Client } from 'discord.js'
 import Redis from 'ioredis'
-import { composePilot } from '../src/modules/discord/pilot-conversation'
+import { composeConversation } from '../src/modules/discord/conversation-composition'
 import type { ModelInput, Reply } from '../src/conversation/harness'
 
 const ana = { user: { id: '111', username: 'ana', global_name: 'Ana' }, nick: 'Anita' }
@@ -61,13 +61,7 @@ function fixture(
     ? new Redis(process.env.T02_REDIS_URL)
     : ({ set: async () => 'OK' } as unknown as Redis)
   if (process.env.T02_REDIS_URL) clients.push(redis)
-  const conversation = composePilot(
-    client,
-    new ConfigService({ GUILD_ID: 'g', CONVERSATION_PILOT_CHANNEL_IDS: 'c' }),
-    redis,
-    undefined,
-    { generate: (input) => plan(input) },
-    fetcher,
+  const conversation = composeConversation({ client: client, config: new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' }), redis: redis, model: { generate: (input) => plan(input) }, discordFetch: fetcher }
   )
   return {
     requests,

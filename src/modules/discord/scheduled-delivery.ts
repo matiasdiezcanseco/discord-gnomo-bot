@@ -1,3 +1,4 @@
+import { runtimeAllows } from '../../conversation/runtime-policy'
 import type { Client } from 'discord.js'
 import { ChannelType, PermissionFlagsBits } from 'discord.js'
 import type { ConfigService } from '@nestjs/config'
@@ -16,7 +17,7 @@ export function discordScheduledDelivery(
   now = Date.now,
 ): ScheduledDelivery {
   async function channelFor(origin: ScheduledOrigin) {
-    if (origin.guildId !== config.get<string>('GUILD_ID') || !client.user) return null
+    if (!runtimeAllows(config, origin) || !client.user) return null
     if (isBirthday(origin)) {
       if (
         origin.channelId !== config.get<string>('GNOMOS_CHANNEL_ID') ||
@@ -61,6 +62,7 @@ export function discordScheduledDelivery(
     return channel
   }
   return {
+    admits: (origin) => runtimeAllows(config, origin),
     authorize: async (origin) => {
       try {
         return !!(await channelFor(origin))

@@ -11,7 +11,7 @@ import Redis from 'ioredis'
 import { randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { composePilot } from '../src/modules/discord/pilot-conversation'
+import { composeConversation } from '../src/modules/discord/conversation-composition'
 
 test(
   'legacy migration previews without writes, backs up and imports stable records',
@@ -71,19 +71,11 @@ test(
         GUILD_ID: options.guildId,
         GNOMOS_CHANNEL_ID: options.channelId,
         MEMORY_OWNER_ID: '323456789012345678',
-        CONVERSATION_PILOT_CHANNEL_IDS: `${options.channelId},other`,
+        RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: `${options.channelId},other`,
       })
       const invoke = async (content: string, author = 'member', channelId = options.channelId) => {
         const replies: string[] = []
-        const app = composePilot(
-          client,
-          config,
-          redis,
-          undefined,
-          { generate: async () => ({ text: 'hola', calls: [] }) },
-          undefined,
-          undefined,
-          { pool, embedding: { model: 'test-3d', embed: async () => [1, 0, 0] } },
+        const app = composeConversation({ client: client, config: config, redis: redis, model: { generate: async () => ({ text: 'hola', calls: [] }) }, memory: { pool, embedding: { model: 'test-3d', embed: async () => [1, 0, 0] } } }
         )
         await app.handle(
           {

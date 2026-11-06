@@ -7,7 +7,7 @@ import type { MemoryDependencies } from '../../conversation/explicit-memory'
 
 /** Owns only the new pilot pool. Startup never creates schema or imports legacy data. */
 @Injectable()
-export class PilotMemory implements OnModuleDestroy {
+export class RuntimeMemory implements OnModuleDestroy {
   readonly dependencies?: MemoryDependencies
   constructor(config: ConfigService) {
     const url = config.get<string>('PILOT_MEMORY_DATABASE_URL')

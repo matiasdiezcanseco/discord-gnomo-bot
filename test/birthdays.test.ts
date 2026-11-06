@@ -73,7 +73,7 @@ function discordFixture() {
       }),
     },
   } as unknown as Client
-  const values: Record<string, string> = {
+  const values: Record<string, string> = { RUNTIME_MODE: 'guild', BUCKET_URL: 'https://bucket.example/',
     GUILD_ID: destination.guildId,
     GNOMOS_CHANNEL_ID: destination.channelId,
   }
@@ -279,7 +279,10 @@ test(
         }
         const [record] = await scheduleBirthdays(now, destination, async () => [birthday], store)
         if (mode === 'revoked') fixture.revoke()
-        if (mode === 'destination') fixture.config.get = () => 'foreign'
+        if (mode === 'destination') {
+          const get = fixture.config.get.bind(fixture.config)
+          fixture.config.get = ((key: string) => key === 'GNOMOS_CHANNEL_ID' ? 'foreign' : get(key)) as ConfigService['get']
+        }
         if (mode === 'transient') fixture.fail(429)
         if (mode === 'permanent') fixture.fail(403)
         if (mode === 'uncertain') fixture.fail(500)
@@ -341,7 +344,7 @@ test(
       BigInt('123456789012345680') + BigInt(Math.floor(Math.random() * 100000000)),
     )
     fixture.config.get = ((key: string) =>
-      key === 'GNOMOS_CHANNEL_ID'
+      key === 'RUNTIME_MODE' ? 'guild' : key === 'BUCKET_URL' ? 'https://bucket.example/' : key === 'GNOMOS_CHANNEL_ID'
         ? channelId
         : key === 'GUILD_ID'
           ? destination.guildId
@@ -406,7 +409,7 @@ test(
 )
 
 import { createConversation } from '../src/conversation/harness'
-import { pilotCatalog } from '../src/conversation/pilot-catalog'
+import { composeCapabilities } from '../src/conversation/capabilities'
 
 test(
   'conversation/model cannot request a birthday recipient or arbitrary destination',
@@ -417,15 +420,7 @@ test(
     const replies: unknown[] = [],
       sent: unknown[] = []
     const app = createConversation({
-      catalog: pilotCatalog(
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        store,
+      catalog: composeCapabilities({ notices: store }
       ),
       claim: async () => true,
       authorize: async () => true,

@@ -33,7 +33,8 @@ export class DiscordService implements OnModuleInit, OnModuleDestroy {
       );
     });
 
-    await this.client.login(this.config.get<string>('BOT_TOKEN'));
+    const token = this.config.get<string>('BOT_TOKEN');
+    if (token && this.config.get<string>('RUNTIME_MODE', 'paused') !== 'paused') await this.client.login(token);
   }
 
   async onModuleDestroy() {

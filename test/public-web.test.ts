@@ -5,14 +5,14 @@ import type { RequestOptions } from 'node:https'
 import { once } from 'node:events'
 import { safeReader, nodeReaderNetwork, type ReaderNetwork } from '../src/web/safe-reader'
 import { createSocket } from 'node:dgram'
-import { composePilot } from '../src/modules/discord/pilot-conversation'
+import { composeConversation } from '../src/modules/discord/conversation-composition'
 import { ConfigService } from '@nestjs/config'
 import type { Client } from 'discord.js'
 import type Redis from 'ioredis'
 import { createServer as httpsServer, request as httpsRequest } from 'node:https'
 import { readFileSync } from 'node:fs'
 import { createConversation } from '../src/conversation/harness'
-import { pilotCatalog } from '../src/conversation/pilot-catalog'
+import { composeCapabilities } from '../src/conversation/capabilities'
 
 async function network(t: TestContext, serve: RequestListener) {
   const server = createServer(serve)
@@ -47,11 +47,7 @@ test('search then source reading uses structured provenance, never page instruct
   })
   const replies: string[] = []
   await createConversation({
-    catalog: pilotCatalog(
-      undefined,
-      undefined,
-      undefined,
-      {
+    catalog: composeCapabilities({ search: {
         search: async () => ({
           outcome: 'ok',
           message: '',
@@ -76,9 +72,7 @@ test('search then source reading uses structured provenance, never page instruct
             note: '',
           },
         }),
-      },
-      undefined,
-      safeReader(a.net),
+      }, web: safeReader(a.net) }
     ),
     claim: async () => true,
     authorize: async () => true,
@@ -184,12 +178,7 @@ test('invocation reads an explicit URL through the composed executor and replies
     },
   } as unknown as Client
   const replies: string[] = []
-  const pilot = composePilot(
-    client,
-    new ConfigService({ GUILD_ID: 'g', CONVERSATION_PILOT_CHANNEL_IDS: 'c' }),
-    { set: async () => 'OK' } as unknown as Redis,
-    undefined,
-    {
+  const pilot = composeConversation({ client: client, config: new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' }), redis: { set: async () => 'OK' } as unknown as Redis, model: {
       generate: async ({ results }) => {
         if (!results.length)
           return {
@@ -201,9 +190,7 @@ test('invocation reads an explicit URL through the composed executor and replies
         assert.equal(results[0].status, 'success')
         return { text: JSON.stringify(results[0].value), calls: [] }
       },
-    },
-    async () => new Response('[]'),
-    safeReader(a.net),
+    }, discordFetch: async () => new Response('[]'), web: safeReader(a.net) }
   )
   await pilot.handle(
     {
@@ -445,7 +432,7 @@ test('page instructions cannot authorize effects or fetch a URL absent from the 
   })
   const replies: string[] = []
   const app = createConversation({
-    catalog: pilotCatalog(undefined, undefined, undefined, undefined, undefined, safeReader(a.net)),
+    catalog: composeCapabilities({ web: safeReader(a.net) }),
     authorize: async () => true,
     claim: async () => true,
     reply: async (_, message) => {
@@ -604,7 +591,7 @@ test('invocation exposes bounded partial text and preserves URL provenance', asy
   })
   let answered = false
   const app = createConversation({
-    catalog: pilotCatalog(undefined, undefined, undefined, undefined, undefined, safeReader(a.net)),
+    catalog: composeCapabilities({ web: safeReader(a.net) }),
     authorize: async () => true,
     claim: async () => true,
     reply: async (_, reply) => {

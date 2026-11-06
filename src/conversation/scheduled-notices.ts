@@ -36,6 +36,8 @@ export class NoticeFailure extends Error {
   }
 }
 export interface ScheduledDelivery {
+  /** Deployment admission is separate from permission denial; excluded records stay pending. */
+  admits?(origin: ScheduledOrigin): boolean
   authorize(origin: ScheduledOrigin): Promise<boolean>
   send(origin: ScheduledOrigin, reply: Reply): Promise<void>
 }
@@ -122,6 +124,10 @@ export class ScheduledNotices {
   async dispatch(now: number, delivery: ScheduledDelivery) {
     const ids = await this.redis.zrangebyscore(this.due, '-inf', now, 'LIMIT', 0, 50)
     for (const id of ids) {
+      if (delivery.admits) {
+        const candidate = await this.get(id)
+        if (!candidate || !delivery.admits(candidate.origin)) continue
+      }
       const token = randomUUID()
       const raw = await this.redis.eval(
         `

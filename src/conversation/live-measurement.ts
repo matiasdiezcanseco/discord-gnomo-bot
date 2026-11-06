@@ -4,9 +4,9 @@ import { writeFile, readFile } from 'node:fs/promises'
 import { Client, GatewayIntentBits } from 'discord.js'
 import Redis from 'ioredis'
 import { ConfigService } from '@nestjs/config'
-import { composePilot } from '../modules/discord/pilot-conversation'
+import { composeConversation } from '../modules/discord/conversation-composition'
 import { normalizeInvocation } from '../modules/discord/normalize-invocation'
-import { PilotMemory } from '../modules/discord/pilot-memory'
+import { RuntimeMemory } from '../modules/discord/runtime-memory'
 import type { Trace } from './harness'
 
 type Kind = 'simple' | 'tool' | 'compound'
@@ -106,20 +106,12 @@ async function main() {
   const config = new ConfigService({
     ...process.env,
     CONVERSATION_CONCURRENCY: Number(process.env.CONVERSATION_CONCURRENCY ?? 4),
-    CONVERSATION_PILOT_CHANNEL_IDS: channel,
+    RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: channel,
   })
-  const memory = new PilotMemory(config)
+  const memory = new RuntimeMemory(config)
   const samples: Sample[] = []
   const pending = new Set<Promise<void>>()
-  const app = composePilot(
-    client,
-    config,
-    redis,
-    (trace) => samples.find((s) => s.id === trace.invocationId)?.traces.push(trace),
-    undefined,
-    undefined,
-    undefined,
-    memory.dependencies,
+  const app = composeConversation({ client: client, config: config, redis: redis, trace: (trace) => samples.find((s) => s.id === trace.invocationId)?.traces.push(trace), memory: memory.dependencies }
   )
   let finish!: () => void
   const done = new Promise<void>((resolve) => {

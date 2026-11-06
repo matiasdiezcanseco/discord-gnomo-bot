@@ -7,7 +7,7 @@ import IORedis from 'ioredis'
 import { MockLanguageModelV3 } from 'ai/test'
 import { aiSdkModel } from '../src/conversation/ai-sdk-model'
 import type Redis from 'ioredis'
-import { composePilot } from '../src/modules/discord/pilot-conversation'
+import { composeConversation } from '../src/modules/discord/conversation-composition'
 
 const origin = {
   messageId: '900',
@@ -80,7 +80,7 @@ function app(t: TestContext, page?: (url: URL) => unknown[]) {
   } as unknown as Redis
   const config = new ConfigService({
     GUILD_ID: 'g',
-    CONVERSATION_PILOT_CHANNEL_IDS: 'c,thread,other',
+    RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c,thread,other',
   })
   return {
     client,
@@ -99,9 +99,9 @@ function app(t: TestContext, page?: (url: URL) => unknown[]) {
 
 test('composed pilot supplies real channel context with identities, excluding the current invocation', async (t) => {
   const a = app(t)
-  const pilot = composePilot(a.client, a.config, a.redis, undefined, {
+  const pilot = composeConversation({ client: a.client, config: a.config, redis: a.redis, model: {
     generate: async (input) => ({ text: JSON.stringify(input), calls: [] }),
-  })
+  } })
   await pilot.handle(origin, a.reply)
   const input = JSON.parse(a.replies.join(''))
   assert.equal(input.recentContext.messages[0].author.id, 'l')
@@ -124,14 +124,14 @@ test('composed history capability paginates at most 200 earlier channel messages
     }))
   })
   let result: unknown
-  const pilot = composePilot(a.client, a.config, a.redis, undefined, {
+  const pilot = composeConversation({ client: a.client, config: a.config, redis: a.redis, model: {
     generate: async ({ results }) => {
       if (!results.length)
         return { text: '', calls: [{ id: 'h', name: 'messages_history', input: { limit: 200 } }] }
       result = results[0]
       return { text: 'listo', calls: [] }
     },
-  })
+  } })
   await pilot.handle(origin, a.reply)
   assert.equal((result as { status: string }).status, 'partial')
   const value = (result as { value: { messages: unknown[]; requested: number; limits: string } })
@@ -147,12 +147,12 @@ test('composed history capability paginates at most 200 earlier channel messages
 
 test('default history reuses bounded recent data without a second Discord read', async (t) => {
   const a = app(t)
-  const pilot = composePilot(a.client, a.config, a.redis, undefined, {
+  const pilot = composeConversation({ client: a.client, config: a.config, redis: a.redis, model: {
     generate: async ({ results }) =>
       results.length
         ? { text: String(results[0].status), calls: [] }
         : { text: '', calls: [{ id: 'h', name: 'messages_history', input: {} }] },
-  })
+  } })
   await pilot.handle(origin, a.reply)
   assert.deepEqual(a.replies, ['success'])
   assert.equal(a.reads.length, 1)
@@ -208,7 +208,7 @@ test('AI SDK receives attributed history as untrusted data and the current reque
       }
     },
   })
-  await composePilot(a.client, a.config, a.redis, undefined, aiSdkModel(model)).handle(
+  await composeConversation({ client: a.client, config: a.config, redis: a.redis, model: aiSdkModel(model) }).handle(
     origin,
     a.reply,
   )
@@ -219,7 +219,7 @@ test('AI SDK receives attributed history as untrusted data and the current reque
 test('history rejects excessive counts and model-selected channels before reading', async (t) => {
   const a = app(t)
   let statuses: string[] = []
-  const pilot = composePilot(a.client, a.config, a.redis, undefined, {
+  const pilot = composeConversation({ client: a.client, config: a.config, redis: a.redis, model: {
     generate: async ({ results }) => {
       if (results.length) {
         statuses = results.map((r) => r.status)
@@ -233,7 +233,7 @@ test('history rejects excessive counts and model-selected channels before readin
         ],
       }
     },
-  })
+  } })
   await pilot.handle(origin, a.reply)
   assert.deepEqual(statuses, ['invalid', 'invalid'])
   assert.equal(a.reads.length, 1)
@@ -242,13 +242,13 @@ test('history rejects excessive counts and model-selected channels before readin
 test('expired history is fetched again under a controlled clock', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 100000 })
   const a = app(t)
-  const pilot = composePilot(a.client, a.config, a.redis, undefined, {
+  const pilot = composeConversation({ client: a.client, config: a.config, redis: a.redis, model: {
     generate: async ({ results }) => {
       if (results.length) return { text: results[0].status, calls: [] }
       t.mock.timers.setTime(110001)
       return { text: '', calls: [{ id: 'h', name: 'messages_history', input: {} }] }
     },
-  })
+  } })
   await pilot.handle(origin, a.reply)
   assert.deepEqual(a.replies, ['success'])
   assert.equal(a.reads.length, 2)
@@ -258,7 +258,7 @@ for (const member of ['u', 'bot'])
   test(`history permission revocation for ${member} prevents cache reuse and delivery`, async (t) => {
     const a = app(t)
     let status: string | undefined
-    const pilot = composePilot(a.client, a.config, a.redis, undefined, {
+    const pilot = composeConversation({ client: a.client, config: a.config, redis: a.redis, model: {
       generate: async ({ results }) => {
         if (results.length) {
           status = results[0].status
@@ -267,7 +267,7 @@ for (const member of ['u', 'bot'])
         a.revoke(member)
         return { text: '', calls: [{ id: 'h', name: 'messages_history', input: {} }] }
       },
-    })
+    } })
     await pilot.handle(origin, a.reply)
     assert.equal(status, 'denied')
     assert.equal(a.reads.length, 1)
@@ -283,14 +283,14 @@ test('cache capacity evicts old context even while invocations remain active', a
   const started = new Promise<void>((resolve) => {
     ready = resolve
   })
-  const pilot = composePilot(a.client, a.config, a.redis, undefined, {
+  const pilot = composeConversation({ client: a.client, config: a.config, redis: a.redis, model: {
     generate: async ({ invocation, results }) => {
       if (invocation.messageId !== '900' || results.length) return { text: 'ok', calls: [] }
       ready()
       await blocked
       return { text: '', calls: [{ id: 'h', name: 'messages_history', input: {} }] }
     },
-  })
+  } })
   const first = pilot.handle(origin, a.reply)
   await started
   for (let i = 1; i <= 16; i++)
@@ -312,7 +312,7 @@ test('failed later page preserves earlier history with explicit partial coverage
     }))
   })
   let status: string | undefined
-  const pilot = composePilot(a.client, a.config, a.redis, undefined, {
+  const pilot = composeConversation({ client: a.client, config: a.config, redis: a.redis, model: {
     generate: async ({ results }) => {
       if (results.length) {
         status = results[0].status
@@ -320,7 +320,7 @@ test('failed later page preserves earlier history with explicit partial coverage
       }
       return { text: '', calls: [{ id: 'h', name: 'messages_history', input: { limit: 200 } }] }
     },
-  })
+  } })
   await pilot.handle(origin, a.reply)
   assert.equal(status, 'partial')
   assert.deepEqual(a.replies, ['parcial'])
@@ -346,12 +346,12 @@ test('concurrent channels and threads retain identities and reject messages from
       },
     ])
   })
-  const pilot = composePilot(a.client, a.config, a.redis, undefined, {
+  const pilot = composeConversation({ client: a.client, config: a.config, redis: a.redis, model: {
     generate: async ({ invocation, recentContext }) => ({
       text: `${invocation.requester.id}:${JSON.stringify(recentContext?.messages)}`,
       calls: [],
     }),
-  })
+  } })
   const results = new Map<string, string>()
   await Promise.all(
     ['c', 'other', 'thread'].map((channelId) =>
@@ -383,12 +383,12 @@ test(
   async (t) => {
     const a = app(t)
     const redis = new IORedis(process.env.T02_REDIS_URL!)
-    const pilot = composePilot(a.client, a.config, redis, undefined, {
+    const pilot = composeConversation({ client: a.client, config: a.config, redis: redis, model: {
       generate: async ({ recentContext }) => ({
         text: recentContext!.messages.find((m) => m.messageId === '899')!.content,
         calls: [],
       }),
-    })
+    } })
     try {
       const invocation = { ...origin, messageId: randomUUID() }
       await Promise.all([pilot.handle(invocation, a.reply), pilot.handle(invocation, a.reply)])

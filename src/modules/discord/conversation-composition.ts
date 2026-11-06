@@ -1,3 +1,5 @@
+import { DEFAULT_OPENAI_MODEL } from '../config/constants'
+import { runtimeAllows } from '../../conversation/runtime-policy'
 import { tavilySearch } from '../../conversation/public-search'
 import type { Client } from 'discord.js'
 import { ChannelType, PermissionFlagsBits } from 'discord.js'
@@ -6,7 +8,7 @@ import type Redis from 'ioredis'
 import { openai } from '@ai-sdk/openai'
 import { createConversation, type ConversationPorts } from '../../conversation/harness'
 import { aiSdkModel } from '../../conversation/ai-sdk-model'
-import { pilotCatalog } from '../../conversation/pilot-catalog'
+import { composeCapabilities } from '../../conversation/capabilities'
 import { redisClaims } from '../../conversation/redis-claims'
 import { discordMembers } from './members'
 import { memberMentions } from '../../conversation/member-mentions'
@@ -18,27 +20,23 @@ import { discordLiveMembers } from './live-members'
 import { attachedImages } from '../../conversation/attached-images'
 import { ScheduledNotices } from '../../conversation/scheduled-notices'
 
-export function composePilot(
-  client: Client,
-  config: ConfigService,
-  redis: Redis | null,
-  trace: ConversationPorts['trace'],
-  model = aiSdkModel(openai(config.get<string>('OPENAI_MODEL', 'gpt-4o-mini'))),
-  discordFetch: typeof fetch = fetch,
-  web: SafeReader = safeReader(),
-  memory?: MemoryDependencies,
-) {
+export interface ConversationComposition {
+  client: Client
+  config: ConfigService
+  redis: Redis | null
+  trace?: ConversationPorts['trace']
+  model?: ConversationPorts['model']
+  discordFetch?: typeof fetch
+  web?: SafeReader
+  memory?: MemoryDependencies
+}
+export function composeConversation({ client, config, redis, trace,
+  model = aiSdkModel(openai(config.get<string>('OPENAI_MODEL', DEFAULT_OPENAI_MODEL))),
+  discordFetch = fetch, web = safeReader(), memory,
+}: ConversationComposition) {
   const members = discordMembers(client, discordFetch)
   const authorize: ConversationPorts['authorize'] = async (invocation, tool) => {
-    if (invocation.guildId !== config.get<string>('GUILD_ID')) return false
-    if (
-      !config
-        .get<string>('CONVERSATION_PILOT_CHANNEL_IDS', '')
-        .split(',')
-        .map((id) => id.trim())
-        .includes(invocation.channelId)
-    )
-      return false
+    if (!runtimeAllows(config, invocation)) return false
     // Fresh membership and channel data; model arguments never participate in this lookup.
     const guild = await client.guilds.fetch(invocation.guildId)
     const channel = await guild.channels.fetch(invocation.channelId, { force: true })
@@ -111,17 +109,9 @@ export function composePilot(
     },
     loadContext: async (context) => history(context, 30),
     model,
-    catalog: pilotCatalog(
-      bucketCollection(config.get<string>('BUCKET_URL')),
-      members,
-      history,
-      tavilySearch(config.get<string>('TAVILY_API_KEY')),
-      discordLiveMembers(client, members),
-      web,
-      memoryCapabilities(memory, config.get<string>('MEMORY_OWNER_ID'), (invocation) =>
+    catalog: composeCapabilities({ collection: bucketCollection(config.get<string>('BUCKET_URL')), members: members, history: history, search: tavilySearch(config.get<string>('TAVILY_API_KEY')), live: discordLiveMembers(client, members), web: web, memory: memoryCapabilities(memory, config.get<string>('MEMORY_OWNER_ID'), (invocation) =>
         authorize(invocation),
-      ),
-      redis ? new ScheduledNotices(redis) : undefined,
+      ), notices: redis ? new ScheduledNotices(redis) : undefined }
     ),
     allowedUserMentions: memberMentions(members),
     trace,

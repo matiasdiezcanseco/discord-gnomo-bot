@@ -4,7 +4,7 @@ import { createServer, request } from 'node:http'
 import { once } from 'node:events'
 import { MockLanguageModelV3 } from 'ai/test'
 import { aiSdkModel } from '../src/conversation/ai-sdk-model'
-import { composePilot } from '../src/modules/discord/pilot-conversation'
+import { composeConversation } from '../src/modules/discord/conversation-composition'
 import { safeReader } from '../src/web/safe-reader'
 import { ConfigService } from '@nestjs/config'
 import type { Client } from 'discord.js'
@@ -89,14 +89,7 @@ async function setup(t: TestContext, bytes = png, mime = 'image/png', status = 2
       }),
     },
   } as unknown as Client
-  const pilot = composePilot(
-    client,
-    new ConfigService({ GUILD_ID: 'g', CONVERSATION_PILOT_CHANNEL_IDS: 'c' }),
-    { set: async () => 'OK' } as unknown as Redis,
-    undefined,
-    aiSdkModel(model),
-    async () => new Response(JSON.stringify(history)),
-    reader,
+  const pilot = composeConversation({ client: client, config: new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' }), redis: { set: async () => 'OK' } as unknown as Redis, model: aiSdkModel(model), discordFetch: async () => new Response(JSON.stringify(history)), web: reader }
   )
   const replies: string[] = []
   return {

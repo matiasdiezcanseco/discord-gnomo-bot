@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { ConfigService } from '@nestjs/config'
 import { Collection, GatewayIntentBits, type Client } from 'discord.js'
 import type Redis from 'ioredis'
-import { composePilot } from '../src/modules/discord/pilot-conversation'
+import { composeConversation } from '../src/modules/discord/conversation-composition'
 import type { Reply } from '../src/conversation/harness'
 
 function fixture() {
@@ -78,18 +78,12 @@ function fixture() {
   }
   const replies: Reply[] = []
   async function run(name = 'presence_list', input: unknown = {}) {
-    const app = composePilot(
-      client,
-      new ConfigService({ GUILD_ID: 'g', CONVERSATION_PILOT_CHANNEL_IDS: 'c' }),
-      { set: async () => 'OK' } as unknown as Redis,
-      undefined,
-      {
+    const app = composeConversation({ client: client, config: new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' }), redis: { set: async () => 'OK' } as unknown as Redis, model: {
         generate: async ({ results }) =>
           results.length
             ? { text: JSON.stringify(results), calls: [] }
             : { text: '', calls: [{ id: 'query', name, input }] },
-      },
-      fetcher,
+      }, discordFetch: fetcher }
     )
     await app.handle(
       {

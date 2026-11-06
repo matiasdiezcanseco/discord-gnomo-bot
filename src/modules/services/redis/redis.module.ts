@@ -1,13 +1,17 @@
-import { DynamicModule, Module, Provider, Type, ForwardReference } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy, DynamicModule, Module, Provider, Type, ForwardReference } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import IORedis from 'ioredis';
-import { RedisHistoryService } from './redis-history.service';
-import { ReminderService } from '../reminder/reminder.service';
 
 export interface RedisModuleAsyncOptions {
   imports?: (Type<unknown> | DynamicModule | Promise<DynamicModule> | ForwardReference<unknown>)[];
   inject?: unknown[];
   useFactory?: (...args: unknown[]) => { url?: string | null };
+}
+
+@Injectable()
+class RedisLifecycle implements OnModuleDestroy {
+  constructor(@Inject('REDIS_CONNECTION') private readonly redis: IORedis | null) {}
+  onModuleDestroy() { this.redis?.disconnect() }
 }
 
 @Module({})
@@ -22,7 +26,9 @@ export class RedisModule {
           return null;
         }
         
-        return new IORedis(redisUrl);
+        const redis = new IORedis(redisUrl, { maxRetriesPerRequest: 0, connectTimeout: 1000, retryStrategy: () => null });
+        redis.on('error', () => undefined);
+        return redis;
       },
       inject: [ConfigService],
     };
@@ -30,8 +36,8 @@ export class RedisModule {
     return {
       module: RedisModule,
       imports: options.imports || [],
-      providers: [redisProvider, RedisHistoryService, ReminderService],
-      exports: ['REDIS_CONNECTION', RedisHistoryService, ReminderService],
+      providers: [redisProvider, RedisLifecycle],
+      exports: ['REDIS_CONNECTION'],
       global: true,
     };
   }

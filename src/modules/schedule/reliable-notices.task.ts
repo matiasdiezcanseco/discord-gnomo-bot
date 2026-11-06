@@ -19,6 +19,7 @@ export class ReliableNoticesTask {
   ) {}
   @Cron('*/10 * * * * *', { name: 'reliable-notices' })
   async dispatch() {
+    if (this.config.get<string>('RUNTIME_MODE', 'paused') === 'paused') return
     if (!this.redis || !this.discord.isReady()) return
     try {
       await new ScheduledNotices(this.redis).dispatch(

@@ -13,17 +13,20 @@ import { reminderCapability } from './reminders'
 import type { ScheduledNotices } from './scheduled-notices'
 
 /** Single composition point. Future capability modules export definitions, never edit the loop. */
-export function pilotCatalog(
-  collection?: CollectionSource,
-  members?: MemberDirectory,
-  history?: HistoryReader,
-  search?: PublicSearch,
-  live?: Partial<LiveMembers>,
-  web: SafeReader = safeReader(),
-  memory?: ReturnType<typeof memoryCapabilities>,
-  notices?: ScheduledNotices,
-) {
+export interface CapabilityDependencies {
+  collection?: CollectionSource
+  members?: MemberDirectory
+  history?: HistoryReader
+  search?: PublicSearch
+  live?: Partial<LiveMembers>
+  web?: SafeReader
+  memory?: ReturnType<typeof memoryCapabilities>
+  notices?: ScheduledNotices
+  extensions?: import('./catalog').Capability[]
+}
+export function composeCapabilities({ collection, members, history, search, live, web = safeReader(), memory, notices, extensions = [] }: CapabilityDependencies = {}) {
   return new Catalog([
+    ...extensions,
     reminderCapability(notices),
     webRead(web),
     messagesHistory(history),

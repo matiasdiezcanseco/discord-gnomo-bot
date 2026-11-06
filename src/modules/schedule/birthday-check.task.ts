@@ -1,3 +1,4 @@
+import { runtimeAllows } from '../../conversation/runtime-policy'
 import { Inject, Injectable } from '@nestjs/common'
 import { Cron } from '@nestjs/schedule'
 import type Redis from 'ioredis'
@@ -21,6 +22,7 @@ export class BirthdayCheckTask {
 
   @Cron('0 * * * * *', { name: 'birthday-check', timeZone: 'America/Lima' })
   async handleBirthdayCheck(now = Date.now()) {
+    if (!runtimeAllows(this.config, { guildId: this.config.get<string>('GUILD_ID', ''), channelId: this.config.get<string>('GNOMOS_CHANNEL_ID', '') }) || !this.config.get<string>('BUCKET_URL')) return
     if (!this.redis || !this.discord.isReady()) return
     try {
       await scheduleBirthdays(

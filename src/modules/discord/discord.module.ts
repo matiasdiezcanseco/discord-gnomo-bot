@@ -1,41 +1,32 @@
 import { Module } from '@nestjs/common'
 import { DiscordService } from './discord.service'
 import { MessageHandlerService } from './message-handler.service'
-import { OrchestratorModule } from '../../core/orchestrator/orchestrator.module'
 import { RedisModule } from '../services/redis/redis.module'
 import { LoggerModule } from '../services/logger/logger.module'
 import { ConfigModule } from '../config/config.module'
 import { ConfigService } from '@nestjs/config'
 import type Redis from 'ioredis'
 import { LoggerService } from '../services/logger/logger.service'
-import { composePilot } from './pilot-conversation'
-import { PilotMemory } from './pilot-memory'
+import { composeConversation } from './conversation-composition'
+import { RuntimeMemory } from './runtime-memory'
 
 @Module({
-  imports: [OrchestratorModule, RedisModule, LoggerModule, ConfigModule],
+  imports: [RedisModule, LoggerModule, ConfigModule],
   providers: [
     DiscordService,
     MessageHandlerService,
-    PilotMemory,
+    RuntimeMemory,
     {
-      provide: 'PILOT_CONVERSATION',
-      inject: [DiscordService, ConfigService, 'REDIS_CONNECTION', LoggerService, PilotMemory],
+      provide: 'CONVERSATION',
+      inject: [DiscordService, ConfigService, 'REDIS_CONNECTION', LoggerService, RuntimeMemory],
       useFactory: (
         discord: DiscordService,
         config: ConfigService,
         redis: Redis | null,
         logger: LoggerService,
-        memory: PilotMemory,
+        memory: RuntimeMemory,
       ) =>
-        composePilot(
-          discord.getClient(),
-          config,
-          redis,
-          (trace) => logger.createLogger('conversation').info(trace),
-          undefined,
-          undefined,
-          undefined,
-          memory.dependencies,
+        composeConversation({ client: discord.getClient(), config: config, redis: redis, trace: (trace) => logger.createLogger('conversation').info(trace), memory: memory.dependencies }
         ),
     },
   ],

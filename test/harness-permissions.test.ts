@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import Redis from 'ioredis'
 import { ConfigService } from '@nestjs/config'
 import type { Client } from 'discord.js'
-import { composePilot } from '../src/modules/discord/pilot-conversation'
+import { composeConversation } from '../src/modules/discord/conversation-composition'
 
 test(
   'composed pilot checks effective requester and bot permissions using authenticated IDs',
@@ -52,15 +52,15 @@ test(
         },
       },
     } as unknown as Client
-    const config = new ConfigService({ GUILD_ID: 'g', CONVERSATION_PILOT_CHANNEL_IDS: 'c' })
-    const conversation = composePilot(client, config, redis, undefined, {
+    const config = new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' })
+    const conversation = composeConversation({ client: client, config: config, redis: redis, model: {
       generate: async ({ results }) => {
         turns++
         return results.length
           ? { text: String(results[0].status), calls: [] }
           : { text: '', calls: [{ id: 'probe', name: 'pilot_status', input: {} }] }
       },
-    })
+    } })
     const invocation = {
       messageId: randomUUID(),
       guildId: 'g',

@@ -1,5 +1,13 @@
 import type Redis from 'ioredis'
-import type { Reminder } from '../modules/services/reminder/reminder.service'
+interface Reminder {
+  id: string
+  userId: string
+  username: string
+  channelId: string
+  message: string
+  dueTime: number
+  createdAt: number
+}
 import { ScheduledNotices } from './scheduled-notices'
 
 /** Explicit operator operation, never startup work. Stop old-version workers before enabling pilot. */
