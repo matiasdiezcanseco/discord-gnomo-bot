@@ -1,43 +1,25 @@
-FROM node:24-bullseye as builder
-
-RUN mkdir /app
+FROM node:24-bullseye AS builder
 WORKDIR /app
-
-# Copy package files first for better layer caching
 COPY package.json package-lock.json ./
-
-# Install ALL dependencies (including devDependencies) for building
-RUN npm ci
-
-# Copy prisma schema and generate client
-COPY prisma ./prisma
-RUN npm run db:generate
-
-# Copy source code
-COPY . .
-
-# Build the application
+RUN npm ci --ignore-scripts
+COPY nest-cli.json tsconfig*.json ./
+COPY src ./src
 RUN npm run build
 
-#######################################################################
-
-FROM node:24-bullseye
-
+FROM node:24-bullseye AS runtime
 LABEL fly_launch_runtime="nodejs"
-
-COPY --from=builder /app/dist /app/dist
-COPY --from=builder /app/package.json /app/package.json
-COPY --from=builder /app/package-lock.json /app/package-lock.json
-COPY --from=builder /app/prisma /app/prisma
-
 WORKDIR /app
-ENV NODE_ENV production
-
-# Install production dependencies only
-RUN npm ci --omit=dev
-
-# Generate Prisma client
-RUN npx prisma generate
-
-# Run the compiled application directly in production
-CMD [ "node", "dist/main.js" ]
+ENV NODE_ENV=production
+ENV PORT=3000
+# Database/Redis endpoints are supplied at runtime: Compose locally, secrets on Fly.
+# Never bake local or Supabase connection strings into this image.
+EXPOSE 3000
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts
+COPY --from=builder /app/dist ./dist
+# Startup applies pending Drizzle migrations before Discord; operator CLI remains available.
+COPY drizzle ./drizzle
+COPY scripts ./scripts
+COPY src ./src
+COPY tsconfig*.json ./
+CMD ["node", "dist/main.js"]

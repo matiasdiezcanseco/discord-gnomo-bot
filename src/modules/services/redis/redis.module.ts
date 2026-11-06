@@ -1,38 +1,46 @@
-import { DynamicModule, Module, Provider, Type, ForwardReference } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import IORedis from 'ioredis';
-import { RedisHistoryService } from './redis-history.service';
-import { ReminderService } from '../reminder/reminder.service';
+import { Global, Inject, Injectable, Module, OnModuleDestroy } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import IORedis from 'ioredis'
+import { ConfigModule } from '../../config/config.module'
 
-export interface RedisModuleAsyncOptions {
-  imports?: (Type<unknown> | DynamicModule | Promise<DynamicModule> | ForwardReference<unknown>)[];
-  inject?: unknown[];
-  useFactory?: (...args: unknown[]) => { url?: string | null };
-}
-
-@Module({})
-export class RedisModule {
-  static forRootAsync(options: RedisModuleAsyncOptions): DynamicModule {
-    const redisProvider: Provider = {
-      provide: 'REDIS_CONNECTION',
-      useFactory: async (config: ConfigService) => {
-        const redisUrl = config.get<string>('REDIS_URL');
-        
-        if (!redisUrl) {
-          return null;
-        }
-        
-        return new IORedis(redisUrl);
-      },
-      inject: [ConfigService],
-    };
-
-    return {
-      module: RedisModule,
-      imports: options.imports || [],
-      providers: [redisProvider, RedisHistoryService, ReminderService],
-      exports: ['REDIS_CONNECTION', RedisHistoryService, ReminderService],
-      global: true,
-    };
+@Injectable()
+class RedisLifecycle implements OnModuleDestroy {
+  constructor(@Inject('REDIS_CONNECTION') private readonly redis: IORedis | null) {}
+  onModuleDestroy() {
+    this.redis?.disconnect()
   }
 }
+
+@Global()
+@Module({
+  imports: [ConfigModule],
+  providers: [
+    RedisLifecycle,
+    {
+      provide: 'REDIS_CONNECTION',
+      inject: [ConfigService],
+      useFactory: async (config: ConfigService) => {
+        const url = config.get<string>('REDIS_URL')
+        if (!url) return null
+        const redis = new IORedis(url, {
+          lazyConnect: true,
+          maxRetriesPerRequest: 0,
+          connectTimeout: 1000,
+          commandTimeout: 2000,
+          enableOfflineQueue: false,
+          retryStrategy: (attempt) => Math.min(attempt * 100, 2000),
+        })
+        redis.on('error', () => undefined)
+        try {
+          await redis.connect()
+        } catch {
+          redis.disconnect()
+          throw new Error('Redis unavailable at startup')
+        }
+        return redis
+      },
+    },
+  ],
+  exports: ['REDIS_CONNECTION'],
+})
+export class RedisModule {}

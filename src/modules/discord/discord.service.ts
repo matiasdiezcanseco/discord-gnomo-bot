@@ -1,60 +1,62 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { Client, GatewayIntentBits } from 'discord.js';
-import { ConfigService } from '@nestjs/config';
-import { LoggerService } from '../services/logger/logger.service';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common'
+import { Client, GatewayIntentBits } from 'discord.js'
+import { ConfigService } from '@nestjs/config'
+import { LoggerService } from '../services/logger/logger.service'
 
 @Injectable()
 export class DiscordService implements OnModuleInit, OnModuleDestroy {
-  private readonly client: Client;
+  private readonly client: Client
 
   constructor(
     private readonly config: ConfigService,
     private readonly logger: LoggerService,
   ) {
     this.client = new Client({
+      // Discord 5xx can mean acceptance is unknown. The notice dispatcher owns retry policy.
+      rest: { retries: 0, timeout: 10000, rejectOnRateLimit: () => true },
       intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildPresences,
         GatewayIntentBits.GuildVoiceStates,
       ],
-    });
+    })
   }
 
   async onModuleInit() {
     this.client.once('ready', () => {
-      this.logger.log(
-        { tag: this.client.user?.tag },
-        'Discord client ready',
-      );
-    });
+      this.logger.log({ tag: this.client.user?.tag }, 'Discord client ready')
+    })
 
-    await this.client.login(this.config.get<string>('BOT_TOKEN'));
+    const token = this.config.get<string>('BOT_TOKEN')
+    if (token && this.config.get<string>('RUNTIME_MODE', 'paused') !== 'paused')
+      await this.client.login(token)
   }
 
   async onModuleDestroy() {
-    await this.client.destroy();
+    await this.client.destroy()
   }
 
   /**
    * Get the Discord client instance
    */
   getClient(): Client {
-    return this.client;
+    return this.client
   }
 
   /**
    * Check if client is ready
    */
   isReady(): boolean {
-    return this.client.isReady();
+    return this.client.isReady()
   }
 
   /**
    * Get a channel by ID
    */
   getChannel(channelId: string) {
-    return this.client.channels.cache.get(channelId);
+    return this.client.channels.cache.get(channelId)
   }
 }

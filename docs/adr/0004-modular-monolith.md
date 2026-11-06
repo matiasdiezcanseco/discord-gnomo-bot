@@ -1,0 +1,3 @@
+# Profundizar el monolito modular existente
+
+Se conservarán NestJS, TypeScript, Redis y PostgreSQL y se migrarán las capacidades por etapas dentro de un único proceso inicial, con un piloto antes de sustituir la ruta actual. La implementación puede reescribirse por completo: el código existente es una guía de funcionalidad y no obliga a conservar sus módulos ni su organización. Para un bot personal se evita introducir otra infraestructura a la vez que se reestructuran los límites del sistema; el acceso al modelo se encapsulará para que la elección del SDK no determine las políticas de herramientas.

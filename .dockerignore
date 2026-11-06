@@ -1,5 +1,18 @@
-fly.toml
-Dockerfile
-.dockerignore
-node_modules
-.git
+# Allow only reviewed build/runtime inputs. Local configuration and measurements
+# (including private cards, logs, dotenv and credentials) never enter the context.
+**
+!package.json
+!package-lock.json
+!nest-cli.json
+!tsconfig*.json
+!src/
+!src/**
+!drizzle/
+!drizzle/**
+!scripts/
+!scripts/**
+**/.env*
+**/*.pem
+**/*.key
+**/*measurement*
+**/*private*

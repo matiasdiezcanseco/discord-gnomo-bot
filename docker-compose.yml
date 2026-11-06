@@ -1,3 +1,5 @@
+name: discord-gnomo-bot
+
 services:
   redis:
     image: redis:alpine
@@ -8,5 +10,80 @@ services:
       - redis_data:/data
     command: redis-server --requirepass gnomo123
 
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: gnomo
+      POSTGRES_PASSWORD: gnomo-local
+      POSTGRES_DB: gnomo
+    ports:
+      - '127.0.0.1:${LOCAL_POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U gnomo -d gnomo']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    profiles: ['tools']
+    build:
+      context: .
+      target: runtime
+    command: ['node', 'dist/database/migrate.js']
+    environment:
+      PILOT_MEMORY_DATABASE_URL: postgresql://gnomo:gnomo-local@postgres:5432/gnomo
+      DATABASE_URL: postgresql://gnomo:gnomo-local@postgres:5432/gnomo
+      DATABASE_URL_POOLED: ''
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  sandbox:
+    profiles: ['sandbox']
+    build:
+      context: .
+      target: runtime
+    command: ['node', 'dist/sandbox/cli.js']
+    stdin_open: true
+    tty: true
+    environment:
+      SANDBOX_DATABASE_URL: postgresql://gnomo:gnomo-local@postgres:5432/gnomo_sandbox
+      SANDBOX_REDIS_URL: redis://:gnomo123@redis:6379/14
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  bot:
+    profiles: ['bot']
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.local
+        required: false
+    environment:
+      # These endpoints are for containers; .env-example uses host endpoints.
+      PILOT_MEMORY_DATABASE_URL: postgresql://gnomo:gnomo-local@postgres:5432/gnomo
+      DATABASE_URL: postgresql://gnomo:gnomo-local@postgres:5432/gnomo
+      DATABASE_URL_POOLED: ''
+      REDIS_URL: redis://:gnomo123@redis:6379/15
+      # Starting the local stack alone never logs into Discord.
+      RUNTIME_MODE: ${RUNTIME_MODE:-paused}
+      PORT: 3000
+    ports:
+      - '127.0.0.1:${LOCAL_BOT_PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
 volumes:
   redis_data:
+  postgres_data:
