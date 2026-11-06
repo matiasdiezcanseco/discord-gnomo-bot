@@ -19,9 +19,9 @@ Los tickets siguen abiertos hasta la resolución mediante el PR; integrado no si
 | T08 / #10 | Integrado | 712777f; 127 pruebas con Redis real, tipos, build y lint aprobados |
 | T09 / #11 | Implementador en ejecución | Adjuntos visuales sobre lector seguro |
 | T10 / #12 | Integrado | 54cdf24; 129 pruebas sin omisiones, PostgreSQL/pgvector y Redis reales, reinicio PostgreSQL comprobado |
-| T11 / #13 | Próximo implementador | Migración de recuerdos |
-| T12 / #14 | Implementador en ejecución | Recordatorios recuperables |
-| T13 / #15 | Pendiente de T12 | Cumpleaños |
+| T11 / #13 | Implementador en ejecución | Migración de recuerdos, reanudada en el mismo worktree tras límite |
+| T12 / #14 | Integrado | efc7d37; 138 pruebas sin omisiones, PostgreSQL y Redis reales, reinicio AOF Redis comprobado |
+| T13 / #15 | Próximo implementador | Cumpleaños sobre entrega recuperable |
 | T14 / #16 | Pendiente de capacidades | Integración y latencia |
 | T15 / #17 | Pendiente de T14 | Piloto y transición |
 
@@ -36,3 +36,7 @@ T06 integrado desde `t3-36f1523d`, rama `feat/presence-voice`. La integración r
 T08 integrado desde `t3-f9a8e2da`, rama `feat/public-web-reading`. Dependencias htmlparser2/ipaddr.js instaladas según lockfile; pruebas con HTTP/HTTPS/DNS controlados verifican el lector y las restricciones de red, sin certificar latencia de servicios reales.
 
 T10 integrado desde `t3-b7b28ee9`, rama `feat/explicit-memory`. Contratos de almacenamiento e instalación aditiva: `docs/tickets/gnomo-refactor/10-storage-contract.md`. No se han importado todavía datos antiguos.
+
+T12 integrado desde `t3-b288b963`, rama `feat/reliable-reminders`. Tras interrupción por límite, el merger conservó las 138 pruebas aprobadas y completó tipos/build/lint. Solo retiró sus recursos aislados; no tocó los recursos de imágenes o migración. Contratos y transición explícita de avisos: `docs/reliable-reminders.md`.
+
+Worktrees activos a conservar: T09 en `t3-1243cee0`, rama `feat/attached-image-inputs`; T11 en `t3-6699debc`, rama `feat/migrate-legacy-memories`. Ambos retomaron su trabajo parcial con el mismo proveedor/modelo.
