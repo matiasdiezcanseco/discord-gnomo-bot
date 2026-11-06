@@ -1,59 +1,39 @@
-import { Injectable } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
-import dayjs from 'dayjs';
-import { userMention, type TextChannel } from 'discord.js';
-import { DiscordService } from '../discord/discord.service';
-import { BucketService } from '../services/bucket/bucket.service';
-import { LoggerService } from '../services/logger/logger.service';
-import { ConfigService } from '@nestjs/config';
+import { Inject, Injectable } from '@nestjs/common'
+import { Cron } from '@nestjs/schedule'
+import type Redis from 'ioredis'
+import { DiscordService } from '../discord/discord.service'
+import { BucketService } from '../services/bucket/bucket.service'
+import { LoggerService } from '../services/logger/logger.service'
+import { ConfigService } from '@nestjs/config'
+import { scheduleBirthdays } from '../../conversation/birthdays'
+import { ScheduledNotices } from '../../conversation/scheduled-notices'
 
-interface Birthday {
-  id: string;
-  name: string;
-  date: string;
-}
-
-/**
- * Task to check for birthdays and send greetings
- * Runs daily at 8 AM
- */
+/** Sole producer for the configured group, including outside the conversation pilot. */
 @Injectable()
 export class BirthdayCheckTask {
-  private readonly logger;
-
   constructor(
     private readonly discord: DiscordService,
     private readonly bucket: BucketService,
     private readonly config: ConfigService,
-    loggerService: LoggerService,
-  ) {
-    this.logger = loggerService.createLogger('birthday-check');
-  }
+    private readonly logger: LoggerService,
+    @Inject('REDIS_CONNECTION') private readonly redis: Redis | null,
+  ) {}
 
-  @Cron('0 8 * * *', { name: 'birthday-check' })
-  async handleBirthdayCheck() {
-    const birthdays = await this.bucket.fetchBucketData<Birthday[]>('birthdays.json');
-    if (!birthdays) return;
-
-    const today = dayjs().format('MM-DD');
-    const channelId = this.config.get<string>('GNOMOS_CHANNEL_ID');
-
-    if (!channelId) {
-      this.logger.warn('GNOMOS_CHANNEL_ID not configured');
-      return;
-    }
-
-    const channel = this.discord.getChannel(channelId);
-    if (!channel || channel.type !== 0) return; // 0 is GuildText
-
-    const textChannel = channel as TextChannel;
-
-    for (const birthday of birthdays) {
-      if (birthday.date === today) {
-        const message = `${userMention(birthday.id)} Feliz cumpleaños ${birthday.name}! 🎉🎉🎉`;
-        this.logger.info({ name: birthday.name, userId: birthday.id }, 'Sending birthday message');
-        await textChannel.send(message);
-      }
+  @Cron('0 * * * * *', { name: 'birthday-check', timeZone: 'America/Lima' })
+  async handleBirthdayCheck(now = Date.now()) {
+    if (!this.redis || !this.discord.isReady()) return
+    try {
+      await scheduleBirthdays(
+        now,
+        {
+          guildId: this.config.get<string>('GUILD_ID'),
+          channelId: this.config.get<string>('GNOMOS_CHANNEL_ID'),
+        },
+        () => this.bucket.fetchBucketData<unknown>('birthdays.json'),
+        new ScheduledNotices(this.redis),
+      )
+    } catch {
+      this.logger.error('Birthday scheduling failed; safe to retry', 'birthday-check')
     }
   }
 }

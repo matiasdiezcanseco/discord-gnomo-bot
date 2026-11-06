@@ -3,9 +3,22 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { Invocation } from '../core/conversation/invocation'
 import type { Reply } from './harness'
 
+/** Trusted scheduler origin; never accepted by conversation capabilities. */
+export interface BirthdayOrigin {
+  kind: 'birthday'
+  guildId: string
+  channelId: string
+  requester: { id: string; username: string }
+  calendarDate: string
+}
+export type ScheduledOrigin = Invocation | BirthdayOrigin
+export function isBirthday(origin: ScheduledOrigin): origin is BirthdayOrigin {
+  return 'kind' in origin && origin.kind === 'birthday'
+}
+
 export interface ScheduledNotice {
   id: string
-  origin: Invocation
+  origin: ScheduledOrigin
   text: string
   due: number
   state: 'pending' | 'leased' | 'sending' | 'sent' | 'uncertain' | 'dead'
@@ -23,8 +36,8 @@ export class NoticeFailure extends Error {
   }
 }
 export interface ScheduledDelivery {
-  authorize(origin: Invocation): Promise<boolean>
-  send(origin: Invocation, reply: Reply): Promise<void>
+  authorize(origin: ScheduledOrigin): Promise<boolean>
+  send(origin: ScheduledOrigin, reply: Reply): Promise<void>
 }
 
 /** Redis single-instance atomic transitions; no TTL on records or idempotency keys. */
@@ -43,12 +56,20 @@ export class ScheduledNotices {
     const value = await this.redis.hget(this.records, id)
     return value ? JSON.parse(value) : null
   }
-  async save(origin: Invocation, text: string, due: number, legacyId?: string) {
+  async save(origin: ScheduledOrigin, text: string, due: number, legacyId?: string) {
     const id = createHash('sha256')
       .update(
-        legacyId
-          ? `legacy:${legacyId}`
-          : JSON.stringify([origin.guildId, origin.channelId, origin.messageId]),
+        isBirthday(origin)
+          ? JSON.stringify([
+              'birthday',
+              origin.guildId,
+              origin.channelId,
+              origin.requester.id,
+              origin.calendarDate,
+            ])
+          : legacyId
+            ? `legacy:${legacyId}`
+            : JSON.stringify([origin.guildId, origin.channelId, origin.messageId]),
       )
       .digest('hex')
     const record: ScheduledNotice = { id, origin, text, due, state: 'pending', attempts: 0 }
@@ -132,7 +153,9 @@ export class ScheduledNotices {
         // A durable sending marker must succeed before the external effect. Fence stale workers.
         if (!(await this.transition(id, token, 'sending', '', now + 30000))) continue
         await delivery.send(record.origin, {
-          content: `<@${record.origin.requester.id}> ¡Recordatorio! ${record.text}`,
+          content: isBirthday(record.origin)
+            ? `<@${record.origin.requester.id}> Feliz cumpleaños ${record.text}! 🎉🎉🎉`
+            : `<@${record.origin.requester.id}> ¡Recordatorio! ${record.text}`,
           allowedMentions: {
             parse: [],
             users: [record.origin.requester.id],

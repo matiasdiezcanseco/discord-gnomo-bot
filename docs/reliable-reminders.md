@@ -8,7 +8,7 @@ original invocation timestamp. Unsupported or ambiguous expressions (including
 This conservative grammar avoids a second model parsing loop. Other phrasings
 need the explicit form shown in the clarification. One invocation creates at most
 one own reminder. No DM, arbitrary destination, other recipient, cancellation,
-admin tooling or birthday migration is exposed.
+admin tooling or birthday creation is exposed through conversation.
 
 ## Public contracts and composition
 
@@ -36,7 +36,8 @@ birthday origin/recipient policy and presentation; this ticket does not grant on
 through conversation tools. The current presentation says “¡Recordatorio!”.
 
 `ReliableNoticesTask` is a Nest provider in `ScheduleModule`, with an actual
-ten-second cron and ready-client guard. Birthday scheduling remains unchanged.
+ten-second cron and ready-client guard. T13 replaces the sole birthday producer with shared notice scheduling; see
+`scheduled-birthdays.md` for its trusted origin, source and destination policy.
 No detached process, startup migration, or alternate Discord listener is added.
 
 ## Redis schema and failure semantics

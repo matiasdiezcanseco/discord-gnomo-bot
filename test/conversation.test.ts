@@ -277,49 +277,10 @@ test('a due reminder notifies its saved requester in its saved channel and leave
   assert.deepEqual(await reminders.getDueReminders(Date.now()), [])
 })
 
-test('existing birthdays notify the configured channel on the matching day', async (t) => {
-  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-05T17:00:00Z') })
+test('birthdays never fall back to an unclaimed legacy send when Redis is unavailable', async () => {
   const app = harness(new MockLanguageModelV3())
-  app.config.set('GNOMOS_CHANNEL_ID', 'birthdays')
-  const notices: string[] = []
-  const create = axios.create.bind(axios)
-  const transport = mock.method(axios, 'create', (options: CreateAxiosDefaults) =>
-    create({
-      ...options,
-      adapter: async (config) => ({
-        data: [
-          { id: '42', name: 'Ana', date: '11-05' },
-          { id: '43', name: 'Luis', date: '11-06' },
-        ],
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config,
-      }),
-    }),
-  )
-  try {
-    const discord = {
-      getChannel: (id: string) =>
-        id === 'birthdays'
-          ? {
-              type: 0,
-              async send(text: string) {
-                notices.push(text)
-              },
-            }
-          : undefined,
-    } as unknown as DiscordService
-    await new BirthdayCheckTask(
-      discord,
-      new BucketService(app.config, app.logger),
-      app.config,
-      app.logger,
-    ).handleBirthdayCheck()
-    assert.deepEqual(notices, ['<@42> Feliz cumpleaños Ana! 🎉🎉🎉'])
-  } finally {
-    transport.mock.restore()
-  }
+  const discord = { isReady: () => true, getChannel: () => assert.fail('unclaimed legacy send') } as unknown as DiscordService
+  await new BirthdayCheckTask(discord, new BucketService(app.config, app.logger), app.config, app.logger, null).handleBirthdayCheck()
 })
 
 import { WebSearchTool } from '../src/core/tools/search/web-search.tool'
