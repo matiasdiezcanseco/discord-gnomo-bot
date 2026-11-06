@@ -59,7 +59,7 @@ const recordColumns = `id, guild_id, channel_id, author_id, subject, key, catego
 export function memoryCapabilities(
   dependencies?: MemoryDependencies,
   ownerId?: string,
-  reauthorize: (invocation: Invocation) => Promise<boolean> = async () => false,
+  reauthorize: (invocation: Invocation, signal?: AbortSignal) => Promise<boolean> = async () => false,
 ) {
   // Owner is deployment configuration only; invalid/missing config disables all new memory.
   const configured = dependencies && /^\d{17,20}$/.test(ownerId ?? '')
@@ -112,7 +112,7 @@ async function execute(
   dependencies: MemoryDependencies,
   intent: Request,
   context: ExecutionContext,
-  reauthorize: (invocation: Invocation) => Promise<boolean>,
+  reauthorize: (invocation: Invocation, signal?: AbortSignal) => Promise<boolean>,
   ownerId: string,
 ): Promise<string> {
   const { invocation, signal } = context
@@ -152,7 +152,7 @@ async function execute(
     await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [
       JSON.stringify([invocation.guildId, invocation.channelId]),
     ])
-    if (!(await reauthorize(invocation))) return 'denied: permisos actuales insuficientes.'
+    if (!(await reauthorize(invocation, signal))) return 'denied: permisos actuales insuficientes.'
     signal.throwIfAborted()
     const scope = [invocation.guildId, invocation.channelId]
     if (intent.operation === 'search') {

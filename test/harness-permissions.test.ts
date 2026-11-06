@@ -106,3 +106,47 @@ test(
     }
   },
 )
+
+test('expired authorization stops chained Discord lookups while timeout delivery and another invocation retain their own budgets',
+  { skip: !process.env.T02_REDIS_URL }, async () => {
+    const redis = new Redis(process.env.T02_REDIS_URL!)
+    let expire!: () => void, finish!: () => void, began!: () => void
+    let lateQueries = 0, normalQueries = 0, first = true, now = 0
+    const started = new Promise<void>(r => { began = r })
+    const gate = new Promise<void>(r => { finish = r })
+    const channel = { isTextBased: () => true, isThread: () => false,
+      permissionsFor: () => ({ has: () => true }) }
+    const guild = (late: boolean) => ({
+      channels: { fetch: async () => { if (late) lateQueries++; else normalQueries++; return channel } },
+      members: { fetch: async ({ user }: { user: string }) => ({ id: user }) },
+    })
+    const client = { user: { id: 'bot' }, guilds: { fetch: async () => {
+      if (first) { first = false; began(); await gate; return guild(true) }
+      return guild(false)
+    } } } as unknown as Client
+    const replies: string[] = []
+    const app = composeConversation({ client, redis,
+      config: new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' }),
+      clock: { now: () => now, schedule: (callback, delay) => {
+        if (delay === 12000) expire = callback
+        return () => {}
+      } },
+      discordFetch: async () => new Response('[]'),
+      model: { generate: async () => ({ text: 'Hola', calls: [] }) },
+    })
+    const invocation = { messageId: randomUUID(), guildId: 'g', channelId: 'c',
+      requester: { id: 'u', username: 'Ana' }, content: 'hola', createdAt: 0, attachments: [] }
+    try {
+      const pending = app.handle(invocation, async (_, reply) => { replies.push(reply.content) })
+      await started
+      now = 12001; expire()
+      await pending
+      assert.match(replies[0], /agotó el tiempo/)
+      finish()
+      await new Promise(resolve => setImmediate(resolve))
+      assert.equal(lateQueries, 0, 'the expired guild lookup must never start a channel request')
+      await app.handle({ ...invocation, messageId: randomUUID() }, async (_, reply) => { replies.push(reply.content) })
+      assert.equal(replies[1], 'Hola')
+      assert.ok(normalQueries > 0, 'fresh delivery and independent invocation revalidate permissions')
+    } finally { finish?.(); await redis.quit() }
+  })

@@ -30,7 +30,7 @@ export class Executor {
     const visible: Capability[] = []
     for (const tool of this.tools) {
       if (
-        (await this.budget.wait(() => this.discover(this.invocation, tool))) &&
+        (await this.budget.wait(() => this.discover(this.invocation, tool, this.context.signal))) &&
         (await this.budget.wait(() => tool.available(this.context)))
       )
         visible.push(tool)
@@ -46,7 +46,7 @@ export class Executor {
         ...(value === undefined ? {} : { value }),
       })
       const tool = this.tools.find((tool) => tool.name === call.name)
-      if (!tool || !(await this.budget.wait(() => this.authorize(this.invocation, tool))))
+      if (!tool || !(await this.budget.wait(() => this.authorize(this.invocation, tool, this.context.signal))))
         return result('denied')
       if (tool.effect === 'write' && this.uncertain) return result('uncertain')
       if (!(await this.budget.wait(() => tool.available(this.context))))

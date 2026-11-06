@@ -57,7 +57,7 @@ export interface ConversationPorts {
   catalog?: Catalog
   clock?: Clock
   concurrency?: number
-  authorize(invocation: Invocation, tool?: Capability): Promise<boolean>
+  authorize(invocation: Invocation, tool?: Capability, signal?: AbortSignal): Promise<boolean>
   /** Pure deployment policy for discovery after authorization; execution always reauthorizes. */
   discover?: ConversationPorts['authorize']
   claim(invocation: Invocation): Promise<boolean>
@@ -128,7 +128,7 @@ export function createConversation(ports: ConversationPorts) {
         trace('queued')
         release = await admission.acquire(signal)
         trace('admitted')
-        if (!(await budget.wait(() => ports.authorize(invocation)))) {
+        if (!(await budget.wait(() => ports.authorize(invocation, undefined, signal)))) {
           text = 'No tengo permiso para responder aquí.'
           trace('authorization', 'denied')
         } else {
@@ -173,7 +173,7 @@ export function createConversation(ports: ConversationPorts) {
                 )
           for (; direct.length !== 1 && budget.steps < 5; ) {
             budget.check()
-            if (images?.length && !(await budget.wait(() => ports.authorize(invocation))))
+            if (images?.length && !(await budget.wait(() => ports.authorize(invocation, undefined, signal))))
               throw new AttachmentError('Se revocó el permiso para responder aquí.')
             budget.steps++
             const visible = await executor.available()
@@ -260,7 +260,7 @@ export function createConversation(ports: ConversationPorts) {
       const delivery = new Budget(clock, budget.startedAt, 15000)
       try {
         for (const content of chunks) {
-          if (!(await delivery.wait(() => ports.authorize(invocation)))) {
+          if (!(await delivery.wait(() => ports.authorize(invocation, undefined, delivery.controller.signal)))) {
             trace('delivery', 'denied')
             return
           }

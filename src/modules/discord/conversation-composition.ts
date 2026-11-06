@@ -2,7 +2,7 @@ import { DEFAULT_OPENAI_MODEL } from '../config/constants'
 import { runtimeAllows } from '../../conversation/runtime-policy'
 import { tavilySearch } from '../../conversation/public-search'
 import type { Client } from 'discord.js'
-import { ChannelType, PermissionFlagsBits } from 'discord.js'
+import { effectiveChannelAccess } from './effective-channel-access'
 import type { ConfigService } from '@nestjs/config'
 import type Redis from 'ioredis'
 import { openai } from '@ai-sdk/openai'
@@ -24,44 +24,31 @@ export interface ConversationComposition {
   client: Client
   config: ConfigService
   redis: Redis | null
+  clock?: ConversationPorts['clock']
   trace?: ConversationPorts['trace']
   model?: ConversationPorts['model']
   discordFetch?: typeof fetch
   web?: SafeReader
   memory?: MemoryDependencies
 }
-export function composeConversation({ client, config, redis, trace,
+export function composeConversation({ client, config, redis, trace, clock,
   model = aiSdkModel(openai(config.get<string>('OPENAI_MODEL', DEFAULT_OPENAI_MODEL))),
   discordFetch = fetch, web = safeReader(), memory,
 }: ConversationComposition) {
   const members = discordMembers(client, discordFetch)
-  const authorize: ConversationPorts['authorize'] = async (invocation, tool) => {
+  const authorize: ConversationPorts['authorize'] = async (invocation, tool, signal) => {
+    signal?.throwIfAborted()
     if (!runtimeAllows(config, invocation)) return false
     // Fresh membership and channel data; model arguments never participate in this lookup.
     const guild = await client.guilds.fetch(invocation.guildId)
+    signal?.throwIfAborted()
     const channel = await guild.channels.fetch(invocation.channelId, { force: true })
     if (!channel || !channel.isTextBased() || !client.user) return false
-    const [requester, bot] = await Promise.all([
-      guild.members.fetch({ user: invocation.requester.id, force: true }),
-      guild.members.fetch({ user: client.user.id, force: true }),
-    ])
-    const read = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory]
-    const send = channel.isThread()
-      ? PermissionFlagsBits.SendMessagesInThreads
-      : PermissionFlagsBits.SendMessages
-    if (
-      !channel.permissionsFor(requester)?.has(read) ||
-      !channel.permissionsFor(bot)?.has([...read, send])
-    )
-      return false
-    if (channel.isThread() && (channel.archived || channel.locked)) return false
-    if (channel.type === ChannelType.PrivateThread && channel.isThread()) {
-      try {
-        await Promise.all([channel.members.fetch(requester.id), channel.members.fetch(bot.id)])
-      } catch {
-        return false
-      }
-    }
+    const [requester, bot] = await Promise.all([invocation.requester.id, client.user.id].map(user => {
+      signal?.throwIfAborted()
+      return guild.members.fetch({ user, force: true })
+    }))
+    if (!(await effectiveChannelAccess(channel, requester, bot, signal, true))) return false
     return enabled(invocation, tool)
   }
   const enabled: ConversationPorts['authorize'] = async (invocation, tool) => {
@@ -92,7 +79,7 @@ export function composeConversation({ client, config, redis, trace,
   // With durable memory enabled, never retain history pages that may contain old memory replies.
   const history = discordHistory(
     client,
-    (invocation) => authorize(invocation),
+    (invocation, signal) => authorize(invocation, undefined, signal),
     discordFetch,
     !memory,
   )
@@ -101,7 +88,7 @@ export function composeConversation({ client, config, redis, trace,
       const images = await attachedImages(web)({
         ...context,
         external: async (work) => {
-          if (!(await authorize(context.invocation))) throw new Error('permission revoked')
+          if (!(await authorize(context.invocation, undefined, context.signal))) throw new Error('permission revoked')
           return context.external(work)
         },
       })
@@ -109,12 +96,13 @@ export function composeConversation({ client, config, redis, trace,
     },
     loadContext: async (context) => history(context, 30),
     model,
-    catalog: composeCapabilities({ collection: bucketCollection(config.get<string>('BUCKET_URL')), members: members, history: history, search: tavilySearch(config.get<string>('TAVILY_API_KEY')), live: discordLiveMembers(client, members), web: web, memory: memoryCapabilities(memory, config.get<string>('MEMORY_OWNER_ID'), (invocation) =>
-        authorize(invocation),
+    catalog: composeCapabilities({ collection: bucketCollection(config.get<string>('BUCKET_URL')), members: members, history: history, search: tavilySearch(config.get<string>('TAVILY_API_KEY')), live: discordLiveMembers(client, members), web: web, memory: memoryCapabilities(memory, config.get<string>('MEMORY_OWNER_ID'), (invocation, signal) =>
+        authorize(invocation, undefined, signal),
       ), notices: redis ? new ScheduledNotices(redis) : undefined }
     ),
     allowedUserMentions: memberMentions(members),
     trace,
+    clock,
     concurrency: config.get<number>('CONVERSATION_CONCURRENCY', 4),
     claim: redis
       ? redisClaims(redis)
