@@ -71,3 +71,10 @@ La revisión final usa la base inicial documentada. Hallazgo de integración a
 incluir en el implementador único de correcciones: Dockerfile todavía invoca
 db:generate/Prisma retirados; el contenedor no está certificado. No se han
 modificado datos ni servicios de producción.
+
+Revisión independiente final completada contra 490459b: Standards no encuentra
+infracciones documentadas y propone dos deduplicaciones; Spec encuentra imagen
+rota (P1), starvation de avisos excluidos y subconsultas de autorización tras
+vencimiento (P2). Informe separado por ejes: `docs/final-code-review.md`.
+Un único implementador corregirá los cinco puntos con regresiones y verificación
+de contenedor; el PR sigue en borrador y la aceptación viva sigue pendiente.
