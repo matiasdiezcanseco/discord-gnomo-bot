@@ -59,7 +59,8 @@ const recordColumns = `id, guild_id, channel_id, author_id, subject, key, catego
 export function memoryCapabilities(
   dependencies?: MemoryDependencies,
   ownerId?: string,
-  reauthorize: (invocation: Invocation, signal?: AbortSignal) => Promise<boolean> = async () => false,
+  reauthorize: (invocation: Invocation, signal?: AbortSignal) => Promise<boolean> = async () =>
+    false,
 ) {
   // Owner is deployment configuration only; invalid/missing config disables all new memory.
   const configured = dependencies && /^\d{17,20}$/.test(ownerId ?? '')

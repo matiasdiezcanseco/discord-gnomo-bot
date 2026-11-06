@@ -1,4 +1,9 @@
-import { ChannelType, PermissionFlagsBits, type GuildBasedChannel, type GuildMember } from 'discord.js'
+import {
+  ChannelType,
+  PermissionFlagsBits,
+  type GuildBasedChannel,
+  type GuildMember,
+} from 'discord.js'
 
 /** Shared effective access only. Callers retain source policy and error classification. */
 export async function effectiveChannelAccess(
@@ -13,15 +18,20 @@ export async function effectiveChannelAccess(
   const send = channel.isThread()
     ? PermissionFlagsBits.SendMessagesInThreads
     : PermissionFlagsBits.SendMessages
-  if (!channel.permissionsFor(requester)?.has(read) ||
-      !channel.permissionsFor(bot)?.has([...read, send])) return false
+  if (
+    !channel.permissionsFor(requester)?.has(read) ||
+    !channel.permissionsFor(bot)?.has([...read, send])
+  )
+    return false
   if (channel.isThread() && (channel.archived || channel.locked)) return false
   if (channel.type === ChannelType.PrivateThread && channel.isThread()) {
     try {
-      await Promise.all([requester.id, bot.id].map(id => {
-      signal?.throwIfAborted()
-      return channel.members.fetch(id)
-      }))
+      await Promise.all(
+        [requester.id, bot.id].map((id) => {
+          signal?.throwIfAborted()
+          return channel.members.fetch(id)
+        }),
+      )
     } catch (error) {
       signal?.throwIfAborted()
       if (denyMissingThreadMember) return false

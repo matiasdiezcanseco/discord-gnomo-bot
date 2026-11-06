@@ -6,7 +6,9 @@ export async function readBoundedBody(
 ): Promise<Buffer> {
   signal.throwIfAborted()
   const reader = body.getReader()
-  const cancel = () => { void reader.cancel(signal.reason).catch(() => {}) }
+  const cancel = () => {
+    void reader.cancel(signal.reason).catch(() => {})
+  }
   signal.addEventListener('abort', cancel, { once: true })
   const chunks: Uint8Array[] = []
   let bytes = 0

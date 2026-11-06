@@ -173,7 +173,10 @@ export function createConversation(ports: ConversationPorts) {
                 )
           for (; direct.length !== 1 && budget.steps < 5; ) {
             budget.check()
-            if (images?.length && !(await budget.wait(() => ports.authorize(invocation, undefined, signal))))
+            if (
+              images?.length &&
+              !(await budget.wait(() => ports.authorize(invocation, undefined, signal)))
+            )
               throw new AttachmentError('Se revocó el permiso para responder aquí.')
             budget.steps++
             const visible = await executor.available()
@@ -260,7 +263,11 @@ export function createConversation(ports: ConversationPorts) {
       const delivery = new Budget(clock, budget.startedAt, 15000)
       try {
         for (const content of chunks) {
-          if (!(await delivery.wait(() => ports.authorize(invocation, undefined, delivery.controller.signal)))) {
+          if (
+            !(await delivery.wait(() =>
+              ports.authorize(invocation, undefined, delivery.controller.signal),
+            ))
+          ) {
             trace('delivery', 'denied')
             return
           }

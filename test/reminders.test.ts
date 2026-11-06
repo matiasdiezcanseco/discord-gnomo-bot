@@ -523,8 +523,10 @@ test(
   },
 )
 
-test('bounded dispatch advances beyond multiple excluded batches, including tied due scores and concurrent resume',
-  { skip: !process.env.T02_REDIS_URL }, async () => {
+test(
+  'bounded dispatch advances beyond multiple excluded batches, including tied due scores and concurrent resume',
+  { skip: !process.env.T02_REDIS_URL },
+  async () => {
     const redis = new Redis(process.env.T02_REDIS_URL!)
     const ns = `test:review:${randomUUID()}`
     const store = new ScheduledNotices(redis, ns)
@@ -533,11 +535,16 @@ test('bounded dispatch advances beyond multiple excluded batches, including tied
     const delivery = {
       admits: (o: { channelId: string }) => o.channelId === admitted,
       authorize: async () => true,
-      send: async (o: ScheduledOrigin) => { if ('messageId' in o) sent.push(o.messageId) },
+      send: async (o: ScheduledOrigin) => {
+        if ('messageId' in o) sent.push(o.messageId)
+      },
     }
     try {
-      const excluded = await Promise.all(Array.from({ length: 125 }, (_, i) =>
-        store.save({ ...origin, messageId: `excluded-${i}`, channelId: 'excluded' }, 'agua', 1)))
+      const excluded = await Promise.all(
+        Array.from({ length: 125 }, (_, i) =>
+          store.save({ ...origin, messageId: `excluded-${i}`, channelId: 'excluded' }, 'agua', 1),
+        ),
+      )
       const eligible = await store.save({ ...origin, messageId: 'later' }, 'agua', 2)
       for (let i = 0; i < 6; i++) await store.dispatch(10, delivery)
       assert.deepEqual(sent, ['later'])
@@ -548,12 +555,49 @@ test('bounded dispatch advances beyond multiple excluded batches, including tied
       await new ScheduledNotices(redis, ns).dispatch(10, delivery)
       admitted = 'excluded'
       const other = new ScheduledNotices(redis, ns)
-      for (let i = 0; i < 8; i++) await Promise.all([store.dispatch(10, delivery), other.dispatch(10, delivery)])
+      for (let i = 0; i < 8; i++)
+        await Promise.all([store.dispatch(10, delivery), other.dispatch(10, delivery)])
       assert.equal(sent.length, 126)
       assert.equal(new Set(sent).size, 126)
       for (const record of excluded) {
         assert.equal((await store.get(record.id))?.state, 'sent')
         assert.equal((await store.get(record.id))?.attempts, 1)
       }
-    } finally { await redis.quit() }
-  })
+    } finally {
+      await redis.quit()
+    }
+  },
+)
+
+test(
+  'equal-score notices beyond one page remain reachable after cursor recreation',
+  { skip: !process.env.T02_REDIS_URL },
+  async () => {
+    const redis = new Redis(process.env.T02_REDIS_URL!)
+    const ns = `test:review:tied:${randomUUID()}`
+    const store = new ScheduledNotices(redis, ns)
+    try {
+      const records = await Promise.all(
+        Array.from({ length: 160 }, (_, i) =>
+          store.save({ ...origin, channelId: `scope-${i}`, messageId: `tied-${i}` }, 'agua', 10),
+        ),
+      )
+      const last = records.sort((a, b) => a.id.localeCompare(b.id)).at(-1)!
+      let sent = 0
+      const delivery = {
+        admits: (o: ScheduledOrigin) => o.channelId === last.origin.channelId,
+        authorize: async () => true,
+        send: async () => {
+          sent++
+        },
+      }
+      for (let i = 0; i < 8; i++) await new ScheduledNotices(redis, ns).dispatch(10, delivery)
+      assert.equal(sent, 1)
+      for (const record of records.slice(0, -1))
+        assert.deepEqual(await store.get(record.id), record)
+      assert.equal((await store.get(last.id))?.attempts, 1)
+    } finally {
+      await redis.quit()
+    }
+  },
+)

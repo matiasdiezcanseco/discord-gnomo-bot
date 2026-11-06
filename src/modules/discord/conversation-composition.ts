@@ -31,9 +31,16 @@ export interface ConversationComposition {
   web?: SafeReader
   memory?: MemoryDependencies
 }
-export function composeConversation({ client, config, redis, trace, clock,
+export function composeConversation({
+  client,
+  config,
+  redis,
+  trace,
+  clock,
   model = aiSdkModel(openai(config.get<string>('OPENAI_MODEL', DEFAULT_OPENAI_MODEL))),
-  discordFetch = fetch, web = safeReader(), memory,
+  discordFetch = fetch,
+  web = safeReader(),
+  memory,
 }: ConversationComposition) {
   const members = discordMembers(client, discordFetch)
   const authorize: ConversationPorts['authorize'] = async (invocation, tool, signal) => {
@@ -44,10 +51,12 @@ export function composeConversation({ client, config, redis, trace, clock,
     signal?.throwIfAborted()
     const channel = await guild.channels.fetch(invocation.channelId, { force: true })
     if (!channel || !channel.isTextBased() || !client.user) return false
-    const [requester, bot] = await Promise.all([invocation.requester.id, client.user.id].map(user => {
-      signal?.throwIfAborted()
-      return guild.members.fetch({ user, force: true })
-    }))
+    const [requester, bot] = await Promise.all(
+      [invocation.requester.id, client.user.id].map((user) => {
+        signal?.throwIfAborted()
+        return guild.members.fetch({ user, force: true })
+      }),
+    )
     if (!(await effectiveChannelAccess(channel, requester, bot, signal, true))) return false
     return enabled(invocation, tool)
   }
@@ -88,7 +97,8 @@ export function composeConversation({ client, config, redis, trace, clock,
       const images = await attachedImages(web)({
         ...context,
         external: async (work) => {
-          if (!(await authorize(context.invocation, undefined, context.signal))) throw new Error('permission revoked')
+          if (!(await authorize(context.invocation, undefined, context.signal)))
+            throw new Error('permission revoked')
           return context.external(work)
         },
       })
@@ -96,10 +106,20 @@ export function composeConversation({ client, config, redis, trace, clock,
     },
     loadContext: async (context) => history(context, 30),
     model,
-    catalog: composeCapabilities({ collection: bucketCollection(config.get<string>('BUCKET_URL')), members: members, history: history, search: tavilySearch(config.get<string>('TAVILY_API_KEY')), live: discordLiveMembers(client, members), web: web, memory: memoryCapabilities(memory, config.get<string>('MEMORY_OWNER_ID'), (invocation, signal) =>
-        authorize(invocation, undefined, signal),
-      ), notices: redis ? new ScheduledNotices(redis) : undefined }
-    ),
+    catalog: composeCapabilities({
+      collection: bucketCollection(config.get<string>('BUCKET_URL')),
+      members: members,
+      history: history,
+      search: tavilySearch(config.get<string>('TAVILY_API_KEY')),
+      live: discordLiveMembers(client, members),
+      web: web,
+      memory: memoryCapabilities(
+        memory,
+        config.get<string>('MEMORY_OWNER_ID'),
+        (invocation, signal) => authorize(invocation, undefined, signal),
+      ),
+      notices: redis ? new ScheduledNotices(redis) : undefined,
+    }),
     allowedUserMentions: memberMentions(members),
     trace,
     clock,
