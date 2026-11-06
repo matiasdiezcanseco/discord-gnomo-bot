@@ -22,8 +22,8 @@ Los tickets siguen abiertos hasta la resolución mediante el PR; integrado no si
 | T11 / #13 | Integrado | 5962a7e; 139 pruebas sin omisiones tras endurecer el timeout de escritura Redis, migración real y reinicio AOF aprobados |
 | T12 / #14 | Integrado | efc7d37; 138 pruebas sin omisiones, PostgreSQL y Redis reales, reinicio AOF Redis comprobado |
 | T13 / #15 | Integrado | e316f6b; avisos de cumpleaños compartidos y reinicio AOF propio aprobado |
-| T14 / #16 | Siguiente frontera | Integración, lenguaje natural y latencia; configuración privada real aún no recibida |
-| T15 / #17 | Pendiente de T14 | Piloto y transición |
+| T14 / #16 | Código integrado; validación viva pendiente | cf52357; 181 pruebas sin omisiones, tipos/build/lint; runner real preparado sin credenciales |
+| T15 / #17 | Preparación de transición disponible | Construir retirada/rollback comprobables sobre T14; activación y aceptación viva siguen condicionadas |
 
 Frontera de pruebas confirmada: invocación normalizada hasta respuesta/efectos, modelo/Discord/web controlados y persistencia real aislada para migraciones/concurrencia. Docker Desktop está disponible (motor 27.4.0). PostgreSQL 17/pgvector y Redis 7 aislados verifican el almacenamiento nuevo, incluida recuperación tras reinicio real de PostgreSQL. No se han ejecutado servicios de producción, migraciones sobre datos reales, piloto ni mediciones reales de latencia.
 
@@ -44,3 +44,7 @@ T11 integrado desde `t3-6699debc`, rama `feat/migrate-legacy-memories`. La suite
 Conservar para limpieza final: T09 en `t3-1243cee0`, rama `feat/attached-image-inputs`; T13 en `t3-795e221b`, rama `feat/scheduled-birthday-notices`. Los implementadores T09/T11 dejaron contenedores propios disponibles; no confundirlos con producción ni con recursos de tareas activas.
 
 Integración T09/T13: e316f6b, 175/175 pruebas, cero omisiones, tipos/build/lint/diff correctos. PostgreSQL/vector y Redis reales; reinicios AOF T12/T13 separados. La tarjeta privada para configuración del piloto venció sin datos: no hay archivo privado ni mediciones de servicios reales. La implementación y pruebas aisladas continúan; no se certifica piloto/latencia.
+
+T14 integrado desde `t3-58cc2b81`, rama `feat/conversation-flows`, commit cf52357. Suite conjunta 181/181 con PostgreSQL/pgvector y reinicios AOF Redis T12/T13 separados, tipos/build/lint/diff correctos. Lenguaje natural, consultas compuestas, presupuesto independiente y descubrimiento sin REST repetido por herramienta comprobados con fronteras controladas. Runner: `npm run measure:live`; guía `docs/compound-conversations.md`.
+
+Dos tarjetas privadas vencieron sin configuración: no existe archivo de credenciales, benchmark vivo ni aceptación humana. Continuar la preparación de código y pruebas de T15 es trabajo autorizado sobre las interfaces T14 ya integradas; no equivale a aprobar su activación. Mantener pendientes los criterios operativos T14/T15 y el PR en borrador hasta validar o registrar explícitamente sus límites. No cerrar tickets ni certificar latencia mediante mocks.
