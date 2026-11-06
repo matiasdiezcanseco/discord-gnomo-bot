@@ -4,6 +4,7 @@
   "description": "",
   "main": "dist/main.js",
   "scripts": {
+    "memory:migrate": "tsx --tsconfig tsconfig.nest.json src/memory-migration/cli.ts",
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "nest start",

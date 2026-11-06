@@ -22,3 +22,8 @@ Reestructurar e importar los recuerdos antiguos y demostrar que una invocación 
 ## Blocked by
 
 - [T10 / #12: Guardar, consultar, corregir y borrar recuerdos del canal](https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/12)
+
+## Implementación
+
+CLI explícita, configuración, contrato del backup/olvido y recuperación:
+[11-migration-operations.md](11-migration-operations.md).
