@@ -73,11 +73,9 @@ export function discordLiveMembers(client: Client, members: MemberDirectory): Li
         const page = await members.list(context, limit, after)
         if (page.coverage === 'unknown') return empty
         const requester = await context.external(() =>
-          guild.members.fetch({ user: context.invocation.requester.id, force: true }),
+          guild.members.fetch({ user: context.invocation.requester.id }),
         )
-        const bot = await context.external(() =>
-          guild.members.fetch({ user: client.user!.id, force: true }),
-        )
+        const bot = await context.external(() => guild.members.fetch({ user: client.user!.id }))
         const channels = await context.external(() => guild.channels.fetch())
         context.signal.throwIfAborted()
         if (!client.isReady() || !guild.available) return empty

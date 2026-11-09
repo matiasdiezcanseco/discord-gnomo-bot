@@ -34,8 +34,8 @@ export function discordScheduledDelivery(
     )
       return null
     const [requester, bot] = await Promise.all([
-      guild.members.fetch({ user: origin.requester.id, force: true }),
-      guild.members.fetch({ user: client.user.id, force: true }),
+      guild.members.fetch({ user: origin.requester.id }),
+      guild.members.fetch({ user: client.user.id }),
     ])
     if (!(await effectiveChannelAccess(channel, requester, bot))) return null
     return channel

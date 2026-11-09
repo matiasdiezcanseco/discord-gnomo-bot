@@ -6,6 +6,7 @@ import { Transport } from '../transport/transport'
 import type { BirthdaySource } from '../../conversation/birthdays'
 import { discordScheduledDelivery } from './scheduled-delivery'
 import { describeError, redact } from '../../diagnostics'
+import { DISCORD_REST } from './rest-policy'
 
 @Injectable()
 export class DiscordService extends Transport implements OnModuleInit, OnModuleDestroy {
@@ -18,8 +19,7 @@ export class DiscordService extends Transport implements OnModuleInit, OnModuleD
   ) {
     super()
     this.client = new Client({
-      // Discord 5xx can mean acceptance is unknown. The notice dispatcher owns retry policy.
-      rest: { retries: 0, timeout: 10000, rejectOnRateLimit: () => true },
+      rest: DISCORD_REST,
       intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,

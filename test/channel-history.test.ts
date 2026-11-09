@@ -492,3 +492,41 @@ test('history forwards cancellation through reauthorization and fetch, cancels a
   )
   assert.equal(cancelled, true)
 })
+
+test('history authorizes once per page, not twice for the first page', async () => {
+  const { discordHistory } = await import('../src/modules/discord/channel-history')
+  let checks = 0
+  const message = (id: number) => ({
+    id: String(id),
+    channel_id: 'c',
+    author: { id: 'l', username: 'Luis' },
+    content: 'hola',
+    timestamp: '2026-11-05T00:00:00Z',
+  })
+  const history = discordHistory(
+    { token: 'test-only' } as Client,
+    async () => {
+      checks++
+      return true
+    },
+    async (url) => {
+      const size = Number(new URL(String(url)).searchParams.get('limit'))
+      const before = Number(new URL(String(url)).searchParams.get('before'))
+      return new Response(
+        JSON.stringify(Array.from({ length: size }, (_, i) => message(before - 1 - i))),
+      )
+    },
+    false,
+  )
+  const context = (messageId: string) => ({
+    invocation: { ...origin, messageId },
+    signal: new AbortController().signal,
+    idempotencyKey: messageId,
+    external: <T>(work: () => Promise<T>) => work(),
+  })
+  await history(context('900'), 30)
+  assert.equal(checks, 1)
+  checks = 0
+  await history(context('901'), 150)
+  assert.equal(checks, 2)
+})

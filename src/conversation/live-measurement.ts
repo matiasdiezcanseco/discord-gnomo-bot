@@ -6,6 +6,7 @@ import Redis from 'ioredis'
 import { ConfigService } from '@nestjs/config'
 import { composeConversation } from '../modules/discord/conversation-composition'
 import { normalizeInvocation } from '../modules/discord/normalize-invocation'
+import { DISCORD_REST } from '../modules/discord/rest-policy'
 import { RuntimeMemory } from '../modules/discord/runtime-memory'
 import type { Trace } from './harness'
 
@@ -88,7 +89,7 @@ async function main() {
   )
     throw Error('Bounds: 1–30 samples, 15–600 seconds')
   const client = new Client({
-    rest: { retries: 0, timeout: 10000, rejectOnRateLimit: () => true },
+    rest: DISCORD_REST,
     intents: [
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMessages,
