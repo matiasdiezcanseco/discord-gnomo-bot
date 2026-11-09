@@ -117,6 +117,7 @@ const writeLabels: Record<string, string> = {
   'media.save': 'guardar la imagen',
   'media.forget': 'borrar la imagen',
   'images.generate': 'crear la imagen',
+  'speech.generate': 'crear el audio',
 }
 /** Human-readable leaves of a tool result (titles, text, URLs, names), never structure or IDs. */
 function readable(value: unknown, key = ''): string[] {
@@ -424,14 +425,24 @@ export function createConversation(ports: ConversationPorts) {
         chunks = ['Una fuente excede el tamaño permitido por Discord; no pude enviarla completa.']
       }
       chunks.push(...alone)
+      // Discord rejects voice messages with text or other files: each one is its own message.
+      const voices = files.filter((file) => file.voice)
+      const attached = files.filter((file) => !file.voice)
       // Generated files ride on the last message, or alone when there is no text at all.
-      if (files.length && !chunks.length) chunks.push('')
+      if (attached.length && !chunks.length) chunks.push('')
+      const messages: { content: string; files?: ReplyFile[] }[] = [
+        ...chunks.map((content, index) =>
+          attached.length && index === chunks.length - 1
+            ? { content, files: attached }
+            : { content },
+        ),
+        ...voices.map((file) => ({ content: '', files: [file] })),
+      ]
       // Delivery gets its own window: the processing loop and synthesis can legitimately run
       // past 15 s, and anchoring here to the request start would silently drop the reply.
       const delivery = new Budget(clock, clock.now(), 15000)
       try {
-        for (const [index, content] of chunks.entries()) {
-          const last = files.length > 0 && index === chunks.length - 1
+        for (const { content, files: sent } of messages) {
           if (
             !(await delivery.wait(() =>
               ports.authorize(invocation, undefined, delivery.controller.signal),
@@ -444,12 +455,12 @@ export function createConversation(ports: ConversationPorts) {
             reply(invocation, {
               content,
               allowedMentions: { parse: [], users, roles: [], repliedUser: false },
-              ...(last ? { files } : {}),
+              ...(sent ? { files: sent } : {}),
             }),
           )
           trace('visible_send', 'confirmed', undefined, {
             contentLength: content.length,
-            ...(last ? { attachments: files.length } : {}),
+            ...(sent ? { attachments: sent.length } : {}),
           })
         }
       } catch (error) {
@@ -459,7 +470,7 @@ export function createConversation(ports: ConversationPorts) {
         delivery.close()
       }
       trace('delivered', undefined, undefined, {
-        parts: chunks.length,
+        parts: messages.length,
         ...(files.length ? { attachments: files.length } : {}),
         ...(ports.traceContent ? { reply: redact(chunks.join('\n'), 1000) } : {}),
       })

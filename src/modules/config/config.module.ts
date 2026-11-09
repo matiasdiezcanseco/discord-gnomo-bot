@@ -25,6 +25,9 @@ const envSchema = z
     OPENAI_MODEL: z.string().default(DEFAULT_OPENAI_MODEL),
     OPENAI_IMAGE_MODEL: z.string().min(1).optional(),
     OPENAI_IMAGE_QUALITY: z.enum(['low', 'medium', 'high', 'auto']).optional(),
+    OPENAI_SPEECH_MODEL: z.string().min(1).optional(),
+    OPENAI_SPEECH_VOICE: z.string().min(1).optional(),
+    OPENAI_SPEECH_COOLDOWN_MINUTES: z.coerce.number().int().min(1).max(1440).optional(),
     BROWSERBASE_API_KEY: z.string().optional(),
 
     // Durable admission and scheduled notices; active runtime requires Redis.

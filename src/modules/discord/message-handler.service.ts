@@ -7,6 +7,7 @@ import { normalizeInvocation, referencedImages } from './normalize-invocation'
 import type { createConversation } from '../../conversation/harness'
 import { runtimeAllows } from '../../conversation/runtime-policy'
 import { describeError, reportError } from '../../diagnostics'
+import { replyWithVoice, voiceFile } from './voice-reply'
 
 @Injectable()
 export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
@@ -67,7 +68,9 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.conversation.handle(invocation, async (_origin, reply) => {
         stopTyping()
-        await message.reply(reply)
+        const voice = voiceFile(reply)
+        if (voice) await replyWithVoice(message, voice)
+        else await message.reply(reply)
       })
     } finally {
       stopTyping()

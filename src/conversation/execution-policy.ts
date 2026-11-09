@@ -9,6 +9,8 @@ export function capabilityAllowed(invocation: Invocation, tool?: Capability): bo
     (tool.capability === 'reminders.own' && tool.effect === 'write') ||
     // Bounded by a per-requester hourly quota enforced in Redis before any credit is spent.
     (tool.capability === 'images.generate' && tool.effect === 'write') ||
+    // Same pattern: a per-requester cooldown in Redis, taken before any credit is spent.
+    (tool.capability === 'speech.generate' && tool.effect === 'write') ||
     (tool.capability.startsWith('memory.') &&
       ((tool.capability === 'memory.search' && tool.effect === 'read') ||
         (['memory.save', 'memory.update', 'memory.forget'].includes(tool.capability) &&

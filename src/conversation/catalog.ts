@@ -14,6 +14,8 @@ export function partialResult<T>(value: T): PartialResult<T> {
 export interface ReplyFile {
   name: string
   attachment: Buffer
+  /** Ogg/Opus audio to deliver as a Discord voice message: always sent alone, without text. */
+  voice?: import('./voice-message').VoiceMetadata
 }
 
 export interface ExecutionContext {

@@ -1,7 +1,12 @@
 import type { ConfigService } from '@nestjs/config'
 import type Redis from 'ioredis'
 import { openai } from '@ai-sdk/openai'
-import { DEFAULT_OPENAI_IMAGE_MODEL, DEFAULT_OPENAI_MODEL } from '../modules/config/constants'
+import {
+  DEFAULT_OPENAI_IMAGE_MODEL,
+  DEFAULT_OPENAI_MODEL,
+  DEFAULT_OPENAI_SPEECH_MODEL,
+  DEFAULT_OPENAI_SPEECH_VOICE,
+} from '../modules/config/constants'
 import type { Invocation } from '../core/conversation/invocation'
 import { runtimeAllows } from './runtime-policy'
 import { browserbaseSearch } from './public-search'
@@ -18,6 +23,7 @@ import { mediaCapabilities, s3MediaStore, type MediaObjectStore } from './media-
 import { ScheduledNotices } from './scheduled-notices'
 import { aiSdkImages } from './image-generation'
 import { redisImageQuota } from './image-quota'
+import { openaiRealtimeSpeech } from './speech-generation'
 import { capabilityAllowed } from './execution-policy'
 import type { MemberDirectory } from './member-directory'
 import type { LiveMembers } from './live-members'
@@ -56,6 +62,11 @@ function imageQuality(config: ConfigService) {
   return quality === 'low' || quality === 'medium' || quality === 'high' || quality === 'auto'
     ? quality
     : 'medium'
+}
+
+function speechCooldownMinutes(config: ConfigService) {
+  const value = Number(config.get('OPENAI_SPEECH_COOLDOWN_MINUTES', 10))
+  return Number.isInteger(value) && value >= 1 && value <= 1440 ? value : 10
 }
 
 function reasoningEffort(config: ConfigService) {
@@ -135,6 +146,23 @@ export function composeRuntimeConversation({
             quota: redisImageQuota(redis),
           }
         : undefined,
+      // Same rule as images: no Redis, no shared cooldown, so voice messages stay off.
+      speech:
+        redis && config.get<string>('OPENAI_API_KEY')
+          ? {
+              generator: openaiRealtimeSpeech({
+                apiKey: config.get<string>('OPENAI_API_KEY')!,
+                model: config.get<string>('OPENAI_SPEECH_MODEL', DEFAULT_OPENAI_SPEECH_MODEL),
+                voice: config.get<string>('OPENAI_SPEECH_VOICE', DEFAULT_OPENAI_SPEECH_VOICE),
+              }),
+              quota: redisImageQuota(
+                redis,
+                speechCooldownMinutes(config) * 60,
+                'gnomo:speech-quota:v1',
+              ),
+              cooldownMinutes: speechCooldownMinutes(config),
+            }
+          : undefined,
     }),
     allowedUserMentions: memberMentions(platform.members),
     trace,

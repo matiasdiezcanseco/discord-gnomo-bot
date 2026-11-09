@@ -12,6 +12,16 @@ is limited to one image per user per hour. The limit lives in Redis
 is spent. If Redis cannot be reached, no image is created. A content-policy refusal gives
 the slot back; a timeout or provider error keeps it, because the credit may already be spent.
 
+Voice messages (`speech_generate`, OpenAI Realtime `OPENAI_SPEECH_MODEL`, default
+`gpt-realtime-2.1-mini`, voice `OPENAI_SPEECH_VOICE`, default `cedar`) speak in the Gnomo's voice,
+one audio per user per `OPENAI_SPEECH_COOLDOWN_MINUTES` (default 10), using the same Redis rule
+(`gnomo:speech-quota:v1:<guild>:<user>`). The `/v1/audio/speech` models (`gpt-4o-mini-tts`,
+`tts-1`) shut down on 2027-01-06, so one Realtime WebSocket session per audio returns 24 kHz PCM,
+which Gnomo encodes into Ogg/Opus (WebAssembly `opusscript`, no ffmpeg) with its real duration and
+loudness waveform. It is posted as a native Discord voice message (`IS_VOICE_MESSAGE`, alone,
+without text) through REST, because discord.js does not forward `duration_secs`/`waveform`.
+Without the SendVoiceMessages permission the same `.ogg` is sent as a regular playable file.
+
 To debug locally without Discord, run `npm run sandbox`: the full production runtime
 (real model, tools, memory, reminders, schedulers) with the terminal as transport and
 only local PostgreSQL/Redis. See [sandbox usage](docs/sandbox.md).
@@ -47,7 +57,8 @@ variables. Missing capability configuration produces unavailable results.
 
 Enable Guilds, GuildMessages, MessageContent, GuildMembers, GuildPresences and
 GuildVoiceStates intents; enable privileged intents in the Discord developer portal.
-Grant ViewChannel, ReadMessageHistory, SendMessages/SendMessagesInThreads as needed.
+Grant ViewChannel, ReadMessageHistory, SendMessages/SendMessagesInThreads as needed, plus
+SendVoiceMessages for native voice messages.
 Private threads also require membership. Execution and delivery recheck effective
 permissions. No administrative permissions are needed. Role/everyone/here mentions
 are disabled; only explicitly authorized individual recipients may be notified.
