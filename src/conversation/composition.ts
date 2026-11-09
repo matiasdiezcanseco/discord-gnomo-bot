@@ -4,7 +4,7 @@ import { openai } from '@ai-sdk/openai'
 import { DEFAULT_OPENAI_MODEL } from '../modules/config/constants'
 import type { Invocation } from '../core/conversation/invocation'
 import { runtimeAllows } from './runtime-policy'
-import { tavilySearch } from './public-search'
+import { browserbaseSearch } from './public-search'
 import { createConversation, type ConversationPorts } from './harness'
 import { aiSdkModel } from './ai-sdk-model'
 import { composeCapabilities } from './capabilities'
@@ -97,7 +97,7 @@ export function composeRuntimeConversation({
       collection: bucketCollection(config.get<string>('BUCKET_URL')),
       members: platform.members,
       history,
-      search: tavilySearch(config.get<string>('TAVILY_API_KEY')),
+      search: browserbaseSearch(config.get<string>('BROWSERBASE_API_KEY')),
       live: platform.live,
       web,
       memory: memoryCapabilities(

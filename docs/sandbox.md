@@ -4,13 +4,13 @@ The sandbox is the **production runtime with the terminal as transport**. It boo
 same Nest application as `src/main.ts`, with `DiscordModule` swapped for `ConsoleModule`
 and nothing else changed:
 
-| Same as production                                                                       | Different                                           |
-| ---------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `ConfigModule` validation, `RUNTIME_MODE` / `RUNTIME_CHANNEL_IDS` / `GUILD_ID` policy    | Messages come from stdin, replies go to stdout      |
-| Startup Drizzle migrations (`DatabaseModule`), memory pool, embeddings                   | No Discord login, no `BOT_TOKEN`                    |
-| Redis connection, claims/dedup, reminders, birthday producer and 10 s notice dispatcher  | Database/Redis URLs must be local (enforced)        |
-| OpenAI model, persona, budgets/timeouts, tool catalog, allowlist, Tavily, web reader     | Channel history = this session's console transcript |
-| Bucket phrases/photos/birthdays, image verification, trace logs (`module: conversation`) | Members/presence = console identities; voice empty  |
+| Same as production                                                                        | Different                                           |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `ConfigModule` validation, `RUNTIME_MODE` / `RUNTIME_CHANNEL_IDS` / `GUILD_ID` policy     | Messages come from stdin, replies go to stdout      |
+| Startup Drizzle migrations (`DatabaseModule`), memory pool, embeddings                    | No Discord login, no `BOT_TOKEN`                    |
+| Redis connection, claims/dedup, reminders, birthday producer and 10 s notice dispatcher   | Database/Redis URLs must be local (enforced)        |
+| OpenAI model, persona, budgets/timeouts, tool catalog, allowlist, Browserbase, web reader | Channel history = this session's console transcript |
+| Bucket phrases/photos/birthdays, image verification, trace logs (`module: conversation`)  | Members/presence = console identities; voice empty  |
 
 The shared piece is `composeRuntimeConversation` (`src/conversation/composition.ts`).
 Discord and the console each provide only a `ConversationPlatform` (channel access,

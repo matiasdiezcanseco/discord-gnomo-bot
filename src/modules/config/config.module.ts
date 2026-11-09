@@ -23,7 +23,7 @@ const envSchema = z
     BUCKET_URL: z.string().url().optional(),
     OPENAI_API_KEY: z.string().min(1).optional(),
     OPENAI_MODEL: z.string().default(DEFAULT_OPENAI_MODEL),
-    TAVILY_API_KEY: z.string().optional(),
+    BROWSERBASE_API_KEY: z.string().optional(),
 
     // Durable admission and scheduled notices; active runtime requires Redis.
     REDIS_URL: z.string().optional(),

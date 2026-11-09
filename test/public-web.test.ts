@@ -52,7 +52,7 @@ test('search then source reading uses structured provenance, never page instruct
         search: async () => ({
           outcome: 'ok',
           message: '',
-          provider: 'tavily',
+          provider: 'browserbase',
           consultedAt: '2026-11-05T00:00:00Z',
           period: null,
           reused: false,
@@ -60,7 +60,7 @@ test('search then source reading uses structured provenance, never page instruct
             {
               title: 'Final',
               url: 'http://public.example/final',
-              content: 'resultado',
+              author: null,
               publishedAt: null,
               eventDate: null,
             },

@@ -56,7 +56,7 @@ Errors the bot deliberately survives, with their cause:
 | `postgres.pool`                                                                                             | Idle pool connection                                             |
 | `redis.connection`                                                                                          | Redis errors (at most one per 30 s)                              |
 | `discord.members.list`, `discord.members.detail`, `discord.voice`, `discord.history.page`, `discord.typing` | Discord REST/gateway reads                                       |
-| `tavily.search`                                                                                             | Search/news provider                                             |
+| `browserbase.search`                                                                                        | Search/news provider                                             |
 | `images.decode`                                                                                             | Attached image verification                                      |
 | `notices.authorize`, `notices.revalidate`, `notices.send`, `notices.delivery`                               | Reminder/birthday delivery (with `noticeId`, `kind`, `next`)     |
 

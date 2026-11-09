@@ -28,7 +28,7 @@ comes from the current channel/thread, bounded and reauthorized. Ambient message
 bots, other guilds and DMs do not invoke Gnomo.
 
 Optional capabilities require BUCKET_URL (phrases/photos/birthday JSON),
-TAVILY_API_KEY (search/news), or DATABASE_URL/DATABASE_URL_POOLED plus trusted
+BROWSERBASE_API_KEY (search/news), or DATABASE_URL/DATABASE_URL_POOLED plus trusted
 MEMORY_OWNER_ID (17–20 digit Discord ID) for explicit memories. Optional
 PILOT_MEMORY_EMBEDDING_MODEL enables embeddings; omission uses lexical retrieval.
 Neon runtime uses the pooled URL; migrations use the direct URL. The older
