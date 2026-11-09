@@ -26,7 +26,9 @@ type Request = {
 }
 
 const text = (max: number) => z.string().trim().min(1).max(max)
-const label = text(100).regex(/^[^=;[\]\r\n]+$/u)
+// refine, not regex: this pattern exported as JSON Schema `pattern` makes OpenAI silently return
+// an empty, "incomplete" response for the whole request. Validation stays server-side only.
+const label = text(100).refine((value) => /^[^=;[\]\r\n]+$/u.test(value), 'Invalid label')
 /** Stable ID or the author's key, as returned by memory_search. */
 const selector = text(100).regex(/^[^:\r\n]+$/u)
 const onlyCurrentRequest =
