@@ -2,8 +2,9 @@
 
 Personal Discord assistant for one configured guild. Mention the bot to converse,
 request phrases/photos, channel history, members/presence/voice, public search and
-web reading, image understanding, image creation, explicit channel memories and own
-reminders. Birthdays use the approved collection and the same reliable notice dispatcher.
+web reading, image understanding, image creation, explicit channel memories, a channel
+media library (save, search and share images) and own reminders. Birthdays use the
+approved collection and the same reliable notice dispatcher.
 
 Image creation (`image_generate`, OpenAI `OPENAI_IMAGE_MODEL`, default `gpt-image-1-mini`)
 is limited to one image per user per hour. The limit lives in Redis
@@ -34,7 +35,8 @@ comes from the current channel/thread, bounded and reauthorized. Ambient message
 bots, other guilds and DMs do not invoke Gnomo.
 
 Optional capabilities require BUCKET_URL (phrases/photos/birthday JSON),
-BROWSERBASE_API_KEY (search/news), or DATABASE_URL/DATABASE_URL_POOLED plus trusted
+BROWSERBASE_API_KEY (search/news), BUCKET_NAME/AWS_* (public S3/Tigris bucket for the
+channel [media library](docs/media-library.md), plus database and owner), or DATABASE_URL/DATABASE_URL_POOLED plus trusted
 MEMORY_OWNER_ID (17–20 digit Discord ID) for explicit memories. Optional
 PILOT_MEMORY_EMBEDDING_MODEL enables embeddings; omission uses lexical retrieval.
 Neon runtime uses the pooled URL; migrations use the direct URL. The older

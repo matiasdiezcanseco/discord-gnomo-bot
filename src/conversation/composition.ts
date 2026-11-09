@@ -14,6 +14,7 @@ import { bucketCollection } from './collection-content'
 import { memoryCapabilities, type MemoryDependencies } from './explicit-memory'
 import { safeReader, type SafeReader } from '../web/safe-reader'
 import { attachedImages } from './attached-images'
+import { mediaCapabilities, s3MediaStore, type MediaObjectStore } from './media-library'
 import { ScheduledNotices } from './scheduled-notices'
 import { aiSdkImages } from './image-generation'
 import { redisImageQuota } from './image-quota'
@@ -46,6 +47,8 @@ export interface RuntimeComposition {
   model?: ConversationPorts['model']
   web?: SafeReader
   memory?: MemoryDependencies
+  /** Defaults to the S3-compatible bucket from BUCKET_NAME/AWS_* configuration. */
+  mediaStore?: MediaObjectStore
 }
 
 function imageQuality(config: ConfigService) {
@@ -75,6 +78,7 @@ export function composeRuntimeConversation({
   ),
   web = safeReader(),
   memory,
+  mediaStore = s3MediaStore((key) => config.get<string>(key)),
 }: RuntimeComposition) {
   const enabled: ConversationPorts['authorize'] = async (invocation, tool) =>
     capabilityAllowed(invocation, tool)
@@ -90,16 +94,19 @@ export function composeRuntimeConversation({
     (invocation, signal) => authorize(invocation, undefined, signal),
     !memory,
   )
+  const loadImages: NonNullable<ConversationPorts['loadImages']> = async (context) =>
+    attachedImages(web)({
+      ...context,
+      external: async (work) => {
+        if (!(await authorize(context.invocation, undefined, context.signal)))
+          throw new Error('permission revoked')
+        return context.external(work)
+      },
+    })
+  const reauthorize = (invocation: Invocation, signal?: AbortSignal) =>
+    authorize(invocation, undefined, signal)
   return createConversation({
-    loadImages: async (context) =>
-      attachedImages(web)({
-        ...context,
-        external: async (work) => {
-          if (!(await authorize(context.invocation, undefined, context.signal)))
-            throw new Error('permission revoked')
-          return context.external(work)
-        },
-      }),
+    loadImages,
     loadContext: async (context) => history(context, 30),
     model,
     catalog: composeCapabilities({
@@ -109,10 +116,13 @@ export function composeRuntimeConversation({
       search: browserbaseSearch(config.get<string>('BROWSERBASE_API_KEY')),
       live: platform.live,
       web,
-      memory: memoryCapabilities(
-        memory,
+      memory: memoryCapabilities(memory, config.get<string>('MEMORY_OWNER_ID'), reauthorize),
+      media: mediaCapabilities(
+        memory && mediaStore
+          ? { pool: memory.pool, embedding: memory.embedding, store: mediaStore, loadImages }
+          : undefined,
         config.get<string>('MEMORY_OWNER_ID'),
-        (invocation, signal) => authorize(invocation, undefined, signal),
+        reauthorize,
       ),
       notices: redis ? new ScheduledNotices(redis) : undefined,
       // Without Redis there is no shared per-user limit, so image creation stays off.

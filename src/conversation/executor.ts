@@ -93,6 +93,7 @@ export class Executor {
         attach: (file) => {
           attached.push(file)
         },
+        generated: () => Object.freeze([...this.files]),
         discoveredUrls: Object.freeze([...this.discoveredUrls]),
         idempotencyKey: `${this.invocation.guildId}:${this.invocation.channelId}:${this.invocation.messageId}:${call.id}`,
       }

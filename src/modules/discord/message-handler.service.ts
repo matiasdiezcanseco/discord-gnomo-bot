@@ -3,7 +3,7 @@ import { type Message } from 'discord.js'
 import { ConfigService } from '@nestjs/config'
 import { LoggerService } from '../services/logger/logger.service'
 import { DiscordService } from './discord.service'
-import { normalizeInvocation } from './normalize-invocation'
+import { normalizeInvocation, referencedImages } from './normalize-invocation'
 import type { createConversation } from '../../conversation/harness'
 import { runtimeAllows } from '../../conversation/runtime-policy'
 import { describeError, reportError } from '../../diagnostics'
@@ -36,7 +36,12 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
   async handleMessage(message: Message): Promise<void> {
     const guildId = this.config.get<string>('GUILD_ID')
     const botId = this.discord.getClient().user?.id
-    const invocation = normalizeInvocation(message, guildId, botId)
+    const invocation = normalizeInvocation(
+      message,
+      guildId,
+      botId,
+      await this.referencedAttachments(message, botId),
+    )
     if (!invocation || !runtimeAllows(this.config, invocation)) {
       // Only messages that tag the bot: "why didn't it answer?" must be answerable from the logs.
       if (botId && new RegExp(`<@!?${botId}>`).test(message.content ?? ''))
@@ -66,6 +71,26 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
       })
     } finally {
       stopTyping()
+    }
+  }
+  /** Images of the replied-to message, same channel only; only fetched for a tagged reply. */
+  private async referencedAttachments(message: Message, botId: string | undefined) {
+    const reference = message.reference
+    if (
+      !botId ||
+      message.attachments.size ||
+      !reference?.messageId ||
+      reference.channelId !== message.channelId ||
+      !new RegExp(`<@!?${botId}>`).test(message.content ?? '')
+    )
+      return []
+    try {
+      const replied = await message.fetchReference()
+      if (replied.channelId !== message.channelId) return []
+      return referencedImages(replied.attachments.values())
+    } catch (error) {
+      reportError('discord.reference', error, { invocationId: message.id })
+      return []
     }
   }
   /** Discord shows "typing…" for ~10s per call, so it is refreshed until the reply is sent. */

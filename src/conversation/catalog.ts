@@ -26,6 +26,8 @@ export interface ExecutionContext {
   external<T>(work: () => Promise<T>): Promise<T>
   /** Tool calls only: kept and delivered with the reply only if the call succeeds. */
   attach?(file: ReplyFile): void
+  /** Tool calls only: files earlier successful calls of this invocation attached to the reply. */
+  generated?(): readonly ReplyFile[]
 }
 export interface Capability {
   name: string

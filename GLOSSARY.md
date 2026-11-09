@@ -35,3 +35,7 @@ _Evitar_: Sujeto del recuerdo, dueño del dato.
 **Sujeto del recuerdo**:
 Persona o tema sobre el que trata una información conservada por Gnomo.
 _Evitar_: Autor del recuerdo.
+
+**Medio guardado**:
+Imagen que un miembro pide explícitamente al bot que conserve, con una descripción para encontrarla y compartirla después dentro del mismo canal.
+_Evitar_: Foto de la colección (las fotos aleatorias del Gnomo), adjunto.

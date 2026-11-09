@@ -20,6 +20,13 @@ export function runtimeSummary(config: Pick<ConfigService, 'get'>) {
   if (!has('REDIS_URL')) disabled.push('claims/reminders/images (REDIS_URL)')
   if (!database) disabled.push('memory (no database URL)')
   else if (!owner) disabled.push('memory (MEMORY_OWNER_ID missing/invalid)')
+  const mediaBucket =
+    has('BUCKET_NAME') &&
+    has('AWS_ENDPOINT_URL_S3') &&
+    has('AWS_ACCESS_KEY_ID') &&
+    has('AWS_SECRET_ACCESS_KEY')
+  if (!mediaBucket) disabled.push('media library (BUCKET_NAME/AWS_* object storage)')
+  else if (!database || !owner) disabled.push('media library (needs database and MEMORY_OWNER_ID)')
   if (!has('BUCKET_URL')) disabled.push('phrases/photos/birthdays (BUCKET_URL)')
   if (!has('BROWSERBASE_API_KEY')) disabled.push('web search/news (BROWSERBASE_API_KEY)')
   if (!has('GNOMOS_CHANNEL_ID')) disabled.push('birthday greetings (GNOMOS_CHANNEL_ID)')
@@ -45,6 +52,7 @@ export function runtimeSummary(config: Pick<ConfigService, 'get'>) {
       MEMORY_OWNER_ID: owner,
       PILOT_MEMORY_EMBEDDING_MODEL: has('PILOT_MEMORY_EMBEDDING_MODEL'),
       BUCKET_URL: has('BUCKET_URL'),
+      MEDIA_BUCKET: mediaBucket,
       BROWSERBASE_API_KEY: has('BROWSERBASE_API_KEY'),
       GNOMOS_CHANNEL_ID: has('GNOMOS_CHANNEL_ID'),
     },

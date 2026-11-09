@@ -13,6 +13,7 @@ export function capabilityAllowed(invocation: Invocation, tool?: Capability): bo
       ((tool.capability === 'memory.search' && tool.effect === 'read') ||
         (['memory.save', 'memory.update', 'memory.forget'].includes(tool.capability) &&
           tool.effect === 'write'))) ||
+    (['media.save', 'media.forget'].includes(tool.capability) && tool.effect === 'write') ||
     ([
       'runtime.status',
       'messages.history',
@@ -24,6 +25,8 @@ export function capabilityAllowed(invocation: Invocation, tool?: Capability): bo
       'discord.voice',
       'web.search',
       'web.news',
+      'media.search',
+      'media.share',
     ].includes(tool.capability) &&
       tool.effect === 'read')
   )

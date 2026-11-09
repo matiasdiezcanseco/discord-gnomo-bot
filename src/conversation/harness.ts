@@ -114,6 +114,8 @@ const writeLabels: Record<string, string> = {
   'memory.update': 'corregir el recuerdo',
   'memory.forget': 'olvidar el recuerdo',
   'reminders.own': 'crear el recordatorio',
+  'media.save': 'guardar la imagen',
+  'media.forget': 'borrar la imagen',
   'images.generate': 'crear la imagen',
 }
 /** Human-readable leaves of a tool result (titles, text, URLs, names), never structure or IDs. */
