@@ -1,0 +1,14 @@
+void (async () => {
+const text = readFileSync(process.argv[2], 'utf8')
+const env: Record<string, string> = {}
+for (const k of ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_ENDPOINT_URL_S3', 'AWS_REGION', 'BUCKET_NAME'])
+  env[k] = text.match(new RegExp(String.raw`${k}: (\S+)`))![1]
+const store = s3MediaStore((k) => env[k])!
+const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#0a0' } }).png().toBuffer()
+const key = 'smoke/test.png'
+await store.put(key, png, 'image/png', new AbortController().signal)
+const r = await fetch(store.publicUrl(key))
+console.log(store.publicUrl(key), r.status, r.headers.get('content-type'), r.headers.get('cache-control'), (await r.arrayBuffer()).byteLength === png.length)
+await store.remove(key)
+console.log('after delete', (await fetch(store.publicUrl(key) + '?x=1')).status)
+})()

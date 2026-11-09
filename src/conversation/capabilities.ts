@@ -6,6 +6,7 @@ import type { MemberDirectory } from './member-directory'
 import { messagesHistory, type HistoryReader } from './channel-history'
 import { collectionCapabilities, type CollectionSource } from './collection-content'
 import { memoryCapabilities } from './explicit-memory'
+import { mediaCapabilities } from './media-library'
 import { webRead } from './web-read'
 import { safeReader, type SafeReader } from '../web/safe-reader'
 import { presenceCapability, voiceCapability, type LiveMembers } from './live-members'
@@ -21,10 +22,11 @@ export interface CapabilityDependencies {
   live?: Partial<LiveMembers>
   web?: SafeReader
   memory?: ReturnType<typeof memoryCapabilities>
+  media?: ReturnType<typeof mediaCapabilities>
   notices?: ScheduledNotices
   extensions?: import('./catalog').Capability[]
 }
-export function composeCapabilities({ collection, members, history, search, live, web = safeReader(), memory, notices, extensions = [] }: CapabilityDependencies = {}) {
+export function composeCapabilities({ collection, members, history, search, live, web = safeReader(), memory, media, notices, extensions = [] }: CapabilityDependencies = {}) {
   return new Catalog([
     ...extensions,
     reminderCapability(notices),
@@ -33,6 +35,7 @@ export function composeCapabilities({ collection, members, history, search, live
     ...collectionCapabilities(collection),
     ...searchCapabilities(search),
     ...(memory ?? memoryCapabilities()),
+    ...(media ?? mediaCapabilities()),
     ...(members ? memberCapabilities(members) : []),
     ...(live?.presence ? [presenceCapability(live.presence)] : []),
     ...(live?.voice ? [voiceCapability(live.voice)] : []),

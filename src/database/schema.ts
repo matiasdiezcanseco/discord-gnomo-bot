@@ -4,6 +4,7 @@ import {
   customType,
   foreignKey,
   index,
+  integer,
   pgTable,
   primaryKey,
   text,
@@ -97,3 +98,43 @@ export const memoryRecord = {
   created_at: memories.createdAt,
   updated_at: memories.updatedAt,
 }
+
+/** Images members explicitly asked Gnomo to keep; the bytes live in object storage. */
+export const channelMedia = pgTable(
+  'channel_media',
+  {
+    id: uuid('id').primaryKey(),
+    guildId: text('guild_id').notNull(),
+    channelId: text('channel_id').notNull(),
+    authorId: text('author_id').notNull(),
+    sourceMessageId: text('source_message_id').notNull(),
+    sourceAttachmentId: text('source_attachment_id').notNull(),
+    objectKey: text('object_key').notNull().unique('channel_media_object_key_key'),
+    url: text('url').notNull(),
+    mediaType: text('media_type').notNull(),
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    sha256: text('sha256').notNull(),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    tags: text('tags')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    embedding: embeddingVector('embedding'),
+    embeddingModel: text('embedding_model'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('channel_media_scope').on(table.guildId, table.channelId, table.createdAt),
+    // One copy per channel: saving the same bytes again returns the existing entry.
+    uniqueIndex('channel_media_content').on(table.guildId, table.channelId, table.sha256),
+    check('channel_media_title_check', sql`length(${table.title}) BETWEEN 1 AND 100`),
+    check('channel_media_description_check', sql`length(${table.description}) BETWEEN 1 AND 1500`),
+    check(
+      'channel_media_embedding_check',
+      sql`(${table.embedding} IS NULL) = (${table.embeddingModel} IS NULL)`,
+    ),
+  ],
+)
