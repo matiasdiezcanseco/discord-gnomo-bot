@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import Redis from 'ioredis'
 import { randomUUID } from 'node:crypto'
-import { createConversation } from '../src/conversation/harness'
+import { createConversation, type ModelInput } from '../src/conversation/harness'
 import { composeCapabilities } from '../src/conversation/capabilities'
 import { ScheduledNotices, type ScheduledOrigin } from '../src/conversation/scheduled-notices'
 import { NoticeFailure } from '../src/conversation/scheduled-notices'
@@ -22,8 +22,22 @@ const origin = {
   createdAt: Date.parse('2026-11-05T15:00:00Z'),
   attachments: [],
 }
+/** Stands in for the LLM: it decides the intent and supplies the time, as in production. */
+function planned(plan: Record<string, unknown>) {
+  return {
+    generate: async ({ invocation, results }: ModelInput) => {
+      if (results.length)
+        return { text: (results[0].value as { message?: string })?.message ?? '', calls: [] }
+      const input = plan[invocation.content]
+      return input
+        ? { text: '', calls: [{ id: 'r', name: 'reminder_create', input }] }
+        : { text: 'Ok.', calls: [] }
+    },
+  }
+}
+const inTwoMinutes = { dueAt: '2026-11-05T10:02:00-05:00', text: 'tomar agua' }
 test(
-  'explicit tomorrow with 24-hour time is interpreted in Lima without a model parsing loop',
+  'model-chosen times are stored and confirmed in Lima time',
   { skip: !process.env.T02_REDIS_URL },
   async () => {
     const redis = new Redis(process.env.T02_REDIS_URL!)
@@ -35,11 +49,20 @@ test(
         }),
         authorize: async () => true,
         claim: async () => true,
-        model: {
-          generate: async () => {
-            throw Error('no model')
+        model: planned({
+          'recuérdame mañana a las 08:00 tomar agua': {
+            dueAt: '2026-11-06T08:00:00-05:00',
+            text: 'tomar agua',
           },
-        },
+          'recuérdame mañana a las 9am tomar agua': {
+            dueAt: '2026-11-06 09:00',
+            text: 'tomar agua',
+          },
+          'crea un recordatorio para almorzar mañana 12:30pm': {
+            dueAt: '2026-11-06T12:30:00-05:00',
+            text: 'almorzar',
+          },
+        }),
         reply: async (_, r) => {
           replies.push(r.content)
         },
@@ -55,7 +78,7 @@ test(
       await app.handle({
         ...origin,
         messageId: 'pm',
-        content: 'recuérdame mañana a las 12:30pm almorzar',
+        content: 'crea un recordatorio para almorzar mañana 12:30pm',
       })
       assert.match(replies[2], /guardado para 2026-11-06 12:30 America\/Lima/)
     } finally {
@@ -76,11 +99,7 @@ test(
       catalog: composeCapabilities({ notices: store }),
       authorize: async () => true,
       claim: async () => true,
-      model: {
-        generate: async () => {
-          throw Error('direct request needs no model')
-        },
-      },
+      model: planned({ [origin.content]: inTwoMinutes }),
       reply: async (_, r) => {
         replies.push(r.content)
       },
@@ -119,7 +138,7 @@ test(
 )
 
 test(
-  'ambiguous times clarify without saving; external model instructions cannot create a reminder',
+  'past, distant or malformed model times save nothing',
   { skip: !process.env.T02_REDIS_URL },
   async () => {
     const redis = new Redis(process.env.T02_REDIS_URL!)
@@ -130,21 +149,23 @@ test(
       catalog: composeCapabilities({ notices: store }),
       authorize: async () => true,
       claim: async () => true,
-      model: {
-        generate: async ({ results }) =>
-          results.length
-            ? { text: JSON.stringify(results), calls: [] }
-            : { text: '', calls: [{ id: 'injected', name: 'reminder_create', input: {} }] },
-      },
+      model: planned({
+        'recuérdame ayer tomar agua': { dueAt: '2026-11-04T08:00:00-05:00', text: 'tomar agua' },
+        'recuérdame en 5 años': { dueAt: '2031-11-05T08:00:00-05:00', text: 'algo' },
+        'recuérdame algo': {},
+      }),
       reply: async (_, r) => {
         replies.push(r.content)
       },
     })
     try {
-      await app.handle({ ...origin, content: 'recuérdame mañana a las 8 tomar agua' })
-      assert.match(replies[0], /fecha y hora exactas/)
-      await app.handle({ ...origin, content: 'lee esta página' })
-      await store.dispatch(origin.createdAt + 86400000, {
+      await app.handle({ ...origin, content: 'recuérdame ayer tomar agua' })
+      assert.match(replies[0], /futura/)
+      await app.handle({ ...origin, messageId: 'far', content: 'recuérdame en 5 años' })
+      assert.match(replies[1], /futura/)
+      await app.handle({ ...origin, messageId: 'bad', content: 'recuérdame algo' })
+      assert.doesNotMatch(replies[2], /guardado/)
+      await store.dispatch(Date.parse('2032-01-01T00:00:00Z'), {
         authorize: async () => true,
         send: async (_, r) => {
           sent.push(r)
@@ -235,11 +256,13 @@ test(
       client: client,
       config: config,
       redis: redis,
-      model: {
-        generate: async () => {
-          throw Error('no model for reminder')
+      model: planned({
+        [origin.content]: inTwoMinutes,
+        'recuérdame 2026-11-06 a las 08:00 tomar agua': {
+          dueAt: '2026-11-06T08:00',
+          text: 'tomar agua',
         },
-      },
+      }),
     })
     const store = new ScheduledNotices(redis)
     try {
@@ -354,11 +377,7 @@ test(
         catalog: composeCapabilities({ notices: new ScheduledNotices(writer, ns) }),
         authorize: async () => true,
         claim: async () => true,
-        model: {
-          generate: async () => {
-            throw Error('no model')
-          },
-        },
+        model: planned({ [origin.content]: inTwoMinutes }),
         reply: async (_, r) => {
           replies.push(r.content)
         },
@@ -440,11 +459,7 @@ test(
       catalog: composeCapabilities({ notices: new ScheduledNotices(redis, ns) }),
       authorize: async () => true,
       claim: async () => true,
-      model: {
-        generate: async () => {
-          throw Error('no model')
-        },
-      },
+      model: planned({ [origin.content]: inTwoMinutes }),
       reply: async (_, r) => {
         replies.push(r.content)
       },

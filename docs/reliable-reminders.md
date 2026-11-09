@@ -1,5 +1,12 @@
 > T15 current runtime/setup/rollout supersedes positional composition, legacy routing and Prisma setup below: see [runtime-transition.md](runtime-transition.md). Historical implementation evidence remains below.
 
+> **Current behavior (supersedes the grammar and consent sections below):** reminder creation is
+> intent-based. `reminder_create` is always offered to the model, which decides from the current
+> request whether a reminder was asked for (in any phrasing) and supplies `dueAt` (ISO 8601; no
+> offset means America/Lima) and `text`. There is no keyword gate and no model-free direct route.
+> Code still enforces the bounds: future time within one year, no mentions in the text, at most
+> one reminder per invocation, delivered only to the requester in the originating channel.
+
 # Reliable own reminders (T12)
 
 The pilot accepts a current authenticated request such as `recuérdame en 2 minutos

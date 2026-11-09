@@ -280,7 +280,8 @@ test('image-driven requests for arbitrary reads or writes are denied by the exec
         ],
         finishReason: { unified: 'tool-calls', raw: 'tool_calls' },
       }
-    assert.match(JSON.stringify(options.prompt), /denied/)
+    // The image-driven write carries no content, so the executor rejects it before any effect.
+    assert.match(JSON.stringify(options.prompt), /memory_save[^}]*invalid/)
     return answer
   }
   const invocation = input()
@@ -500,6 +501,7 @@ test('image retrieval and SDK/tool attempts share the eight-call budget', async 
   await a.run(i)
   // Four DNS/HTTP calls, one history read and three tool attempts = eight; models are separate.
   assert.equal(a.requests(), 2)
+  // No tool confirmed anything, so no synthesis turn follows the four tool-calling turns.
   assert.equal(turns, 4)
   assert.match(a.replies.join(''), /presupuesto/)
 })

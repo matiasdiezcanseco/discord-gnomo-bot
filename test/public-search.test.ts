@@ -31,7 +31,7 @@ function model(name: string, input: unknown) {
         const body = JSON.parse(text.text)
         return {
           content: body.toolResults.length
-            ? [{ type: 'text', text: JSON.stringify(body.toolResults) }]
+            ? [{ type: 'text', text: `Resultados: ${JSON.stringify(body.toolResults)}` }]
             : [
                 {
                   type: 'tool-call',

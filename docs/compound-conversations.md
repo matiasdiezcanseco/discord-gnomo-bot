@@ -19,6 +19,7 @@ terminó con 0. No se crearon checkouts, delegados ni recursos de producción.
 - `ConversationPorts.discover?` es política confiable de despliegue para el catálogo,
   tras autorizar la invocación. `composePilot` no hace REST por herramienta durante
   descubrimiento. Esto no cachea autorizaciones de ejecución o entrega: siguen frescas.
+- (Reemplazado: los recuerdos ahora se piden por intención; ver ADR 0002.)
 - `recuerda que Juan juega Valorant` guarda desde el texto actual, sin que el modelo
   pueda cambiar contenido/autor/canal. Las formas técnicas siguen disponibles.
   `memory_search` acepta `{query?: string}` para lecturas pertinentes elegidas por
