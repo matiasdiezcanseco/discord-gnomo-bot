@@ -3,6 +3,7 @@ import type { Client } from 'discord.js'
 import { z } from 'zod'
 import type { Invocation } from '../../core/conversation/invocation'
 import type { HistoryReader, HistoryResult } from '../../conversation/channel-history'
+import { reportError } from '../../diagnostics'
 
 const discordMessage = z.object({
   id: z.string(),
@@ -11,6 +12,10 @@ const discordMessage = z.object({
   content: z.string(),
   timestamp: z.iso.datetime({ offset: true }),
 })
+
+/** Shown to the model with every history page; shared by all transports. */
+export const HISTORY_LIMITS =
+  'Máximo 200 mensajes, dos páginas de 100 y 14000 caracteres JSON; contenido por mensaje hasta 2000 caracteres. Cobertura limitada al canal actual y anterior a la invocación.'
 
 /** Native fetch has no hidden SDK retries; every page shares the invocation budget. */
 export function discordHistory(
@@ -47,8 +52,7 @@ export function discordHistory(
       requested: limit,
       messages: [],
       partial: false,
-      limits:
-        'Máximo 200 mensajes, dos páginas de 100 y 14000 caracteres JSON; contenido por mensaje hasta 2000 caracteres. Cobertura limitada al canal actual y anterior a la invocación.',
+      limits: HISTORY_LIMITS,
     }
     let before = invocation.messageId
     const seen = new Set([before])
@@ -68,7 +72,8 @@ export function discordHistory(
             signal,
             headers: { Authorization: `Bot ${client.token}` },
           })
-          if (!response.ok || !response.body) throw new Error('Discord history unavailable')
+          if (!response.ok || !response.body)
+            throw new Error(`Discord history unavailable: HTTP ${response.status}`)
           const bytes = await readBoundedBody(response.body, 1000000, signal)
           return z
             .array(discordMessage)
@@ -96,6 +101,7 @@ export function discordHistory(
         before = cursor
       } catch (error) {
         if (!result.messages.length || signal.aborted) throw error
+        reportError('discord.history.page', error, { invocationId: invocation.messageId, page })
         result.partial = true
         break
       }

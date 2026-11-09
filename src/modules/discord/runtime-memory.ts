@@ -5,6 +5,7 @@ import { embed } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import type { MemoryDependencies } from '../../conversation/explicit-memory'
 import { databasePoolConfig, databaseVariables } from '../../database/configuration'
+import { reportError } from '../../diagnostics'
 
 /** Owns the runtime pool; the startup barrier handles schema, never legacy data import. */
 @Injectable()
@@ -17,8 +18,8 @@ export class RuntimeMemory implements OnModuleDestroy {
     )
     if (!options) return
     const pool = new Pool(options)
-    // Idle connection failures must not terminate chat or log data-bearing SQL errors.
-    pool.on('error', () => undefined)
+    // Idle connection failures must not terminate chat; only a redacted summary is logged.
+    pool.on('error', (error) => reportError('postgres.pool', error))
     const model = config.get<string>('PILOT_MEMORY_EMBEDDING_MODEL')
     this.dependencies = {
       pool,

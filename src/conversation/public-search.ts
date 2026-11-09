@@ -1,6 +1,7 @@
 import axios, { type AxiosInstance } from 'axios'
 import { z } from 'zod'
 import { defineCapability, partialResult, type ExecutionContext } from './catalog'
+import { reportError } from '../diagnostics'
 
 const sourceSchema = z.strictObject({
   title: z.string(),
@@ -208,6 +209,7 @@ export function tavilySearch(
         return base
       } catch (error) {
         signal.throwIfAborted()
+        reportError('tavily.search', error)
 
         const rate = axios.isAxiosError(error) && error.response?.status === 429
 

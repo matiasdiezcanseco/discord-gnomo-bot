@@ -4,6 +4,7 @@ import { Pool } from 'pg'
 import { ConfigModule } from '../modules/config/config.module'
 import { databasePoolConfig, databaseVariables } from './configuration'
 import { migrateMemoryDatabase } from './migrate'
+import { describeError } from '../diagnostics'
 
 const DATABASE_STARTUP = Symbol('DATABASE_STARTUP')
 
@@ -26,10 +27,11 @@ const DATABASE_STARTUP = Symbol('DATABASE_STARTUP')
         try {
           await migrateMemoryDatabase(pool)
           return 'ready'
-        } catch {
-          // SQL errors may contain row data/credentials. Fail closed with a safe message.
+        } catch (error) {
+          // Fail closed. Only the redacted error class/code/message is surfaced, never row data.
+          const cause = describeError(error)
           throw new Error(
-            'Startup migrations failed; application startup aborted. Check the direct DATABASE_URL and committed database schema.',
+            `Startup migrations failed; application startup aborted. Check the direct DATABASE_URL and committed database schema. Cause: ${cause.name}${cause.code ? ` ${cause.code}` : ''}: ${cause.message}`,
           )
         } finally {
           await pool.end()

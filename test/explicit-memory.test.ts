@@ -278,3 +278,16 @@ test(
     }
   },
 )
+
+test('memory_save labels validate server-side without a JSON Schema pattern sent to the model', async () => {
+  const { memoryCapabilities } = await import('../src/conversation/explicit-memory')
+  const { z } = await import('zod')
+  const save = memoryCapabilities(undefined, undefined).find((tool) => tool.name === 'memory_save')!
+  // OpenAI answers a request carrying `^[^=;[\]\r\n]+$` as a pattern with an empty, "incomplete"
+  // response (0 tokens), which left every invocation unanswered once memory was configured.
+  const schema = JSON.stringify(z.toJSONSchema(save.input))
+  assert.doesNotMatch(schema, /"pattern"/)
+  assert.equal(save.input.safeParse({ content: 'x', key: 'juego' }).success, true)
+  for (const key of ['a=b', 'a;b', 'a[b', 'a]b', 'a\nb'])
+    assert.equal(save.input.safeParse({ content: 'x', key }).success, false, key)
+})

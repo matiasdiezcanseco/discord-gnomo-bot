@@ -2,6 +2,7 @@ import { GatewayIntentBits, type Client } from 'discord.js'
 import { z } from 'zod'
 
 import type { MemberDirectory, MemberPage } from '../../conversation/member-directory'
+import { reportError } from '../../diagnostics'
 const wireMember = z.object({
   user: z.object({
     id: z.string(),
@@ -44,8 +45,9 @@ export function discordMembers(client: Client, fetcher: typeof fetch = fetch): M
             },
           }
         })
-      } catch {
+      } catch (error) {
         context.signal.throwIfAborted()
+        reportError('discord.members.detail', error, { invocationId: context.invocation.messageId })
         return result
       }
     },
@@ -69,7 +71,7 @@ export function discordMembers(client: Client, fetcher: typeof fetch = fetch): M
               signal: context.signal,
             },
           )
-          if (!response.ok) throw new Error('Member lookup unavailable')
+          if (!response.ok) throw new Error(`Member lookup unavailable: HTTP ${response.status}`)
           return z
             .array(wireMember)
             .max(limit)
@@ -83,8 +85,9 @@ export function discordMembers(client: Client, fetcher: typeof fetch = fetch): M
         }))
         result.coverage = rows.length === limit ? 'partial' : 'complete'
         result.nextAfter = rows.length === limit ? rows.at(-1)!.user.id : null
-      } catch {
+      } catch (error) {
         context.signal.throwIfAborted()
+        reportError('discord.members.list', error, { invocationId: context.invocation.messageId })
       }
       return result
     },

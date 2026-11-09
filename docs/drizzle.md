@@ -43,8 +43,8 @@ the session advisory lock serializes concurrent server/CLI starts.
 The startup migration uses direct `DATABASE_URL` (or the legacy fallback), and
 closes its temporary pool before proceeding. Its role needs schema/table/extension
 creation rights; the pooled runtime role needs table access. Pooled-only Neon
-configuration refuses startup. Builds and sandbox conversations do not migrate;
-sandbox setup remains explicit. Historical-data imports remain operator-only.
+configuration refuses startup. The console sandbox runs the same startup barrier
+against its local database. Builds do not migrate. Historical-data imports remain operator-only.
 Keep the public memory tables and vector extension visible on the connection's
 search path. Supabase direct/session connection URLs and verified TLS are
 configured as in [local and deployment setup](local-testing.md).
@@ -62,9 +62,8 @@ Drizzle Kit or tsx at runtime. The normal entry remains `node dist/main.js`.
 The local Postgres service no longer mounts an SQL initializer; installation
 and journal tracking use the same explicit migration path for every volume.
 
-Sandbox installation remains `npm run sandbox:setup` (or its compiled Docker
-equivalent). It creates/adopts only the isolated local sandbox database and calls
-the same Drizzle migrator. No Discord connection is involved.
+The console sandbox (`npm run sandbox`) migrates its local database at startup through
+the same `DatabaseModule`; no separate setup step exists.
 
 ## Existing databases
 

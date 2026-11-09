@@ -61,13 +61,13 @@ export function collectionCapabilities(source?: CollectionSource) {
       if (result.status === 'denied') return 'No tengo permiso para consultar la colección aquí.'
       return `No pude consultar la colección de ${label}. Inténtalo nuevamente más tarde.`
     }
-    const noun = kind === 'phrase' ? 'frase' : '(?:foto|imagen)'
-    const pattern = new RegExp(
-      `^(?:(?:dame|dime|manda|mandame|envia|enviame) )?(?:una )?${noun}(?: (?:aleatoria|del gnomo))?(?: por favor)?[.!?]*$`,
-    )
     return defineCapability({
       name: `collection_${kind}`,
-      description: `Obtiene ${kind === 'phrase' ? 'una frase' : 'una foto'} existente de la colección de Gnomo. Conserva el texto/URL sin reescribirlo. No genera contenido nuevo ni imágenes.`,
+      // Chosen by the model from intent; there is no keyword/regex shortcut.
+      description:
+        kind === 'phrase'
+          ? 'Entrega una frase al azar de la colección del Gnomo cuando el solicitante quiere una frase, dicho o cita del Gnomo, la pida como la pida. El sistema la entrega textual al solicitante: no la repitas ni la reescribas. No genera frases nuevas; si pide una frase inventada o sobre un tema concreto, responde tú sin esta herramienta.'
+          : 'Entrega una foto al azar de la colección del Gnomo cuando el solicitante quiere una foto o imagen del Gnomo, la pida como la pida. El sistema entrega la URL textual al solicitante: no la repitas ni la reescribas. No genera ni edita imágenes.',
       capability: `collection.${kind}`,
       scope: 'channel',
       effect: 'read',
@@ -76,19 +76,9 @@ export function collectionCapabilities(source?: CollectionSource) {
       maxCalls: 1,
       maxResultChars: 16000,
       available: async () => !!source,
-      direct: {
-        matches: (invocation) =>
-          !invocation.attachments.length &&
-          pattern.test(
-            invocation.content
-              .normalize('NFD')
-              .replace(/[\u0300-\u036f]/g, '')
-              .toLowerCase()
-              .trim(),
-          ),
-        input: {},
-        render,
-      },
+      verbatim: render,
+      // A photo reply is only the bare URL so Discord shows the image in the chat.
+      standalone: kind === 'photo',
       execute: async (_, context: ExecutionContext) => {
         const items = await context.external(() =>
           source!.read(kind === 'phrase' ? 'phrases.json' : 'images.json', context.signal),

@@ -29,12 +29,17 @@ export interface Capability {
   output: z.ZodType
   maxCalls: number
   maxResultChars: number
-  /** Anchored, local recognition only. Selected calls still pass through Executor. */
-  direct?: {
-    matches(invocation: Invocation): boolean
-    input: unknown
-    render(result: ToolResult): string
-  }
+  /**
+   * The model chooses the tool by intent; its result is then delivered exactly as rendered here,
+   * never rephrased by the model. A turn that only calls verbatim tools ends without another
+   * model step.
+   */
+  verbatim?(result: ToolResult): string
+  /**
+   * With `verbatim`: a successful result is sent as its own message containing only that output
+   * (e.g. an image URL, so Discord renders the preview). Model text never wraps it.
+   */
+  standalone?: boolean
   available(context: ExecutionContext): Promise<boolean>
   execute(input: unknown, context: ExecutionContext): Promise<unknown>
 }

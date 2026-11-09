@@ -72,6 +72,8 @@ test(
     };
     global.fetch = async url => {
       if (String(url) === 'https://collection.example/phrases.json') return Response.json(['Soy pequeño pero peligroso.']);
+      // The model chooses the collection tool from intent (OpenAI Responses API shape).
+      if (String(url) === 'https://api.openai.com/v1/responses') return Response.json({ id: 'resp_1', created_at: 0, model: 'gpt-4o-mini', status: 'completed', incomplete_details: null, output: [{ type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'collection_phrase', arguments: '{}', status: 'completed' }], usage: { input_tokens: 1, output_tokens: 1, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } } });
       if (String(url).startsWith('https://discord.com/')) return Response.json([]);
       throw Error('unexpected external request: ' + url);
     };
@@ -90,7 +92,7 @@ test(
         assert.deepEqual([...app.get(SchedulerRegistry).getCronJobs().keys()].sort(), ['birthday-check', 'reliable-notices']);
         const replies = [];
         const event = { id: require('node:crypto').randomUUID(), guildId: 'g', channelId: 'c', content: '<@99> dame una frase',
-          createdTimestamp: Date.now(), author: {id:'u', username:'Ana', bot:false}, attachments: new Map(),
+          createdTimestamp: Date.now(), author: {id:'u', username:'Ana', bot:false}, attachments: new Map(), channel: {},
           reply: async value => { replies.push(value); } };
         client.emit('messageCreate', event);
         client.emit('messageCreate', event);
@@ -212,5 +214,73 @@ test(
     } finally {
       await pool.end()
     }
+  },
+)
+
+// Same file as the other builds: node --test runs files in parallel and `nest build` clears dist.
+test(
+  'console runtime boots the production Nest composition without Discord and answers in the terminal',
+  { skip: !process.env.T02_REDIS_URL },
+  () => {
+    execFileSync(process.execPath, ['node_modules/@nestjs/cli/bin/nest.js', 'build'], {
+      stdio: 'pipe',
+    })
+    const script = `
+    require('reflect-metadata');
+    const assert = require('node:assert/strict');
+    const { Client } = require('discord.js');
+    Client.prototype.login = async () => { throw Error('unexpected Discord login'); };
+    global.fetch = async url => {
+      if (String(url) === 'https://collection.example/phrases.json') return Response.json(['Soy pequeño pero peligroso.']);
+      // The model chooses the collection tool from intent (OpenAI Responses API shape).
+      if (String(url) === 'https://api.openai.com/v1/responses') return Response.json({ id: 'resp_1', created_at: 0, model: 'gpt-4o-mini', status: 'completed', incomplete_details: null, output: [{ type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'collection_phrase', arguments: '{}', status: 'completed' }], usage: { input_tokens: 1, output_tokens: 1, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } } });
+      throw Error('unexpected external request: ' + url);
+    };
+    const { NestFactory } = require('@nestjs/core');
+    const { ConsoleAppModule } = require('./dist/app.module');
+    const { ConsoleSession } = require('./dist/modules/console/console-session');
+    const { ConsoleReceiver } = require('./dist/modules/console/console-transport');
+    const { Transport } = require('./dist/modules/transport/transport');
+    const { SchedulerRegistry } = require('@nestjs/schedule');
+    (async () => {
+      const app = await NestFactory.create(ConsoleAppModule, { logger: false, abortOnError: false });
+      try {
+        await app.init();
+        assert.equal(app.get(Transport).name, 'console');
+        assert.deepEqual([...app.get(SchedulerRegistry).getCronJobs().keys()].sort(), ['birthday-check', 'reliable-notices']);
+        const session = app.get(ConsoleSession);
+        const events = [];
+        session.output = event => events.push(event);
+        await app.get(ConsoleReceiver).send('dame una frase');
+        assert.deepEqual(events.map(e => e.type), ['typing', 'reply']);
+        assert.equal(events[1].content, 'Soy pequeño pero peligroso.');
+        assert.deepEqual(session.transcript().map(m => m.author.id), [session.requester.id, session.bot.id]);
+      } finally { await app.close(); }
+      console.log('console smoke passed');
+    })().catch(e => { console.error(e); process.exit(1); });
+  `
+    const env: Record<string, string | undefined> = {
+      ...process.env,
+      NODE_ENV: 'production',
+      GNOMO_TRANSPORT: 'console',
+      RUNTIME_MODE: 'guild',
+      GUILD_ID: '100000000000000001',
+      OPENAI_API_KEY: 'controlled',
+      REDIS_URL: process.env.T02_REDIS_URL,
+      BUCKET_URL: 'https://collection.example/',
+    }
+    for (const key of [
+      'BOT_TOKEN',
+      'PILOT_MEMORY_DATABASE_URL',
+      'DATABASE_URL',
+      'DATABASE_URL_POOLED',
+      'MEMORY_OWNER_ID',
+      'PILOT_MEMORY_EMBEDDING_MODEL',
+    ])
+      delete env[key]
+    assert.match(
+      execFileSync(process.execPath, ['-e', script], { env, encoding: 'utf8', timeout: 30000 }),
+      /console smoke passed/,
+    )
   },
 )

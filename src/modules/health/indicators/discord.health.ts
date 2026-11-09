@@ -1,25 +1,20 @@
-import { Injectable } from '@nestjs/common';
-import { HealthCheckError, HealthIndicatorResult } from '@nestjs/terminus';
-import { HealthIndicator } from '@nestjs/terminus';
-import { DiscordService } from '../../discord/discord.service';
+import { Injectable } from '@nestjs/common'
+import { HealthCheckError, HealthIndicatorResult } from '@nestjs/terminus'
+import { HealthIndicator } from '@nestjs/terminus'
+import { Transport } from '../../transport/transport'
 
 @Injectable()
 export class DiscordHealthIndicator extends HealthIndicator {
-  constructor(
-    private readonly discordService: DiscordService,
-  ) {
-    super();
+  constructor(private readonly transport: Transport) {
+    super()
   }
 
-  async isHealthy(key: string = 'discord'): Promise<HealthIndicatorResult> {
+  async isHealthy(key: string = this.transport.name): Promise<HealthIndicatorResult> {
     try {
-      const isReady = this.discordService.isReady();
-      return this.getStatus(key, isReady);
+      const isReady = this.transport.isReady()
+      return this.getStatus(key, isReady)
     } catch {
-      throw new HealthCheckError(
-        'Discord check failed',
-        this.getStatus(key, false),
-      );
+      throw new HealthCheckError('Transport check failed', this.getStatus(key, false))
     }
   }
 }

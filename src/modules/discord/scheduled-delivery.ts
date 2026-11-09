@@ -9,7 +9,8 @@ import {
   type ScheduledDelivery,
   type ScheduledOrigin,
 } from '../../conversation/scheduled-notices'
-import { birthdayRecords, limaDate, type BirthdaySource } from '../../conversation/birthdays'
+import { birthdayStillDue, type BirthdaySource } from '../../conversation/birthdays'
+import { reportError } from '../../diagnostics'
 
 export function discordScheduledDelivery(
   client: Client,
@@ -19,23 +20,11 @@ export function discordScheduledDelivery(
 ): ScheduledDelivery {
   async function channelFor(origin: ScheduledOrigin) {
     if (!runtimeAllows(config, origin) || !client.user) return null
-    if (isBirthday(origin)) {
-      if (
-        origin.channelId !== config.get<string>('GNOMOS_CHANNEL_ID') ||
-        origin.calendarDate !== limaDate(now()) ||
-        !source
-      )
-        return null
-      const data = await source()
-      if (data === null || data === undefined)
-        throw new NoticeFailure('transient', 'birthday source unavailable')
-      if (
-        !birthdayRecords(data).some(
-          (row) => row.id === origin.requester.id && row.date === origin.calendarDate.slice(5),
-        )
-      )
-        return null
-    }
+    if (
+      isBirthday(origin) &&
+      !(await birthdayStillDue(origin, config.get<string>('GNOMOS_CHANNEL_ID'), source, now()))
+    )
+      return null
     const guild = await client.guilds.fetch(origin.guildId)
     const channel = await guild.channels.fetch(origin.channelId, { force: true })
     if (!channel || !channel.isTextBased() || !channel.isSendable()) return null
@@ -57,6 +46,7 @@ export function discordScheduledDelivery(
       try {
         return !!(await channelFor(origin))
       } catch (error) {
+        reportError('notices.authorize', error, { channelId: origin.channelId })
         const status =
           typeof error === 'object' && error !== null && 'status' in error ? error.status : null
         throw new NoticeFailure(
@@ -70,6 +60,7 @@ export function discordScheduledDelivery(
       try {
         channel = await channelFor(origin)
       } catch (error) {
+        reportError('notices.revalidate', error, { channelId: origin.channelId })
         const status =
           typeof error === 'object' && error !== null && 'status' in error ? error.status : null
         throw new NoticeFailure(
@@ -81,6 +72,7 @@ export function discordScheduledDelivery(
       try {
         await channel.send(reply)
       } catch (error) {
+        reportError('notices.send', error, { channelId: origin.channelId })
         const status =
           typeof error === 'object' && error !== null && 'status' in error ? error.status : null
         if (status === 429)
