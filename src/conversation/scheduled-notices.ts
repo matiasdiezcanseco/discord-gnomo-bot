@@ -2,6 +2,7 @@ import type Redis from 'ioredis'
 import { createHash, randomUUID } from 'node:crypto'
 import type { Invocation } from '../core/conversation/invocation'
 import type { Reply } from './harness'
+import { reportError } from '../diagnostics'
 
 /** Trusted scheduler origin; never accepted by conversation capabilities. */
 export interface BirthdayOrigin {
@@ -125,14 +126,20 @@ export class ScheduledNotices {
     // Reserve a rotating rank page atomically across workers. Exclusion never changes
     // a notice, its due score or its attempts. A durable cursor survives recreation;
     // modulo handles removals as claims/sends shrink the due set (including ties).
-    const ids = await this.redis.eval(`
+    const ids = (await this.redis.eval(
+      `
       local count = redis.call('ZCOUNT', KEYS[1], '-inf', ARGV[1])
       if count == 0 then redis.call('SET', KEYS[2], 0); return {} end
       local offset = tonumber(redis.call('GET', KEYS[2]) or '0') % count
       local last = math.min(offset + 49, count - 1)
       local ids = redis.call('ZRANGE', KEYS[1], offset, last)
       redis.call('SET', KEYS[2], (last + 1) % count)
-      return ids`, 2, this.due, `${this.namespace}:dispatch-cursor`, now) as string[]
+      return ids`,
+      2,
+      this.due,
+      `${this.namespace}:dispatch-cursor`,
+      now,
+    )) as string[]
     for (const id of ids) {
       if (delivery.admits) {
         const candidate = await this.get(id)
@@ -183,6 +190,12 @@ export class ScheduledNotices {
       } catch (error) {
         const kind = error instanceof NoticeFailure ? error.kind : 'uncertain'
         const retry = kind === 'transient' && record.attempts < 3
+        reportError('notices.delivery', error, {
+          noticeId: id,
+          kind,
+          attempts: record.attempts,
+          next: retry ? 'retry' : kind === 'uncertain' ? 'uncertain' : 'dead',
+        })
         await this.transition(
           id,
           token,

@@ -6,6 +6,7 @@ import { ScheduledNotices } from '../../conversation/scheduled-notices'
 import { Transport } from '../transport/transport'
 import { LoggerService } from '../services/logger/logger.service'
 import { BucketService } from '../services/bucket/bucket.service'
+import { describeError } from '../../diagnostics'
 
 @Injectable()
 export class ReliableNoticesTask {
@@ -27,8 +28,13 @@ export class ReliableNoticesTask {
           this.bucket.fetchBucketData<unknown>('birthdays.json'),
         ),
       )
-    } catch {
-      this.logger.error('Scheduled notice dispatch failed; records retained', 'scheduled-notices')
+    } catch (error) {
+      this.logger
+        .createLogger('scheduled-notices')
+        .error(
+          { error: describeError(error) },
+          'Scheduled notice dispatch failed; records retained',
+        )
     }
   }
 }

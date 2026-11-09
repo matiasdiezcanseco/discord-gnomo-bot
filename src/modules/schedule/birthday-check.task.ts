@@ -8,6 +8,7 @@ import { LoggerService } from '../services/logger/logger.service'
 import { ConfigService } from '@nestjs/config'
 import { scheduleBirthdays } from '../../conversation/birthdays'
 import { ScheduledNotices } from '../../conversation/scheduled-notices'
+import { describeError } from '../../diagnostics'
 
 /** Sole producer for the configured group, including outside the conversation pilot. */
 @Injectable()
@@ -41,8 +42,10 @@ export class BirthdayCheckTask {
         () => this.bucket.fetchBucketData<unknown>('birthdays.json'),
         new ScheduledNotices(this.redis),
       )
-    } catch {
-      this.logger.error('Birthday scheduling failed; safe to retry', 'birthday-check')
+    } catch (error) {
+      this.logger
+        .createLogger('birthday-check')
+        .error({ error: describeError(error) }, 'Birthday scheduling failed; safe to retry')
     }
   }
 }

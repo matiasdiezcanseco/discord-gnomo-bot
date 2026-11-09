@@ -6,6 +6,7 @@ import { memoryDatabase } from '../database/connection'
 import { memories, memoryOperations, memoryRecord } from '../database/schema'
 import { defineCapability, type ExecutionContext } from './catalog'
 import type { Invocation } from '../core/conversation/invocation'
+import { reportError } from '../diagnostics'
 
 export interface MemoryEmbedding {
   /** Versioned model identity; never compare vectors from different models. */
@@ -134,13 +135,17 @@ async function execute(
         throw new Error('Invalid embedding')
       vector = values
       embeddingModel = dependencies.embedding.model
-    } catch {
+    } catch (error) {
       signal.throwIfAborted()
+      reportError('memory.embedding', error, { invocationId: invocation.messageId })
       // Optional embedding failure never prevents lexical persistence/recall.
     }
   }
   signal.throwIfAborted()
-  const client = await dependencies.pool.connect().catch(() => undefined)
+  const client = await dependencies.pool.connect().catch((error) => {
+    reportError('memory.connect', error, { invocationId: invocation.messageId })
+    return undefined
+  })
   if (!client) {
     signal.throwIfAborted()
     return 'unavailable: almacenamiento de memoria no disponible.'
@@ -296,6 +301,11 @@ async function execute(
       editor: invocation.requester.id,
     })
   } catch (error) {
+    reportError('memory.query', error, {
+      invocationId: invocation.messageId,
+      operation: intent.operation,
+      mutationAttempted,
+    })
     if (mutationAttempted || signal.aborted) throw error
     return 'unavailable: almacenamiento/esquema de memoria no disponible; ninguna escritura iniciada.'
   } finally {

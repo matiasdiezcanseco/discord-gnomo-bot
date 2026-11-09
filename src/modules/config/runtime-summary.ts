@@ -1,0 +1,57 @@
+import type { ConfigService } from '@nestjs/config'
+import { DEFAULT_OPENAI_MODEL } from './constants'
+
+/**
+ * One startup line answering "what is this process actually running with?". Booleans only for
+ * credentials and URLs; never their values.
+ */
+export function runtimeSummary(config: Pick<ConfigService, 'get'>) {
+  const get = (key: string) => config.get<string>(key)?.toString().trim() || undefined
+  const has = (key: string) => !!get(key)
+  const owner = /^\d{17,20}$/.test(get('MEMORY_OWNER_ID') ?? '')
+  const database =
+    has('DATABASE_URL_POOLED') || has('DATABASE_URL') || has('PILOT_MEMORY_DATABASE_URL')
+  const channels = (get('RUNTIME_CHANNEL_IDS') ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean)
+  const disabled: string[] = []
+  if (!has('OPENAI_API_KEY')) disabled.push('model (OPENAI_API_KEY)')
+  if (!has('REDIS_URL')) disabled.push('claims/reminders (REDIS_URL)')
+  if (!database) disabled.push('memory (no database URL)')
+  else if (!owner) disabled.push('memory (MEMORY_OWNER_ID missing/invalid)')
+  if (!has('BUCKET_URL')) disabled.push('phrases/photos/birthdays (BUCKET_URL)')
+  if (!has('TAVILY_API_KEY')) disabled.push('web search/news (TAVILY_API_KEY)')
+  if (!has('GNOMOS_CHANNEL_ID')) disabled.push('birthday greetings (GNOMOS_CHANNEL_ID)')
+  return {
+    transport: get('GNOMO_TRANSPORT') ?? 'discord',
+    runtimeMode: get('RUNTIME_MODE') ?? 'paused',
+    runtimeChannels: channels.length,
+    guildId: get('GUILD_ID') ?? null,
+    model: get('OPENAI_MODEL') ?? `${DEFAULT_OPENAI_MODEL} (default)`,
+    reasoningEffort: get('OPENAI_REASONING_EFFORT') ?? 'low',
+    timeoutMs: Number(get('CONVERSATION_TIMEOUT_MS') ?? 60000),
+    synthesisTimeoutMs: Number(get('CONVERSATION_SYNTHESIS_TIMEOUT_MS') ?? 20000),
+    concurrency: Number(get('CONVERSATION_CONCURRENCY') ?? 4),
+    configured: {
+      BOT_TOKEN: has('BOT_TOKEN'),
+      OPENAI_API_KEY: has('OPENAI_API_KEY'),
+      REDIS_URL: has('REDIS_URL'),
+      DATABASE_URL: has('DATABASE_URL'),
+      DATABASE_URL_POOLED: has('DATABASE_URL_POOLED'),
+      PILOT_MEMORY_DATABASE_URL: has('PILOT_MEMORY_DATABASE_URL'),
+      MEMORY_OWNER_ID: owner,
+      PILOT_MEMORY_EMBEDDING_MODEL: has('PILOT_MEMORY_EMBEDDING_MODEL'),
+      BUCKET_URL: has('BUCKET_URL'),
+      TAVILY_API_KEY: has('TAVILY_API_KEY'),
+      GNOMOS_CHANNEL_ID: has('GNOMOS_CHANNEL_ID'),
+    },
+    disabled,
+    logContent: get('LOG_CONTENT') === 'true',
+    nodeEnv: get('NODE_ENV') ?? 'development',
+    logLevel: get('LOG_LEVEL') ?? null,
+    // Fly sets these; they identify which deploy produced a log line.
+    release: process.env.FLY_IMAGE_REF ?? process.env.FLY_MACHINE_VERSION ?? null,
+    node: process.version,
+  }
+}

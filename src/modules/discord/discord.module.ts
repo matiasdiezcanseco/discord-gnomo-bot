@@ -1,3 +1,4 @@
+import { conversationTrace } from '../services/logger/conversation-trace'
 import { Global, Module } from '@nestjs/common'
 import { Transport } from '../transport/transport'
 import { DiscordService } from './discord.service'
@@ -34,7 +35,7 @@ import { RuntimeMemory } from './runtime-memory'
           client: discord.getClient(),
           config: config,
           redis: redis,
-          trace: (trace) => logger.createLogger('conversation').info(trace),
+          trace: conversationTrace(logger.createLogger('conversation')),
           memory: memory.dependencies,
         }),
     },

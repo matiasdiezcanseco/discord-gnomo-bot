@@ -78,6 +78,20 @@ TIEMPO: now indica la fecha y hora actual en America/Lima; úsala para interpret
           name: call.toolName,
           input: call.input,
         })),
+        // finishReason 'length' or 0 output tokens explain an empty turn in the traces.
+        meta: {
+          finishReason: result.finishReason,
+          inputTokens: result.usage.inputTokens,
+          outputTokens: result.usage.outputTokens,
+          reasoningTokens: result.usage.outputTokenDetails?.reasoningTokens,
+          responseId: result.response?.id,
+          modelId: result.response?.modelId,
+          ...(result.warnings?.length
+            ? {
+                warnings: result.warnings.map((warning) => JSON.stringify(warning).slice(0, 200)),
+              }
+            : {}),
+        },
       }
     },
   }

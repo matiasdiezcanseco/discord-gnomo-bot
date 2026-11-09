@@ -3,6 +3,7 @@ import { Catalog, type Capability, type ExecutionContext } from './catalog'
 import type { HistoryResult } from './channel-history'
 import { Budget, systemClock, type Clock } from './budget'
 import { splitReply } from './delivery'
+import { describeError, redact, type ErrorSummary } from '../diagnostics'
 import { Admission } from './admission'
 import { Executor } from './executor'
 import { AttachmentError, type VerifiedImage } from './attached-images'
@@ -11,9 +12,20 @@ export interface Reply {
   content: string
   allowedMentions: { parse: []; users: string[]; roles: []; repliedUser: false }
 }
+/** Provider facts about one model call, for diagnostics only. */
+export interface ModelMeta {
+  finishReason?: string
+  inputTokens?: number
+  outputTokens?: number
+  reasoningTokens?: number
+  responseId?: string
+  modelId?: string
+  warnings?: string[]
+}
 export interface ModelTurn {
   text: string
   calls: { id: string; name: string; input: unknown }[]
+  meta?: ModelMeta
 }
 export type ResultStatus =
   | 'success'
@@ -50,6 +62,21 @@ export interface Trace {
   elapsedMs: number
   calls: number
   steps: number
+  /** Diagnostics; never control flow. Secrets are redacted, content only when opted in. */
+  durationMs?: number
+  error?: ErrorSummary
+  detail?: string
+  model?: ModelMeta
+  toolCalls?: string[]
+  tools?: number
+  guildId?: string
+  channelId?: string
+  requesterId?: string
+  contentLength?: number
+  attachments?: number
+  parts?: number
+  content?: string
+  reply?: string
 }
 export interface ConversationPorts {
   loadImages?(context: ExecutionContext): Promise<VerifiedImage[]>
@@ -69,6 +96,8 @@ export interface ConversationPorts {
     context: ExecutionContext,
   ): Promise<string[] | { users: string[]; clarification?: string }>
   trace?(trace: Trace): void
+  /** Include (redacted, truncated) request and reply text in traces. Off by default. */
+  traceContent?: boolean
   /** Main loop budget in ms (model steps and tools). */
   timeoutMs?: number
   /**
@@ -129,9 +158,10 @@ export function createConversation(ports: ConversationPorts) {
       const standalone = (result: ToolResult) =>
         result.status === 'success' &&
         !!tools.find((entry) => entry.name === result.name && entry.verbatim && entry.standalone)
-      const trace = (event: string, status?: string, tool?: string) => {
+      const trace = (event: string, status?: string, tool?: string, extra?: Partial<Trace>) => {
         try {
           ports.trace?.({
+            ...extra,
             invocationId: invocation.messageId,
             event,
             status,
@@ -162,7 +192,14 @@ export function createConversation(ports: ConversationPorts) {
       let claimed = false
       let release: (() => void) | undefined
       try {
-        trace('received')
+        trace('received', undefined, undefined, {
+          guildId: invocation.guildId,
+          channelId: invocation.channelId,
+          requesterId: invocation.requester.id,
+          contentLength: invocation.content.length,
+          attachments: invocation.attachments.length,
+          ...(ports.traceContent ? { content: redact(invocation.content) } : {}),
+        })
         // Claim before any reply or effect; retain the claim even on uncertain delivery.
         claimed = await budget.wait(() => ports.claim(invocation))
         if (!claimed) {
@@ -207,7 +244,11 @@ export function createConversation(ports: ConversationPorts) {
               throw new AttachmentError('Se revocó el permiso para responder aquí.')
             budget.steps++
             const visible = await executor.available()
-            trace('model_started')
+            trace('model_started', undefined, undefined, {
+              tools: visible.length,
+              detail: results.length ? `${results.length} tool results` : undefined,
+            })
+            const modelStarted = clock.now()
             const turn = await budget.wait(() =>
               ports.model.generate({
                 invocation,
@@ -219,16 +260,28 @@ export function createConversation(ports: ConversationPorts) {
               }),
             )
             // 'empty': the provider returned neither text nor calls (e.g. a silently incomplete response).
-            trace('model_finished', turn.text || turn.calls.length ? undefined : 'empty')
+            trace(
+              'model_finished',
+              turn.text || turn.calls.length ? undefined : 'empty',
+              undefined,
+              {
+                durationMs: clock.now() - modelStarted,
+                model: turn.meta,
+                toolCalls: turn.calls.map((call) => call.name),
+              },
+            )
             if (turn.text) text = turn.text
             if (!turn.calls.length) break
             const lead = turn.text
             text = ''
             const before = results.length
             const run = async (call: ModelTurn['calls'][number]) => {
+              const toolStarted = clock.now()
               const result = await executor.execute(call)
               results.push(result)
-              trace('tool_finished', result.status, result.name)
+              trace('tool_finished', result.status, result.name, {
+                durationMs: clock.now() - toolStarted,
+              })
             }
             // Only adjacent reads may overlap. Writes are barriers, including uncertain writes.
             for (let index = 0; index < turn.calls.length; ) {
@@ -272,7 +325,9 @@ export function createConversation(ports: ConversationPorts) {
           }
         }
       } catch (error) {
-        trace('stopped', signal.aborted ? 'timeout' : 'error')
+        trace('stopped', signal.aborted ? 'timeout' : 'error', undefined, {
+          error: describeError(error),
+        })
         if (!claimed) return
         if (error instanceof AttachmentError) text = error.message
         else {
@@ -290,12 +345,7 @@ export function createConversation(ports: ConversationPorts) {
       const alone = results
         .filter(standalone)
         .map((result) => tools.find((entry) => entry.name === result.name)!.verbatim!(result))
-      for (const value of alone)
-        text = text
-          .split(value)
-          .join('')
-          .replace(/ {2,}/g, ' ')
-          .trim()
+      for (const value of alone) text = text.split(value).join('').replace(/ {2,}/g, ' ').trim()
       // Phrase confirmed results with one tool-less turn instead of dumping raw tool payloads.
       if (!text && confirmed.some((r) => !standalone(r)) && ports.synthesisTimeoutMs) {
         const grace = new Budget(clock, clock.now(), ports.synthesisTimeoutMs)
@@ -311,21 +361,16 @@ export function createConversation(ports: ConversationPorts) {
             }),
           )
           if (turn.text) text = turn.text
-          trace('synthesis_finished', text ? 'success' : 'empty')
-        } catch {
-          trace('synthesis_finished', 'error')
+          trace('synthesis_finished', text ? 'success' : 'empty', undefined, { model: turn.meta })
+        } catch (error) {
+          trace('synthesis_finished', 'error', undefined, { error: describeError(error) })
         } finally {
           grace.close()
         }
       }
       // Verbatim results are never paraphrased away: append any the final answer left out.
       // The synthesis turn may have quoted the URL again.
-      for (const value of alone)
-        text = text
-          .split(value)
-          .join('')
-          .replace(/ {2,}/g, ' ')
-          .trim()
+      for (const value of alone) text = text.split(value).join('').replace(/ {2,}/g, ' ').trim()
       const exact = results
         .filter((result) => result.status === 'success' && !standalone(result))
         .flatMap((result) => {
@@ -390,15 +435,18 @@ export function createConversation(ports: ConversationPorts) {
               allowedMentions: { parse: [], users, roles: [], repliedUser: false },
             }),
           )
-          trace('visible_send', 'confirmed')
+          trace('visible_send', 'confirmed', undefined, { contentLength: content.length })
         }
-      } catch {
-        trace('delivery', 'uncertain')
+      } catch (error) {
+        trace('delivery', 'uncertain', undefined, { error: describeError(error) })
         return
       } finally {
         delivery.close()
       }
-      trace('delivered')
+      trace('delivered', undefined, undefined, {
+        parts: chunks.length,
+        ...(ports.traceContent ? { reply: redact(chunks.join('\n'), 1000) } : {}),
+      })
     },
   }
 }

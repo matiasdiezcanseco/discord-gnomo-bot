@@ -2,6 +2,7 @@ import { Global, Inject, Injectable, Module, OnModuleDestroy } from '@nestjs/com
 import { ConfigService } from '@nestjs/config'
 import IORedis from 'ioredis'
 import { ConfigModule } from '../../config/config.module'
+import { describeError, reportError } from '../../../diagnostics'
 
 @Injectable()
 class RedisLifecycle implements OnModuleDestroy {
@@ -30,12 +31,21 @@ class RedisLifecycle implements OnModuleDestroy {
           enableOfflineQueue: false,
           retryStrategy: (attempt) => Math.min(attempt * 100, 2000),
         })
-        redis.on('error', () => undefined)
+        // ioredis emits one error per retry; report at most one every 30s.
+        let reported = 0
+        redis.on('error', (error) => {
+          if (Date.now() - reported < 30000) return
+          reported = Date.now()
+          reportError('redis.connection', error)
+        })
         try {
           await redis.connect()
-        } catch {
+        } catch (error) {
           redis.disconnect()
-          throw new Error('Redis unavailable at startup')
+          const cause = describeError(error)
+          throw new Error(
+            `Redis unavailable at startup (${cause.code ?? cause.name}: ${cause.message})`,
+          )
         }
         return redis
       },

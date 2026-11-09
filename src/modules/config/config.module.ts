@@ -48,6 +48,8 @@ const envSchema = z
     // Runtime
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).optional(),
+    // Include redacted request/reply text in conversation traces (off by default).
+    LOG_CONTENT: z.enum(['true', 'false']).optional(),
 
     // Health check port
     PORT: z.coerce.number().default(3000),

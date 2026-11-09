@@ -1,6 +1,7 @@
 import sharp from 'sharp'
 import type { ExecutionContext } from './catalog'
 import type { SafeReader } from '../web/safe-reader'
+import { reportError } from '../diagnostics'
 
 export interface VerifiedImage {
   bytes: Uint8Array
@@ -109,6 +110,7 @@ export function attachedImages(reader: SafeReader) {
       } catch (error) {
         signal.throwIfAborted()
         if (error instanceof AttachmentError) throw error
+        reportError('images.decode', error, { attachmentId: attachment.id })
         fail('imagen dañada, incompleta o dimensiones excesivas.')
       } finally {
         signal.removeEventListener('abort', abort)

@@ -9,6 +9,8 @@ To debug locally without Discord, run `npm run sandbox`: the full production run
 (real model, tools, memory, reminders, schedulers) with the terminal as transport and
 only local PostgreSQL/Redis. See [sandbox usage](docs/sandbox.md).
 
+To diagnose production behavior from the logs, see [debugging](docs/debugging.md).
+
 Install Node 24 and run `npm ci --ignore-scripts`. Copy `.env-example` to `.env`.
 `npm start` defaults to **paused**, without logging into Discord. Configure the
 required variables before selecting `RUNTIME_MODE=pilot` (explicit comma-separated

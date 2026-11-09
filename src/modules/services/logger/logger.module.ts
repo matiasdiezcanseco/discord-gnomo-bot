@@ -10,6 +10,7 @@ import {
 import pino from 'pino'
 import { ConfigService } from '@nestjs/config'
 import { LoggerService } from './logger.service'
+import { setDiagnosticsSink } from '../../../diagnostics'
 
 /**
  * Logger module configuration
@@ -73,6 +74,16 @@ export class LoggerModule {
             },
             !isDev && file ? pino.destination({ dest: file, mkdir: true }) : undefined,
           )
+
+          // Errors the runtime handles on purpose still reach the logs with their cause.
+          const diagnostics = logger.child({ module: 'diagnostics' })
+          setDiagnosticsSink((scope, error, context) =>
+            diagnostics.warn({ scope, error, ...context }, `handled error in ${scope}`),
+          )
+          // AI SDK warnings use console.warn by default; keep them structured, with the rest.
+          const ai = logger.child({ module: 'ai-sdk' })
+          globalThis.AI_SDK_LOG_WARNINGS = ({ warnings, provider, model }) =>
+            ai.warn({ warnings, provider, model }, 'AI SDK warning')
 
           return new LoggerService(logger)
         },

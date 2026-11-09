@@ -1,6 +1,7 @@
 import { GatewayIntentBits, PermissionFlagsBits, type Client } from 'discord.js'
 import type { LiveMembers } from '../../conversation/live-members'
 import type { MemberDirectory } from '../../conversation/member-directory'
+import { reportError } from '../../diagnostics'
 
 /** Shown to the model with live results; shared by all transports. */
 export const PRESENCE_NOTE =
@@ -100,8 +101,9 @@ export function discordLiveMembers(client: Client, members: MemberDirectory): Li
           nextAfter: page.nextAfter,
           queriedAt: new Date().toISOString(),
         }
-      } catch {
+      } catch (error) {
         context.signal.throwIfAborted()
+        reportError('discord.voice', error, { invocationId: context.invocation.messageId })
         return empty
       }
     },

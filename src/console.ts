@@ -6,6 +6,7 @@ import { resolve } from 'node:path'
 import { ConfigService } from '@nestjs/config'
 import { LoggerService } from './modules/services/logger/logger.service'
 import { logFile } from './modules/services/logger/logger.module'
+import { runtimeSummary } from './modules/config/runtime-summary'
 import { ConsoleSession, type ConsoleEvent } from './modules/console/console-session'
 import { ConsoleReceiver } from './modules/console/console-transport'
 import { loadConsoleEnvironment, LocalEnvironmentError } from './modules/console/local-environment'
@@ -47,10 +48,9 @@ async function main() {
   app.useLogger(logger)
   app.enableShutdownHooks()
   await app.init()
-  // AI SDK warnings use console.warn by default; keep them with the other logs.
-  const aiLogger = logger.createLogger('ai-sdk')
-  globalThis.AI_SDK_LOG_WARNINGS = ({ warnings, provider, model }) =>
-    aiLogger.warn({ warnings, provider, model }, 'AI SDK warning')
+  logger
+    .createLogger('startup')
+    .info(runtimeSummary(app.get(ConfigService)), 'Runtime configuration')
   const logs = logFile(app.get(ConfigService))
 
   const session = app.get(ConsoleSession)

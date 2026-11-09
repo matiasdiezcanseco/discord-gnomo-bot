@@ -109,6 +109,8 @@ export function composeRuntimeConversation({
     }),
     allowedUserMentions: memberMentions(platform.members),
     trace,
+    // Opt-in: request/reply text (redacted, truncated) in traces for debugging.
+    traceContent: config.get<string>('LOG_CONTENT') === 'true',
     clock,
     concurrency: config.get<number>('CONVERSATION_CONCURRENCY', 4),
     timeoutMs: Number(config.get('CONVERSATION_TIMEOUT_MS', 60000)) || 60000,

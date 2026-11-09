@@ -1,3 +1,4 @@
+import { conversationTrace } from '../services/logger/conversation-trace'
 import { Global, Module } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import type Redis from 'ioredis'
@@ -41,7 +42,7 @@ import { ConsoleReceiver, ConsoleTransport } from './console-transport'
           platform: session.platform(),
           config,
           redis,
-          trace: (trace) => logger.createLogger('conversation').info(trace),
+          trace: conversationTrace(logger.createLogger('conversation')),
           memory: memory.dependencies,
           web: session.web(safeReader()),
         })

@@ -3,6 +3,7 @@ import type { Client } from 'discord.js'
 import { z } from 'zod'
 import type { Invocation } from '../../core/conversation/invocation'
 import type { HistoryReader, HistoryResult } from '../../conversation/channel-history'
+import { reportError } from '../../diagnostics'
 
 const discordMessage = z.object({
   id: z.string(),
@@ -71,7 +72,8 @@ export function discordHistory(
             signal,
             headers: { Authorization: `Bot ${client.token}` },
           })
-          if (!response.ok || !response.body) throw new Error('Discord history unavailable')
+          if (!response.ok || !response.body)
+            throw new Error(`Discord history unavailable: HTTP ${response.status}`)
           const bytes = await readBoundedBody(response.body, 1000000, signal)
           return z
             .array(discordMessage)
@@ -99,6 +101,7 @@ export function discordHistory(
         before = cursor
       } catch (error) {
         if (!result.messages.length || signal.aborted) throw error
+        reportError('discord.history.page', error, { invocationId: invocation.messageId, page })
         result.partial = true
         break
       }

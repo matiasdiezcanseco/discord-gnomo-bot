@@ -10,6 +10,7 @@ import {
   type ScheduledOrigin,
 } from '../../conversation/scheduled-notices'
 import { birthdayStillDue, type BirthdaySource } from '../../conversation/birthdays'
+import { reportError } from '../../diagnostics'
 
 export function discordScheduledDelivery(
   client: Client,
@@ -45,6 +46,7 @@ export function discordScheduledDelivery(
       try {
         return !!(await channelFor(origin))
       } catch (error) {
+        reportError('notices.authorize', error, { channelId: origin.channelId })
         const status =
           typeof error === 'object' && error !== null && 'status' in error ? error.status : null
         throw new NoticeFailure(
@@ -58,6 +60,7 @@ export function discordScheduledDelivery(
       try {
         channel = await channelFor(origin)
       } catch (error) {
+        reportError('notices.revalidate', error, { channelId: origin.channelId })
         const status =
           typeof error === 'object' && error !== null && 'status' in error ? error.status : null
         throw new NoticeFailure(
@@ -69,6 +72,7 @@ export function discordScheduledDelivery(
       try {
         await channel.send(reply)
       } catch (error) {
+        reportError('notices.send', error, { channelId: origin.channelId })
         const status =
           typeof error === 'object' && error !== null && 'status' in error ? error.status : null
         if (status === 429)
