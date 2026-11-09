@@ -23,6 +23,8 @@ const envSchema = z
     BUCKET_URL: z.string().url().optional(),
     OPENAI_API_KEY: z.string().min(1).optional(),
     OPENAI_MODEL: z.string().default(DEFAULT_OPENAI_MODEL),
+    OPENAI_IMAGE_MODEL: z.string().min(1).optional(),
+    OPENAI_IMAGE_QUALITY: z.enum(['low', 'medium', 'high', 'auto']).optional(),
     BROWSERBASE_API_KEY: z.string().optional(),
 
     // Durable admission and scheduled notices; active runtime requires Redis.

@@ -1,6 +1,6 @@
 import type { Invocation } from '../core/conversation/invocation'
 import type { Budget } from './budget'
-import type { Capability, ExecutionContext } from './catalog'
+import type { Capability, ExecutionContext, ReplyFile } from './catalog'
 import { PartialResult } from './catalog'
 import type { ConversationPorts, ModelTurn, ToolResult, Trace } from './harness'
 import { describeError } from '../diagnostics'
@@ -11,6 +11,8 @@ export class Executor {
   private uncertain = false
   private readonly discoveredUrls = new Set<string>()
   pendingWrite = false
+  /** Files from successful calls only, in call order. */
+  readonly files: ReplyFile[] = []
   private readonly context: ExecutionContext
   constructor(
     private readonly invocation: Invocation,
@@ -85,8 +87,12 @@ export class Executor {
       this.budget.check()
       this.trace('tool_started', 'allowed', tool.name)
       this.pendingWrite = tool.effect === 'write'
-      const scoped = {
+      const attached: ReplyFile[] = []
+      const scoped: ExecutionContext = {
         ...this.context,
+        attach: (file) => {
+          attached.push(file)
+        },
         discoveredUrls: Object.freeze([...this.discoveredUrls]),
         idempotencyKey: `${this.invocation.guildId}:${this.invocation.channelId}:${this.invocation.messageId}:${call.id}`,
       }
@@ -103,6 +109,7 @@ export class Executor {
           return result(this.pendingWrite ? 'uncertain' : 'limit')
         }
         this.pendingWrite = false
+        this.files.push(...attached)
         if (['web.search', 'web.news'].includes(tool.capability)) {
           const search = value as { sources?: { url: string }[] }
           for (const source of search.sources ?? []) this.discoveredUrls.add(source.url)

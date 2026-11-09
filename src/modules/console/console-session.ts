@@ -15,7 +15,7 @@ export interface ConsoleIdentity {
 export type ChannelMessage = HistoryResult['messages'][number]
 export type ConsoleEvent =
   | { type: 'typing'; channelId: string }
-  | { type: 'reply'; channelId: string; content: string; mentions: string[] }
+  | { type: 'reply'; channelId: string; content: string; mentions: string[]; files?: string[] }
   | { type: 'scheduled'; channelId: string; content: string; kind: 'reminder' | 'birthday' }
   | { type: 'ignored'; reason: string }
   | { type: 'error'; message: string }
