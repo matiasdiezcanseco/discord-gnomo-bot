@@ -14,6 +14,24 @@ import {
 } from '../../conversation/scheduled-notices'
 import type { createConversation } from '../../conversation/harness'
 import type { Invocation } from '../../core/conversation/invocation'
+import type { ReplyFile } from '../../conversation/catalog'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+/** Generated files land on disk so they can be opened locally; returns their paths. */
+async function saveFiles(files: ReplyFile[] = []) {
+  if (!files.length) return undefined
+  const directory = join(tmpdir(), 'gnomo-console')
+  await mkdir(directory, { recursive: true })
+  return Promise.all(
+    files.map(async (file) => {
+      const path = join(directory, file.name.replace(/[^\w.-]/g, '_'))
+      await writeFile(path, file.attachment)
+      return path
+    }),
+  )
+}
 
 /** Terminal transport: same admission policy and notice rules as Discord, output to stdout. */
 @Injectable()
@@ -98,11 +116,13 @@ export class ConsoleReceiver {
     try {
       await this.conversation.handle(invocation, async (_origin, reply) => {
         session.post(session.bot, reply.content, invocation.channelId)
+        const files = await saveFiles(reply.files)
         session.output({
           type: 'reply',
           channelId: invocation.channelId,
           content: reply.content,
           mentions: reply.allowedMentions.users,
+          ...(files ? { files } : {}),
         })
       })
     } catch (error) {

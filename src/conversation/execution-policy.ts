@@ -7,6 +7,8 @@ export function capabilityAllowed(invocation: Invocation, tool?: Capability): bo
     !tool ||
     // Intent is judged by the model; the effect is limited to the requester in this channel.
     (tool.capability === 'reminders.own' && tool.effect === 'write') ||
+    // Bounded by a per-requester hourly quota enforced in Redis before any credit is spent.
+    (tool.capability === 'images.generate' && tool.effect === 'write') ||
     (tool.capability.startsWith('memory.') &&
       ((tool.capability === 'memory.search' && tool.effect === 'read') ||
         (['memory.save', 'memory.update', 'memory.forget'].includes(tool.capability) &&

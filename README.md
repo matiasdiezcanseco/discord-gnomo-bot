@@ -2,8 +2,14 @@
 
 Personal Discord assistant for one configured guild. Mention the bot to converse,
 request phrases/photos, channel history, members/presence/voice, public search and
-web reading, image understanding, explicit channel memories and own reminders.
-Birthdays use the approved collection and the same reliable notice dispatcher.
+web reading, image understanding, image creation, explicit channel memories and own
+reminders. Birthdays use the approved collection and the same reliable notice dispatcher.
+
+Image creation (`image_generate`, OpenAI `OPENAI_IMAGE_MODEL`, default `gpt-image-1-mini`)
+is limited to one image per user per hour. The limit lives in Redis
+(`gnomo:image-quota:v1:<guild>:<user>`, `SET NX EX 3600`) and is taken before any credit
+is spent. If Redis cannot be reached, no image is created. A content-policy refusal gives
+the slot back; a timeout or provider error keeps it, because the credit may already be spent.
 
 To debug locally without Discord, run `npm run sandbox`: the full production runtime
 (real model, tools, memory, reminders, schedulers) with the terminal as transport and

@@ -1,5 +1,5 @@
 import type { Invocation } from '../core/conversation/invocation'
-import { Catalog, type Capability, type ExecutionContext } from './catalog'
+import { Catalog, type Capability, type ExecutionContext, type ReplyFile } from './catalog'
 import type { HistoryResult } from './channel-history'
 import { Budget, systemClock, type Clock } from './budget'
 import { splitReply } from './delivery'
@@ -11,6 +11,8 @@ import { AttachmentError, type VerifiedImage } from './attached-images'
 export interface Reply {
   content: string
   allowedMentions: { parse: []; users: string[]; roles: []; repliedUser: false }
+  /** Tool-produced files (generated images), sent with the last message. */
+  files?: ReplyFile[]
 }
 /** Provider facts about one model call, for diagnostics only. */
 export interface ModelMeta {
@@ -112,6 +114,7 @@ const writeLabels: Record<string, string> = {
   'memory.update': 'corregir el recuerdo',
   'memory.forget': 'olvidar el recuerdo',
   'reminders.own': 'crear el recordatorio',
+  'images.generate': 'crear la imagen',
 }
 /** Human-readable leaves of a tool result (titles, text, URLs, names), never structure or IDs. */
 function readable(value: unknown, key = ''): string[] {
@@ -379,7 +382,8 @@ export function createConversation(ports: ConversationPorts) {
         })
         .filter((value) => !text.includes(value))
       if (exact.length) text = [text, ...exact].filter(Boolean).join('\n')
-      if (!text && !alone.length) {
+      const files = executor.files
+      if (!text && !alone.length && !files.length) {
         const writes = [
           ...new Set(
             confirmed
@@ -418,11 +422,14 @@ export function createConversation(ports: ConversationPorts) {
         chunks = ['Una fuente excede el tamaño permitido por Discord; no pude enviarla completa.']
       }
       chunks.push(...alone)
+      // Generated files ride on the last message, or alone when there is no text at all.
+      if (files.length && !chunks.length) chunks.push('')
       // Delivery gets its own window: the processing loop and synthesis can legitimately run
       // past 15 s, and anchoring here to the request start would silently drop the reply.
       const delivery = new Budget(clock, clock.now(), 15000)
       try {
-        for (const content of chunks) {
+        for (const [index, content] of chunks.entries()) {
+          const last = files.length > 0 && index === chunks.length - 1
           if (
             !(await delivery.wait(() =>
               ports.authorize(invocation, undefined, delivery.controller.signal),
@@ -435,9 +442,13 @@ export function createConversation(ports: ConversationPorts) {
             reply(invocation, {
               content,
               allowedMentions: { parse: [], users, roles: [], repliedUser: false },
+              ...(last ? { files } : {}),
             }),
           )
-          trace('visible_send', 'confirmed', undefined, { contentLength: content.length })
+          trace('visible_send', 'confirmed', undefined, {
+            contentLength: content.length,
+            ...(last ? { attachments: files.length } : {}),
+          })
         }
       } catch (error) {
         trace('delivery', 'uncertain', undefined, { error: describeError(error) })
@@ -447,6 +458,7 @@ export function createConversation(ports: ConversationPorts) {
       }
       trace('delivered', undefined, undefined, {
         parts: chunks.length,
+        ...(files.length ? { attachments: files.length } : {}),
         ...(ports.traceContent ? { reply: redact(chunks.join('\n'), 1000) } : {}),
       })
     },
