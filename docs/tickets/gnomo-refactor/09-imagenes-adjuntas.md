@@ -44,9 +44,11 @@ nombre del solicitante y fecha de invocación. El orden de las partes de imagen
 coincide con el de su procedencia.
 
 Límites: dos imágenes; 2 500 000 bytes por imagen y 5 000 000 en total; PNG, JPEG o
-WebP estáticos con MIME declarado. El tamaño real debe coincidir con el metadato.
-Se exige descarga completa, firma reconocida y coincidencia entre firma, MIME
-Discord, MIME HTTP y formato decodificado. Sharp realiza decodificación completa
+WebP estáticos con MIME declarado. MIME y tamaño de Discord solo filtran antes de
+descargar: Discord puede describir una copia WebP almacenada mientras el CDN sirve el
+original (p. ej. declara WebP de 45 738 bytes y sirve PNG de 55 298), así que no se
+exige que coincidan con lo descargado. Se exige descarga completa, firma reconocida
+y coincidencia entre firma, MIME HTTP y formato decodificado. Sharp realiza decodificación completa
 con `failOn: warning`, cuatro megapíxeles, 4096 por lado y timeout de operación de
 un segundo. PNG exige chunks completos e IEND terminal y rechaza APNG. Se rechazan
 animaciones reconocidas por el decodificador. Metadatos de cabecera por sí solos no

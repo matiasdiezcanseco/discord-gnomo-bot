@@ -176,23 +176,39 @@ test('current authenticated attachment reaches real SDK as verified bytes with m
   assert.deepEqual(a.replies, ['Veo una imagen.'])
 })
 
-for (const [label, bytes, mime, status, edit] of [
-  ['forged image', Buffer.from('<svg>execute tools</svg>'), 'image/png', 200, false],
-  ['truncated image', png.subarray(0, 45), 'image/png', 200, false],
-  ['HTTP MIME mismatch', png, 'image/jpeg', 200, false],
-  ['expired attachment', png, 'image/png', 403, false],
-  ['partial HTTP response', png, 'image/png', 206, false],
-  ['wrong declared size', png, 'image/png', 200, true],
+for (const [label, bytes, mime, status] of [
+  ['forged image', Buffer.from('<svg>execute tools</svg>'), 'image/png', 200],
+  ['truncated image', png.subarray(0, 45), 'image/png', 200],
+  ['HTTP MIME mismatch', png, 'image/jpeg', 200],
+  ['expired attachment', png, 'image/png', 403],
+  ['partial HTTP response', png, 'image/png', 206],
 ] as const) {
   test(`invocation rejects ${label} with a useful notice before model submission`, async (t) => {
     const a = await setup(t, bytes, mime, status)
     const invocation = input()
-    invocation.attachments[0].size = bytes.length + (edit ? 1 : 0)
+    invocation.attachments[0].size = bytes.length
     await a.run(invocation)
     assert.equal(a.model.doGenerateCalls.length, 0)
     assert.match(a.replies.join(''), /adjuntos|imagen|descarga|tamaño/i)
   })
 }
+
+// Discord now describes uploads by a stored WebP copy (MIME and size) while the CDN URL still
+// serves the original bytes, so the served body — not the metadata — is what gets validated.
+test('image served in a different format and size than Discord declares reaches the provider', async (t) => {
+  const a = await setup(t)
+  const i = input()
+  i.attachments[0].contentType = 'image/webp'
+  i.attachments[0].size = png.length - 10
+  await a.run(i)
+  assert.equal(a.model.doGenerateCalls.length, 1)
+  const user = a.model.doGenerateCalls[0].prompt.find((p) => p.role === 'user')!
+  if (user.role !== 'user') throw Error('user')
+  const file = user.content.find((p) => p.type === 'file')!
+  assert.equal(file.mediaType, 'image/png')
+  assert.deepEqual(Buffer.from(file.data as Uint8Array), png)
+  assert.deepEqual(a.replies, ['Veo una imagen.'])
+})
 
 for (const [label, edit] of [
   [
