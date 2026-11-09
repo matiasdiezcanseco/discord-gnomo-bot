@@ -20,7 +20,9 @@ export class AttachmentError extends Error {}
 const types = ['image/png', 'image/jpeg', 'image/webp']
 const maxBytes = 2_500_000
 
-/** Only the authenticated invocation supplies URLs. All-or-nothing, no image cache. */
+/** Only the authenticated invocation supplies URLs. All-or-nothing, no image cache.
+ * Discord's declared MIME/size only pre-filter: they can describe a stored WebP copy while the
+ * CDN serves the original upload, so the served bytes are what gets validated and sent. */
 export function attachedImages(reader: SafeReader) {
   return async (context: ExecutionContext): Promise<VerifiedImage[]> => {
     const { invocation, signal } = context
@@ -43,8 +45,7 @@ export function attachedImages(reader: SafeReader) {
           `descarga ${result.status}; puede estar caducada, bloqueada, incompleta o exceder el límite.`,
         )
       total += result.bytes.length
-      if (total > 5_000_000 || result.bytes.length !== attachment.size)
-        fail('el tamaño real no coincide con el declarado o supera 5 MB.')
+      if (total > 5_000_000) fail('las imágenes superan 5 MB en total.')
       const bytes = result.bytes
       const format = bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
         ? 'png'
@@ -54,8 +55,8 @@ export function attachedImages(reader: SafeReader) {
             ? 'webp'
             : undefined
       const mime = format && `image/${format}`
-      if (!mime || mime !== claimed || mime !== result.contentType.split(';')[0].trim())
-        fail('la firma de imagen y los tipos MIME no coinciden.')
+      if (!mime || mime !== result.contentType.split(';')[0].trim().toLowerCase())
+        fail('la firma de imagen y el tipo MIME no coinciden.')
       if (format === 'png') {
         let ended = false
         for (let offset = 8; offset < bytes.length; ) {
