@@ -36,11 +36,12 @@ export function discordPlatform(
       const guild = await client.guilds.fetch(invocation.guildId)
       signal?.throwIfAborted()
       if (!client.user) return false
-      // Independent forced reads run concurrently: this runs before every tool and reply chunk.
+      // Runs before every tool and reply chunk. Members come from the gateway-maintained cache
+      // (GuildMembers intent pushes role changes); forcing them exhausts Discord's member bucket.
       const [channel, requester, bot] = await Promise.all([
         guild.channels.fetch(invocation.channelId, { force: true }),
-        guild.members.fetch({ user: invocation.requester.id, force: true }),
-        guild.members.fetch({ user: client.user.id, force: true }),
+        guild.members.fetch({ user: invocation.requester.id }),
+        guild.members.fetch({ user: client.user.id }),
       ])
       signal?.throwIfAborted()
       if (!channel || !channel.isTextBased()) return false

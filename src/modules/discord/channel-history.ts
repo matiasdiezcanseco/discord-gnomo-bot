@@ -58,7 +58,9 @@ export function discordHistory(
     const seen = new Set([before])
     for (let page = 0; page < Math.ceil(limit / 100); page++) {
       signal.throwIfAborted()
-      if (!(await authorize(invocation, signal))) throw new Error('History permission denied')
+      // The entry check covers the first page; later pages reauthorize.
+      if (page > 0 && !(await authorize(invocation, signal)))
+        throw new Error('History permission denied')
       signal.throwIfAborted()
       const size = Math.min(100, limit - page * 100)
       const url = new URL(
