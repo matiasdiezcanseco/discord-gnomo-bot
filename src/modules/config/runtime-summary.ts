@@ -1,5 +1,10 @@
 import type { ConfigService } from '@nestjs/config'
-import { DEFAULT_OPENAI_IMAGE_MODEL, DEFAULT_OPENAI_MODEL } from './constants'
+import {
+  DEFAULT_OPENAI_IMAGE_MODEL,
+  DEFAULT_OPENAI_MODEL,
+  DEFAULT_OPENAI_SPEECH_MODEL,
+  DEFAULT_OPENAI_SPEECH_VOICE,
+} from './constants'
 
 /**
  * One startup line answering "what is this process actually running with?". Booleans only for
@@ -39,6 +44,8 @@ export function runtimeSummary(config: Pick<ConfigService, 'get'>) {
     reasoningEffort: get('OPENAI_REASONING_EFFORT') ?? 'low',
     imageModel: get('OPENAI_IMAGE_MODEL') ?? DEFAULT_OPENAI_IMAGE_MODEL + ' (default)',
     imageQuality: get('OPENAI_IMAGE_QUALITY') ?? 'medium',
+    speechModel: get('OPENAI_SPEECH_MODEL') ?? DEFAULT_OPENAI_SPEECH_MODEL + ' (default)',
+    speechVoice: get('OPENAI_SPEECH_VOICE') ?? DEFAULT_OPENAI_SPEECH_VOICE + ' (default)',
     timeoutMs: Number(get('CONVERSATION_TIMEOUT_MS') ?? 60000),
     synthesisTimeoutMs: Number(get('CONVERSATION_SYNTHESIS_TIMEOUT_MS') ?? 20000),
     concurrency: Number(get('CONVERSATION_CONCURRENCY') ?? 4),

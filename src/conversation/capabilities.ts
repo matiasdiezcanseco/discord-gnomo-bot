@@ -14,6 +14,7 @@ import { reminderCapability } from './reminders'
 import type { ScheduledNotices } from './scheduled-notices'
 import { imageCapability, type ImageGenerator } from './image-generation'
 import type { ImageQuota } from './image-quota'
+import { speechCapability, type SpeechGenerator } from './speech-generation'
 
 /** Single composition point. Future capability modules export definitions, never edit the loop. */
 export interface CapabilityDependencies {
@@ -27,6 +28,7 @@ export interface CapabilityDependencies {
   media?: ReturnType<typeof mediaCapabilities>
   notices?: ScheduledNotices
   images?: { generator?: ImageGenerator; quota?: ImageQuota }
+  speech?: { generator?: SpeechGenerator; quota?: ImageQuota; cooldownMinutes?: number }
   extensions?: import('./catalog').Capability[]
 }
 export function composeCapabilities({
@@ -40,12 +42,14 @@ export function composeCapabilities({
   media,
   notices,
   images,
+  speech,
   extensions = [],
 }: CapabilityDependencies = {}) {
   return new Catalog([
     ...extensions,
     reminderCapability(notices),
     imageCapability(images?.generator, images?.quota),
+    speechCapability(speech?.generator, speech?.quota, speech?.cooldownMinutes),
     webRead(web),
     messagesHistory(history),
     ...collectionCapabilities(collection),
