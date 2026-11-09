@@ -1,5 +1,6 @@
 import 'reflect-metadata'
 import test from 'node:test'
+import { commandModel } from './command-model'
 import assert from 'node:assert/strict'
 import { migrateMemoryDatabase } from '../src/database/migrate'
 import { Pool } from 'pg'
@@ -91,7 +92,7 @@ test(
           client: client,
           config: config,
           redis: redis,
-          model: { generate: async () => ({ text: 'hola', calls: [] }) },
+          model: commandModel(),
           memory: { pool, embedding: { model: 'test-3d', embed: async () => [1, 0, 0] } },
         })
         await app.handle(

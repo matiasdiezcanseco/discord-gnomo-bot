@@ -49,12 +49,12 @@ export function memberCapabilities(directory: MemberDirectory) {
     defineCapability({
       name: 'members_list',
       description:
-        'Lista una página de miembros actuales. Sigue nextAfter; cobertura parcial no es un censo completo.',
+        'Lista una página de miembros actuales (hasta 100 por página). Sigue nextAfter; cobertura parcial no es un censo completo. Al responder usa apodos (nickname), no IDs.',
       capability: 'discord.members',
       scope: 'channel',
       effect: 'read',
       input: z.strictObject({
-        limit: z.number().int().min(1).max(100).default(25),
+        limit: z.number().int().min(1).max(100).default(100),
         after: z.string().regex(/^\d+$/).optional(),
       }),
       output: memberPageSchema,

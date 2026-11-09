@@ -39,6 +39,8 @@ export interface ModelInput {
   signal: AbortSignal
   results: ToolResult[]
   tools: readonly Capability[]
+  /** Final turn: no tools remain; the model must answer from confirmed results in plain prose. */
+  finalize?: boolean
 }
 export interface Trace {
   invocationId: string
@@ -67,6 +69,44 @@ export interface ConversationPorts {
     context: ExecutionContext,
   ): Promise<string[] | { users: string[]; clarification?: string }>
   trace?(trace: Trace): void
+  /** Main loop budget in ms (model steps and tools). */
+  timeoutMs?: number
+  /**
+   * Grace budget for one tool-less model turn that phrases confirmed results when the loop
+   * ends without a usable answer (timeout, failure, exhausted steps). 0 disables it.
+   */
+  synthesisTimeoutMs?: number
+}
+
+const writeLabels: Record<string, string> = {
+  'memory.save': 'guardar el recuerdo',
+  'memory.update': 'corregir el recuerdo',
+  'memory.forget': 'olvidar el recuerdo',
+  'reminders.own': 'crear el recordatorio',
+}
+/** Human-readable leaves of a tool result (titles, text, URLs, names), never structure or IDs. */
+function readable(value: unknown, key = ''): string[] {
+  if (typeof value === 'string')
+    return /(?:^|[^a-z])(?:id|ids)$|Id$|At$|^(?:source|coverage|memberCoverage|status|outcome|note|limits|fromAfter|nextAfter|after|cursor)$/.test(
+      key,
+    ) || !value.trim()
+      ? []
+      : [value.trim().replace(/\s+/g, ' ').slice(0, 300)]
+  if (Array.isArray(value)) return value.flatMap((entry) => readable(entry, key))
+  if (value && typeof value === 'object')
+    return Object.entries(value).flatMap(([entry, nested]) => readable(nested, entry))
+  return []
+}
+/** Model output that is a raw data dump (JSON object/array) is never sent to Discord. */
+export function looksLikeJson(text: string): boolean {
+  const trimmed = text.trim().replace(/^```(?:json)?\s*|\s*```$/g, '')
+  if (!/^[[{]/.test(trimmed)) return false
+  try {
+    JSON.parse(trimmed)
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function createConversation(ports: ConversationPorts) {
@@ -81,7 +121,7 @@ export function createConversation(ports: ConversationPorts) {
       })
       Object.freeze(invocation.attachments)
       const clock = ports.clock ?? systemClock
-      const budget = new Budget(clock, clock.now())
+      const budget = new Budget(clock, clock.now(), ports.timeoutMs)
       const signal = budget.controller.signal
       const results: ToolResult[] = []
       // Attachments are untrusted data; execution still requires current text consent and permissions.
@@ -114,6 +154,7 @@ export function createConversation(ports: ConversationPorts) {
         ports.discover,
       )
       let text = ''
+      let failure: string | undefined
       let users: string[] = []
       let claimed = false
       let release: (() => void) | undefined
@@ -230,30 +271,70 @@ export function createConversation(ports: ConversationPorts) {
       } catch (error) {
         trace('stopped', signal.aborted ? 'timeout' : 'error')
         if (!claimed) return
-        text =
-          error instanceof AttachmentError
-            ? error.message
-            : signal.aborted
-              ? 'Se agotó el tiempo disponible.'
-              : 'Se agotó el presupuesto o falló un servicio.'
-        const confirmed = results.filter((r) => r.status === 'success' || r.status === 'partial')
-        if (confirmed.length)
-          text += ` Resultados confirmados:\n${confirmed.map((r) => `${r.status === 'partial' ? 'Cobertura parcial: ' : ''}${JSON.stringify(r.value)}`).join('\n')}`
-        if (executor.pendingWrite || results.some((r) => r.status === 'uncertain'))
-          text += '\nUna operación tiene estado incierto; no la reintentaré automáticamente.'
+        if (error instanceof AttachmentError) text = error.message
+        else {
+          text = ''
+          failure = signal.aborted
+            ? 'Se agotó el tiempo disponible antes de terminar.'
+            : 'Se agotó el presupuesto o falló un servicio.'
+        }
       } finally {
         release?.()
         budget.close()
       }
-      if (!text && results.some((r) => r.status === 'success' || r.status === 'partial'))
-        text = `No pude completar toda la petición. Resultados confirmados:\n${results
-          .filter((r) => r.status === 'success' || r.status === 'partial')
-          .map((r) => JSON.stringify(r.value))
-          .join('\n')}`
-      if (!text)
-        text = results.length
-          ? `No pude completar la petición: ${results.map((r) => `${r.name}: ${r.status}`).join(', ')}.`
-          : 'No pude obtener una respuesta. Inténtalo nuevamente.'
+      const confirmed = results.filter((r) => r.status === 'success' || r.status === 'partial')
+      // Phrase confirmed results with one tool-less turn instead of dumping raw tool payloads.
+      if (!text && confirmed.length && ports.synthesisTimeoutMs) {
+        const grace = new Budget(clock, clock.now(), ports.synthesisTimeoutMs)
+        try {
+          trace('synthesis_started')
+          const turn = await grace.wait(() =>
+            ports.model.generate({
+              invocation,
+              signal: grace.controller.signal,
+              results: [...results],
+              tools: [],
+              finalize: true,
+            }),
+          )
+          if (turn.text) text = turn.text
+          trace('synthesis_finished', text ? 'success' : 'empty')
+        } catch {
+          trace('synthesis_finished', 'error')
+        } finally {
+          grace.close()
+        }
+      }
+      if (!text) {
+        const writes = [
+          ...new Set(
+            confirmed
+              .map((r) => tools.find((tool) => tool.name === r.name))
+              .filter((tool) => tool?.effect === 'write')
+              .map((tool) => writeLabels[tool!.capability] ?? 'completar una acción'),
+          ),
+        ]
+        const evidence = [
+          ...new Set(
+            confirmed
+              .filter((r) => tools.find((tool) => tool.name === r.name)?.effect === 'read')
+              .flatMap((r) => readable(r.value)),
+          ),
+        ].slice(0, 15)
+        text = [
+          failure ??
+            (results.length
+              ? 'No pude completar toda la petición.'
+              : 'No pude obtener una respuesta.'),
+          writes.length ? `Eso sí, alcancé a ${writes.join(' y ')}.` : '',
+          evidence.length ? `Lo que sí confirmé:\n${evidence.map((e) => `- ${e}`).join('\n')}\n` : '',
+          'Inténtalo nuevamente en un ratito.',
+        ]
+          .filter(Boolean)
+          .join(' ')
+        if (executor.pendingWrite || results.some((r) => r.status === 'uncertain'))
+          text += '\nUna operación tiene estado incierto; no la reintentaré automáticamente.'
+      }
       let chunks: string[]
       try {
         chunks = splitReply(text)

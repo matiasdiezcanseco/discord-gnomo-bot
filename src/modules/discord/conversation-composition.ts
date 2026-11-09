@@ -32,13 +32,23 @@ export interface ConversationComposition {
   web?: SafeReader
   memory?: MemoryDependencies
 }
+function reasoningEffort(config: ConfigService) {
+  const effort = config.get<string>('OPENAI_REASONING_EFFORT', 'low')
+  return effort === 'minimal' || effort === 'low' || effort === 'medium' || effort === 'high'
+    ? effort
+    : undefined
+}
 export function composeConversation({
   client,
   config,
   redis,
   trace,
   clock,
-  model = aiSdkModel(openai(config.get<string>('OPENAI_MODEL', DEFAULT_OPENAI_MODEL))),
+  model = aiSdkModel(
+    openai(config.get<string>('OPENAI_MODEL', DEFAULT_OPENAI_MODEL)),
+    1500,
+    reasoningEffort(config),
+  ),
   discordFetch = fetch,
   web = safeReader(),
   memory,
@@ -50,14 +60,15 @@ export function composeConversation({
     // Fresh membership and channel data; model arguments never participate in this lookup.
     const guild = await client.guilds.fetch(invocation.guildId)
     signal?.throwIfAborted()
-    const channel = await guild.channels.fetch(invocation.channelId, { force: true })
-    if (!channel || !channel.isTextBased() || !client.user) return false
-    const [requester, bot] = await Promise.all(
-      [invocation.requester.id, client.user.id].map((user) => {
-        signal?.throwIfAborted()
-        return guild.members.fetch({ user, force: true })
-      }),
-    )
+    if (!client.user) return false
+    // Independent forced reads run concurrently: this runs before every tool and reply chunk.
+    const [channel, requester, bot] = await Promise.all([
+      guild.channels.fetch(invocation.channelId, { force: true }),
+      guild.members.fetch({ user: invocation.requester.id, force: true }),
+      guild.members.fetch({ user: client.user.id, force: true }),
+    ])
+    signal?.throwIfAborted()
+    if (!channel || !channel.isTextBased()) return false
     if (!(await effectiveChannelAccess(channel, requester, bot, signal, true))) return false
     return enabled(invocation, tool)
   }
@@ -102,6 +113,8 @@ export function composeConversation({
     trace,
     clock,
     concurrency: config.get<number>('CONVERSATION_CONCURRENCY', 4),
+    timeoutMs: Number(config.get('CONVERSATION_TIMEOUT_MS', 60000)) || 60000,
+    synthesisTimeoutMs: Number(config.get('CONVERSATION_SYNTHESIS_TIMEOUT_MS', 20000)) || 0,
     claim: redis
       ? redisClaims(redis)
       : async () => {

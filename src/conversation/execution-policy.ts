@@ -5,9 +5,8 @@ import type { Capability } from './catalog'
 export function capabilityAllowed(invocation: Invocation, tool?: Capability): boolean {
   return (
     !tool ||
-    (tool.capability === 'reminders.own' &&
-      tool.effect === 'write' &&
-      /^(?:por favor,?\s+)?(?:recu[eé]rdame|recordarme)\s+/i.test(invocation.content.trim())) ||
+    // Intent is judged by the model; the effect is limited to the requester in this channel.
+    (tool.capability === 'reminders.own' && tool.effect === 'write') ||
     (tool.capability.startsWith('memory.') &&
       ((tool.capability === 'memory.search' && tool.effect === 'read') ||
         (['memory.save', 'memory.update', 'memory.forget'].includes(tool.capability) &&

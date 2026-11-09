@@ -34,8 +34,23 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
       this.discord.getClient().user?.id,
     )
     if (!invocation || !runtimeAllows(this.config, invocation)) return
-    await this.conversation.handle(invocation, async (_origin, reply) => {
-      await message.reply(reply)
-    })
+    const stopTyping = this.showTyping(message)
+    try {
+      await this.conversation.handle(invocation, async (_origin, reply) => {
+        stopTyping()
+        await message.reply(reply)
+      })
+    } finally {
+      stopTyping()
+    }
+  }
+  /** Discord shows "typing…" for ~10s per call, so it is refreshed until the reply is sent. */
+  private showTyping(message: Message): () => void {
+    const channel = message.channel
+    if (!('sendTyping' in channel)) return () => {}
+    const send = () => void channel.sendTyping().catch(() => {})
+    send()
+    const timer = setInterval(send, 8000)
+    return () => clearInterval(timer)
   }
 }
