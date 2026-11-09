@@ -43,7 +43,14 @@ function scripted(plan: (input: ModelInput) => ModelTurn['calls']) {
   return {
     generate: async (input: ModelInput): Promise<ModelTurn> => {
       if (input.results.length)
-        return { text: input.results.map((r) => String(r.value ?? r.status)).join('\n'), calls: [] }
+        return {
+          text: input.results
+            .map((r) =>
+              typeof r.value === 'string' ? r.value : JSON.stringify(r.value ?? r.status),
+            )
+            .join('\n'),
+          calls: [],
+        }
       return { text: '', calls: plan(input) }
     },
   }
@@ -262,6 +269,63 @@ test(
         'No encontré ese medio guardado en este canal.',
       )
 
+      // «créala y guárdala»: the image image_generate attached in this request.
+      const generated = await sharp({
+        create: { width: 6, height: 5, channels: 3, background: '#00f' },
+      })
+        .jpeg()
+        .toBuffer()
+      plan = (input) =>
+        input.results.length
+          ? []
+          : [
+              call('image_generate', { prompt: 'un gnomo astronauta' }),
+              call('media_save', {
+                title: 'Gnomo astronauta',
+                description: 'Ilustración de un gnomo con traje espacial.',
+                source: 'generated',
+              }),
+            ]
+      replies.length = 0
+      const files: number[] = []
+      const creator = createConversation({
+        loadImages,
+        catalog: composeCapabilities({
+          images: {
+            generator: {
+              generate: async () => ({
+                data: generated,
+                mediaType: 'image/jpeg',
+                extension: 'jpg',
+              }),
+            },
+            quota: { reserve: async () => ({ granted: true, release: async () => {} }) },
+          },
+          media: mediaCapabilities({ pool, store, loadImages }, owner, async () => true),
+        }),
+        authorize: async () => true,
+        claim: async () => true,
+        reply: async (_, reply) => {
+          replies.push(reply.content)
+          files.push(reply.files?.length ?? 0)
+        },
+        model: scripted((input) => plan(input)),
+      })
+      await creator.handle(invocation('crea un gnomo astronauta y guárdalo', { guildId }))
+      const created = JSON.parse(replies.join('\n').split('\n').at(-1)!)
+      assert.equal(created.outcome, 'saved')
+      assert.ok(files.includes(1), 'the generated image is still attached to the reply')
+      const stored = (await pool.query('SELECT * FROM channel_media WHERE id=$1', [created.id]))
+        .rows[0]
+      assert.equal(stored.media_type, 'image/jpeg')
+      assert.equal(stored.width, 6)
+      assert.match(stored.source_attachment_id, /^generated:/)
+      assert.ok(Buffer.from(objects.get(stored.object_key)!).equals(generated))
+
+      // Without a creation in the same request there is nothing generated to save.
+      plan = () => [call('media_save', { title: 'x', description: 'y', source: 'generated' })]
+      assert.match(await send('guarda la que hiciste'), /^invalid: no se creó ninguna imagen/)
+
       plan = () => [call('media_forget', { selector: saved.id })]
       assert.match(
         await send('borra el meme', { requester: { id: '100000000000000002', username: 'b' } }),
@@ -271,7 +335,7 @@ test(
       assert.match(await send('borra el meme'), /^denied: permisos actuales/)
       allowed = true
       assert.equal(JSON.parse(await send('borra el meme')).outcome, 'forgotten')
-      assert.equal(objects.size, 0)
+      assert.ok(!objects.has(key) && objects.has(stored.object_key))
       assert.match(await send('borra el meme'), /^not_found/)
     } finally {
       await pool.query('DELETE FROM channel_media WHERE guild_id=$1', [guildId])

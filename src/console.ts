@@ -77,7 +77,14 @@ async function main() {
       case 'typing':
         return print(dim(`${session.bot.username} está escribiendo…`))
       case 'reply':
-        return print(`${green(`${session.bot.username}>`)} ${render(event.content)}`)
+        return print(
+          `${green(`${session.bot.username}>`)} ${render(event.content)}${(event.files ?? [])
+            .map(
+              (file) => `
+${dim(`[imagen adjunta: ${file}]`)}`,
+            )
+            .join('')}`,
+        )
       case 'scheduled':
         return print(
           `${green(`${session.bot.username} [${event.kind === 'birthday' ? 'cumpleaños' : 'recordatorio'} → #${event.channelId}]>`)} ${render(event.content)}`,

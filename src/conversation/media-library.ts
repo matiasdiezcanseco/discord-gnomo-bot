@@ -8,7 +8,9 @@ import { channelMedia } from '../database/schema'
 import { defineCapability, type ExecutionContext } from './catalog'
 import type { Invocation } from '../core/conversation/invocation'
 import type { MemoryEmbedding } from './explicit-memory'
+import sharp from 'sharp'
 import type { VerifiedImage } from './attached-images'
+import type { ReplyFile } from './catalog'
 import type { ToolResult } from './harness'
 import { reportError } from '../diagnostics'
 
@@ -88,6 +90,40 @@ const extensions: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
+}
+
+type Candidate = {
+  bytes: Uint8Array
+  mediaType: string
+  width: number
+  height: number
+  messageId: string
+  attachmentId: string
+}
+const fromAttachment = (image: VerifiedImage): Candidate => ({
+  bytes: image.bytes,
+  mediaType: image.mediaType,
+  width: image.source.width,
+  height: image.source.height,
+  messageId: image.source.messageId,
+  attachmentId: image.source.attachmentId,
+})
+/** A file image_generate produced in this invocation: our provider's output, still decoded. */
+async function fromGenerated(file: ReplyFile, messageId: string): Promise<Candidate | undefined> {
+  if (file.attachment.length > 10_000_000) return undefined
+  const metadata = await sharp(file.attachment, { limitInputPixels: 16_000_000 })
+    .metadata()
+    .catch(() => undefined)
+  const mediaType = metadata?.format && `image/${metadata.format}`
+  if (!mediaType || !extensions[mediaType] || !metadata.width || !metadata.height) return undefined
+  return {
+    bytes: file.attachment,
+    mediaType,
+    width: metadata.width,
+    height: metadata.height,
+    messageId,
+    attachmentId: `generated:${file.name}`,
+  }
 }
 
 /** Lowercase, accents removed: «canción» matches «cancion». */
@@ -229,12 +265,13 @@ export function mediaCapabilities(
     capability: 'media.save',
     scope: 'channel',
     effect: 'write',
-    description: `Guarda en la biblioteca de medios de este canal una imagen adjunta a la petición actual (o al mensaje al que responde) cuando el solicitante pide guardarla, almacenarla o archivarla («guarda este meme», «almacena esta foto»). ${onlyCurrentRequest} Antes mira la imagen con atención. title: nombre corto y reconocible. description: descripción detallada en español para encontrarla después: qué se ve, personas o personajes, texto visible transcrito literal, el chiste o tono, y el contexto que dé el solicitante. tags: hasta 10 palabras clave (temas, personajes, emociones, formato de meme). image: 1 o 2 si hay dos imágenes (por defecto 1).`,
+    description: `Guarda en la biblioteca de medios de este canal una imagen adjunta a la petición actual (o al mensaje al que responde) cuando el solicitante pide guardarla, almacenarla o archivarla («guarda este meme», «almacena esta foto»). ${onlyCurrentRequest} Antes mira la imagen con atención. title: nombre corto y reconocible. description: descripción detallada en español para encontrarla después: qué se ve, personas o personajes, texto visible transcrito literal, el chiste o tono, y el contexto que dé el solicitante. tags: hasta 10 palabras clave (temas, personajes, emociones, formato de meme). image: 1 o 2 si hay dos imágenes (por defecto 1). source: 'generated' solo si en esta misma petición pidió crear una imagen y guardarla («créala y guárdala»): llama a media_save después de que image_generate respondió created y describe la imagen a partir del prompt que usaste; por defecto 'attachment'.`,
     input: z.strictObject({
       title: text(100),
       description: text(1500),
       tags: z.array(tag).max(10).optional(),
       image: z.number().int().min(1).max(2).optional(),
+      source: z.enum(['attachment', 'generated']).optional(),
     }),
     output: z.string().max(2000),
     maxCalls: 2,
@@ -243,11 +280,21 @@ export function mediaCapabilities(
     execute: async (input, context) => {
       if (!configured) return unavailable
       const { invocation, signal } = context
-      if (!invocation.attachments.length)
-        return 'invalid: no hay imagen adjunta ni en el mensaje al que responde (PNG, JPEG o WebP estáticos de hasta 2,5 MB); pide que la adjunten o respondan al mensaje con la imagen.'
-      const images = await dependencies!.loadImages(context)
-      const image = images[(input.image ?? 1) - 1]
-      if (!image) return `invalid: solo hay ${images.length} imagen(es) adjunta(s).`
+      let image: Candidate | undefined
+      if (input.source === 'generated') {
+        const files = context.generated?.() ?? []
+        if (!files.length)
+          return 'invalid: no se creó ninguna imagen en esta petición; usa image_generate primero o pide que respondan al mensaje con la imagen.'
+        image = await fromGenerated(files[files.length - 1], invocation.messageId)
+        if (!image) return 'invalid: la imagen creada no tiene un formato que pueda guardar.'
+      } else {
+        if (!invocation.attachments.length)
+          return 'invalid: no hay imagen adjunta ni en el mensaje al que responde (PNG, JPEG o WebP estáticos de hasta 2,5 MB); pide que la adjunten o respondan al mensaje con la imagen.'
+        const images = await dependencies!.loadImages(context)
+        const selected = images[(input.image ?? 1) - 1]
+        if (!selected) return `invalid: solo hay ${images.length} imagen(es) adjunta(s).`
+        image = fromAttachment(selected)
+      }
       const sha256 = createHash('sha256').update(image.bytes).digest('hex')
       const tags = [...new Set((input.tags ?? []).map((value) => value.toLowerCase()))]
       const existing = await withDatabase(context, (db) =>
@@ -283,13 +330,13 @@ export function mediaCapabilities(
               guildId: invocation.guildId,
               channelId: invocation.channelId,
               authorId: invocation.requester.id,
-              sourceMessageId: image.source.messageId,
-              sourceAttachmentId: image.source.attachmentId,
+              sourceMessageId: image.messageId,
+              sourceAttachmentId: image.attachmentId,
               objectKey: key,
               url: dependencies!.store.publicUrl(key),
               mediaType: image.mediaType,
-              width: image.source.width,
-              height: image.source.height,
+              width: image.width,
+              height: image.height,
               sizeBytes: image.bytes.length,
               sha256,
               title: input.title,

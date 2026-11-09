@@ -1,5 +1,5 @@
 import type { ConfigService } from '@nestjs/config'
-import { DEFAULT_OPENAI_MODEL } from './constants'
+import { DEFAULT_OPENAI_IMAGE_MODEL, DEFAULT_OPENAI_MODEL } from './constants'
 
 /**
  * One startup line answering "what is this process actually running with?". Booleans only for
@@ -17,7 +17,7 @@ export function runtimeSummary(config: Pick<ConfigService, 'get'>) {
     .filter(Boolean)
   const disabled: string[] = []
   if (!has('OPENAI_API_KEY')) disabled.push('model (OPENAI_API_KEY)')
-  if (!has('REDIS_URL')) disabled.push('claims/reminders (REDIS_URL)')
+  if (!has('REDIS_URL')) disabled.push('claims/reminders/images (REDIS_URL)')
   if (!database) disabled.push('memory (no database URL)')
   else if (!owner) disabled.push('memory (MEMORY_OWNER_ID missing/invalid)')
   const mediaBucket =
@@ -37,6 +37,8 @@ export function runtimeSummary(config: Pick<ConfigService, 'get'>) {
     guildId: get('GUILD_ID') ?? null,
     model: get('OPENAI_MODEL') ?? `${DEFAULT_OPENAI_MODEL} (default)`,
     reasoningEffort: get('OPENAI_REASONING_EFFORT') ?? 'low',
+    imageModel: get('OPENAI_IMAGE_MODEL') ?? DEFAULT_OPENAI_IMAGE_MODEL + ' (default)',
+    imageQuality: get('OPENAI_IMAGE_QUALITY') ?? 'medium',
     timeoutMs: Number(get('CONVERSATION_TIMEOUT_MS') ?? 60000),
     synthesisTimeoutMs: Number(get('CONVERSATION_SYNTHESIS_TIMEOUT_MS') ?? 20000),
     concurrency: Number(get('CONVERSATION_CONCURRENCY') ?? 4),

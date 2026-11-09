@@ -10,6 +10,12 @@ export function partialResult<T>(value: T): PartialResult<T> {
   return new PartialResult(value)
 }
 
+/** A file a tool produced for the requester (e.g. a generated image), delivered with the reply. */
+export interface ReplyFile {
+  name: string
+  attachment: Buffer
+}
+
 export interface ExecutionContext {
   readonly invocation: Invocation
   readonly signal: AbortSignal
@@ -18,6 +24,10 @@ export interface ExecutionContext {
   readonly discoveredUrls?: readonly string[]
   /** Every external subcall/retry must pass through this shared budget. */
   external<T>(work: () => Promise<T>): Promise<T>
+  /** Tool calls only: kept and delivered with the reply only if the call succeeds. */
+  attach?(file: ReplyFile): void
+  /** Tool calls only: files earlier successful calls of this invocation attached to the reply. */
+  generated?(): readonly ReplyFile[]
 }
 export interface Capability {
   name: string

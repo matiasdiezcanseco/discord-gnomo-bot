@@ -1,7 +1,7 @@
 import type { ConfigService } from '@nestjs/config'
 import type Redis from 'ioredis'
 import { openai } from '@ai-sdk/openai'
-import { DEFAULT_OPENAI_MODEL } from '../modules/config/constants'
+import { DEFAULT_OPENAI_IMAGE_MODEL, DEFAULT_OPENAI_MODEL } from '../modules/config/constants'
 import type { Invocation } from '../core/conversation/invocation'
 import { runtimeAllows } from './runtime-policy'
 import { browserbaseSearch } from './public-search'
@@ -16,6 +16,8 @@ import { safeReader, type SafeReader } from '../web/safe-reader'
 import { attachedImages } from './attached-images'
 import { mediaCapabilities, s3MediaStore, type MediaObjectStore } from './media-library'
 import { ScheduledNotices } from './scheduled-notices'
+import { aiSdkImages } from './image-generation'
+import { redisImageQuota } from './image-quota'
 import { capabilityAllowed } from './execution-policy'
 import type { MemberDirectory } from './member-directory'
 import type { LiveMembers } from './live-members'
@@ -47,6 +49,13 @@ export interface RuntimeComposition {
   memory?: MemoryDependencies
   /** Defaults to the S3-compatible bucket from BUCKET_NAME/AWS_* configuration. */
   mediaStore?: MediaObjectStore
+}
+
+function imageQuality(config: ConfigService) {
+  const quality = config.get<string>('OPENAI_IMAGE_QUALITY', 'medium')
+  return quality === 'low' || quality === 'medium' || quality === 'high' || quality === 'auto'
+    ? quality
+    : 'medium'
 }
 
 function reasoningEffort(config: ConfigService) {
@@ -116,6 +125,16 @@ export function composeRuntimeConversation({
         reauthorize,
       ),
       notices: redis ? new ScheduledNotices(redis) : undefined,
+      // Without Redis there is no shared per-user limit, so image creation stays off.
+      images: redis
+        ? {
+            generator: aiSdkImages(
+              openai.image(config.get<string>('OPENAI_IMAGE_MODEL', DEFAULT_OPENAI_IMAGE_MODEL)),
+              imageQuality(config),
+            ),
+            quota: redisImageQuota(redis),
+          }
+        : undefined,
     }),
     allowedUserMentions: memberMentions(platform.members),
     trace,

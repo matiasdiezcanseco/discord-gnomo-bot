@@ -9,6 +9,11 @@ meme») y las vuelve a compartir cuando se le pide («@Gnomo manda el meme del g
    invocación es una respuesta sin adjuntos, del mensaje respondido (mismo canal; solo PNG,
    JPEG o WebP estáticos de hasta 2,5 MB, como cualquier adjunto). El modelo ve la imagen y
    redacta `title`, `description` (qué se ve, texto transcrito, tono, contexto) y `tags`.
+   Con `source: 'generated'` guarda en cambio la imagen que `image_generate` creó en **esta misma
+   petición** («crea un gnomo astronauta y guárdalo»): el modelo describe a partir del prompt
+   usado y la imagen sigue llegando adjunta a la respuesta. Nada se guarda sin pedirlo
+   ([ADR 0002](adr/0002-explicit-memory-only.md)); para guardar una imagen creada antes, se
+   responde a su mensaje con «@Gnomo guárdala», como con cualquier imagen.
    El código vuelve a verificar los bytes, calcula su SHA-256 y:
    - si el canal ya tiene esos bytes, responde `already_saved` sin subir nada;
    - si no, sube el objeto a `<guild>/<canal>/<uuid>.<ext>` y registra la metadata en

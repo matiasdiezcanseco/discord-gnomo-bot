@@ -12,6 +12,8 @@ import { safeReader, type SafeReader } from '../web/safe-reader'
 import { presenceCapability, voiceCapability, type LiveMembers } from './live-members'
 import { reminderCapability } from './reminders'
 import type { ScheduledNotices } from './scheduled-notices'
+import { imageCapability, type ImageGenerator } from './image-generation'
+import type { ImageQuota } from './image-quota'
 
 /** Single composition point. Future capability modules export definitions, never edit the loop. */
 export interface CapabilityDependencies {
@@ -24,12 +26,26 @@ export interface CapabilityDependencies {
   memory?: ReturnType<typeof memoryCapabilities>
   media?: ReturnType<typeof mediaCapabilities>
   notices?: ScheduledNotices
+  images?: { generator?: ImageGenerator; quota?: ImageQuota }
   extensions?: import('./catalog').Capability[]
 }
-export function composeCapabilities({ collection, members, history, search, live, web = safeReader(), memory, media, notices, extensions = [] }: CapabilityDependencies = {}) {
+export function composeCapabilities({
+  collection,
+  members,
+  history,
+  search,
+  live,
+  web = safeReader(),
+  memory,
+  media,
+  notices,
+  images,
+  extensions = [],
+}: CapabilityDependencies = {}) {
   return new Catalog([
     ...extensions,
     reminderCapability(notices),
+    imageCapability(images?.generator, images?.quota),
     webRead(web),
     messagesHistory(history),
     ...collectionCapabilities(collection),
