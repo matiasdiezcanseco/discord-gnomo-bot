@@ -274,6 +274,36 @@ test('external work is cancelled at twelve seconds and a visible notice is deliv
   assert.equal(clock.time, 12000)
 })
 
+test('a request slower than fifteen seconds still gets a visible reply with its own send window', async () => {
+  const clock = new ManualClock()
+  const replies: string[] = []
+  let started!: () => void
+  const ready = new Promise<void>((resolve) => {
+    started = resolve
+  })
+  const running = createConversation({
+    clock,
+    timeoutMs: 60000,
+    model: {
+      async generate() {
+        started()
+        return new Promise(() => {})
+      },
+    },
+    authorize: async () => true,
+    claim: async () => true,
+    reply: async (_, reply) => {
+      replies.push(reply.content)
+    },
+  }).handle(invocation)
+  await ready
+  clock.advance(23000)
+  clock.advance(37000)
+  await running
+  assert.equal(replies.length, 1)
+  assert.match(replies[0], /tiempo/)
+})
+
 test('long replies preserve complete source links and suppress every unapproved mention', async () => {
   const replies: { content: string; allowedMentions: unknown }[] = []
   const url = 'https://example.test/source?q=reference'
