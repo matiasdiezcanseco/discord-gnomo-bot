@@ -109,16 +109,6 @@ export interface ConversationPorts {
   synthesisTimeoutMs?: number
 }
 
-const writeLabels: Record<string, string> = {
-  'memory.save': 'guardar el recuerdo',
-  'memory.update': 'corregir el recuerdo',
-  'memory.forget': 'olvidar el recuerdo',
-  'reminders.own': 'crear el recordatorio',
-  'media.save': 'guardar la imagen',
-  'media.forget': 'borrar la imagen',
-  'images.generate': 'crear la imagen',
-  'speech.generate': 'crear el audio',
-}
 /** Human-readable leaves of a tool result (titles, text, URLs, names), never structure or IDs. */
 function readable(value: unknown, key = ''): string[] {
   if (typeof value === 'string')
@@ -392,7 +382,7 @@ export function createConversation(ports: ConversationPorts) {
             confirmed
               .map((r) => tools.find((tool) => tool.name === r.name))
               .filter((tool) => tool?.effect === 'write')
-              .map((tool) => writeLabels[tool!.capability] ?? 'completar una acción'),
+              .map((tool) => tool!.label ?? 'completar una acción'),
           ),
         ]
         const evidence = [

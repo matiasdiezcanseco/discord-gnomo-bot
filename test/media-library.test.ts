@@ -7,7 +7,6 @@ import sharp from 'sharp'
 import { migrateMemoryDatabase } from '../src/database/migrate'
 import { createConversation, type ModelInput, type ModelTurn } from '../src/conversation/harness'
 import { composeCapabilities } from '../src/conversation/capabilities'
-import { capabilityAllowed } from '../src/conversation/execution-policy'
 import {
   mediaCapabilities,
   queryTerms,
@@ -103,7 +102,7 @@ test('object store needs full configuration and builds public Tigris URLs', asyn
   assert.throws(() => s3MediaStore((key) => ({ ...env, BUCKET_NAME: 'Bad_Name' })[key]))
 })
 
-test('media tools are allowlisted with their declared effects', () => {
+test('media tools declare their effects, and writes carry a label', () => {
   const tools = mediaCapabilities()
   const effects = Object.fromEntries(tools.map((tool) => [tool.name, tool.effect]))
   assert.deepEqual(effects, {
@@ -112,8 +111,7 @@ test('media tools are allowlisted with their declared effects', () => {
     media_share: 'read',
     media_forget: 'write',
   })
-  for (const tool of tools) assert.ok(capabilityAllowed(invocation(''), tool))
-  assert.ok(!capabilityAllowed(invocation(''), { ...tools[1], effect: 'write' }))
+  for (const tool of tools) assert.equal(!!tool.label, tool.effect === 'write', tool.name)
 })
 
 test('a tagged reply without attachments uses the replied images that can be verified', () => {
@@ -299,7 +297,7 @@ test(
                 extension: 'jpg',
               }),
             },
-            quota: { reserve: async () => ({ granted: true, release: async () => {} }) },
+            cooldown: { reserve: async () => ({ granted: true, release: async () => {} }) },
           },
           media: mediaCapabilities({ pool, store, loadImages }, owner, async () => true),
         }),

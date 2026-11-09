@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { Catalog, defineCapability } from '../src/conversation/catalog'
 import { createConversation, looksLikeJson, type ModelInput } from '../src/conversation/harness'
-import { capabilityAllowed } from '../src/conversation/execution-policy'
 import { composeCapabilities } from '../src/conversation/capabilities'
 import type { Invocation } from '../src/core/conversation/invocation'
 
@@ -20,6 +19,7 @@ const write = defineCapability({
   name: 'memory_save',
   description: 'save',
   capability: 'memory.save',
+  label: 'guardar el recuerdo',
   scope: 'channel',
   effect: 'write',
   input: z.strictObject({}),
@@ -86,11 +86,6 @@ test('a failure after a confirmed write never dumps tool payloads', async () => 
 
 test('the reminder tool is offered by intent, not by keywords in the request', () => {
   const reminder = composeCapabilities().tools.find((tool) => tool.name === 'reminder_create')!
-  for (const content of [
-    'crea un recordatorio para mi en 1 minuto',
-    'oye, en 10 min me pasas la voz',
-  ])
-    assert.equal(capabilityAllowed({ ...invocation, content }, reminder), true, content)
   assert.equal('direct' in reminder, false)
 })
 
@@ -123,10 +118,6 @@ test('memory writes are chosen by intent and require model-supplied content or s
   const tool = (name: string) => tools.find((entry) => entry.name === name)!
   for (const name of ['memory_save', 'memory_search', 'memory_update', 'memory_forget']) {
     assert.equal('direct' in tool(name), false, name)
-    assert.equal(
-      capabilityAllowed({ ...invocation, content: 'acuérdate que juego Valorant' }, tool(name)),
-      true,
-    )
   }
   assert.equal(tool('memory_save').input.safeParse({}).success, false)
   assert.equal(tool('memory_save').input.safeParse({ content: 'Ana juega Valorant' }).success, true)

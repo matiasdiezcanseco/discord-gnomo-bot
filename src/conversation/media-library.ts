@@ -263,6 +263,7 @@ export function mediaCapabilities(
   const save = defineCapability({
     name: 'media_save',
     capability: 'media.save',
+    label: 'guardar la imagen',
     scope: 'channel',
     effect: 'write',
     description: `Guarda en la biblioteca de medios de este canal una imagen adjunta a la petición actual (o al mensaje al que responde) cuando el solicitante pide guardarla, almacenarla o archivarla («guarda este meme», «almacena esta foto»). ${onlyCurrentRequest} Antes mira la imagen con atención. title: nombre corto y reconocible. description: descripción detallada en español para encontrarla después: qué se ve, personas o personajes, texto visible transcrito literal, el chiste o tono, y el contexto que dé el solicitante. tags: hasta 10 palabras clave (temas, personajes, emociones, formato de meme). image: 1 o 2 si hay dos imágenes (por defecto 1). source: 'generated' solo si en esta misma petición pidió crear una imagen y guardarla («créala y guárdala»): llama a media_save después de que image_generate respondió created y describe la imagen a partir del prompt que usaste; por defecto 'attachment'.`,
@@ -433,6 +434,7 @@ export function mediaCapabilities(
   const forget = defineCapability({
     name: 'media_forget',
     capability: 'media.forget',
+    label: 'borrar la imagen',
     scope: 'channel',
     effect: 'write',
     description: `Borra un medio guardado de la biblioteca del canal cuando el solicitante lo pide. ${onlyCurrentRequest} selector: ID del medio (búscalo antes con media_search). Solo su autor o el propietario pueden borrarlo.`,

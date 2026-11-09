@@ -13,10 +13,13 @@ import { presenceCapability, voiceCapability, type LiveMembers } from './live-me
 import { reminderCapability } from './reminders'
 import type { ScheduledNotices } from './scheduled-notices'
 import { imageCapability, type ImageGenerator } from './image-generation'
-import type { ImageQuota } from './image-quota'
+import type { RequesterCooldown } from './paid-generation'
 import { speechCapability, type SpeechGenerator } from './speech-generation'
 
-/** Single composition point. Future capability modules export definitions, never edit the loop. */
+/**
+ * Single composition point. A capability module owns its whole definition (identity, effect,
+ * label, wording); adding one means exporting it here, never editing the loop.
+ */
 export interface CapabilityDependencies {
   collection?: CollectionSource
   members?: MemberDirectory
@@ -27,8 +30,8 @@ export interface CapabilityDependencies {
   memory?: ReturnType<typeof memoryCapabilities>
   media?: ReturnType<typeof mediaCapabilities>
   notices?: ScheduledNotices
-  images?: { generator?: ImageGenerator; quota?: ImageQuota }
-  speech?: { generator?: SpeechGenerator; quota?: ImageQuota; cooldownMinutes?: number }
+  images?: { generator?: ImageGenerator; cooldown?: RequesterCooldown }
+  speech?: { generator?: SpeechGenerator; cooldown?: RequesterCooldown; cooldownMinutes?: number }
   extensions?: import('./catalog').Capability[]
 }
 export function composeCapabilities({
@@ -48,8 +51,8 @@ export function composeCapabilities({
   return new Catalog([
     ...extensions,
     reminderCapability(notices),
-    imageCapability(images?.generator, images?.quota),
-    speechCapability(speech?.generator, speech?.quota, speech?.cooldownMinutes),
+    imageCapability(images?.generator, images?.cooldown),
+    speechCapability(speech?.generator, speech?.cooldown, speech?.cooldownMinutes),
     webRead(web),
     messagesHistory(history),
     ...collectionCapabilities(collection),

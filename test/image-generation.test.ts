@@ -5,8 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { createConversation, type ModelInput, type Reply } from '../src/conversation/harness'
 import { composeCapabilities } from '../src/conversation/capabilities'
 import { ImageRejected, type ImageGenerator } from '../src/conversation/image-generation'
-import { redisImageQuota, type ImageQuota } from '../src/conversation/image-quota'
-import { capabilityAllowed } from '../src/conversation/execution-policy'
+import { redisCooldown, type RequesterCooldown } from '../src/conversation/paid-generation'
 import type { Invocation } from '../src/core/conversation/invocation'
 
 const base: Invocation = {
@@ -47,7 +46,7 @@ function memoryQuota(windowMs = 3600_000) {
   let now = 0
   const taken = new Map<string, { until: number; token: number }>()
   let tokens = 0
-  const quota: ImageQuota = {
+  const quota: RequesterCooldown = {
     async reserve(invocation) {
       const key = `${invocation.guildId}:${invocation.requester.id}`
       const slot = taken.get(key)
@@ -65,10 +64,10 @@ function memoryQuota(windowMs = 3600_000) {
   return { quota, advance: (ms: number) => (now += ms) }
 }
 
-function app(generator: ImageGenerator, quota: ImageQuota) {
+function app(generator: ImageGenerator, quota: RequesterCooldown) {
   const replies: Reply[] = []
   const conversation = createConversation({
-    catalog: composeCapabilities({ images: { generator, quota } }),
+    catalog: composeCapabilities({ images: { generator, cooldown: quota } }),
     authorize: async () => true,
     claim: async () => true,
     model,
@@ -83,13 +82,13 @@ function app(generator: ImageGenerator, quota: ImageQuota) {
   }
 }
 
-test('image generation is an allowed, bounded write', () => {
+test('image generation is a bounded, labelled write', () => {
   const [tool] = composeCapabilities({ images: {} }).tools.filter(
     (t) => t.name === 'image_generate',
   )
   assert.equal(tool.effect, 'write')
   assert.equal(tool.maxCalls, 1)
-  assert.equal(capabilityAllowed(base, tool), true)
+  assert.equal(tool.label, 'crear la imagen')
 })
 
 test('a generated image is attached to the reply, never passed through the model', async () => {
@@ -151,7 +150,7 @@ test('a provider refusal gives the slot back; other failures keep it', async () 
 
 test('without a reachable quota no image is generated', async () => {
   const { generator, prompts } = fakeGenerator()
-  const quota: ImageQuota = {
+  const quota: RequesterCooldown = {
     reserve: async () => {
       throw new Error('redis down')
     },
@@ -171,8 +170,8 @@ test(
     const first = new Redis(url),
       second = new Redis(url)
     try {
-      const a = redisImageQuota(first, 1, namespace)
-      const b = redisImageQuota(second, 1, namespace)
+      const a = redisCooldown(first, 1, namespace)
+      const b = redisCooldown(second, 1, namespace)
       const results = await Promise.all([a.reserve(base), b.reserve(base)])
       assert.equal(results.filter((r) => r.granted).length, 1, 'concurrent requests: only one wins')
       const denied = results.find((r) => !r.granted)
