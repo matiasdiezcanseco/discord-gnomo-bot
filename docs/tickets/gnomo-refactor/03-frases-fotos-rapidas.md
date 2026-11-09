@@ -1,5 +1,7 @@
 # T03: Frases y fotos por una ruta rápida autorizada
 
+> **Reemplazado (2026-11):** la ruta sin modelo por frases fijas se retiró; el modelo elige la herramienta por intención y el resultado se entrega textual. Ver [ADR 0005](../../adr/0005-collection-by-intent.md).
+
 Estado: aprobado y publicado con ready-for-agent. Issue: https://github.com/matiasdiezcanseco/discord-gnomo-bot/issues/5
 
 ## Parent

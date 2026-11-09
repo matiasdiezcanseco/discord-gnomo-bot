@@ -126,6 +126,9 @@ export function createConversation(ports: ConversationPorts) {
       const results: ToolResult[] = []
       // Attachments are untrusted data; execution still requires current text consent and permissions.
       const tools = ports.catalog?.tools ?? []
+      const standalone = (result: ToolResult) =>
+        result.status === 'success' &&
+        !!tools.find((entry) => entry.name === result.name && entry.verbatim && entry.standalone)
       const trace = (event: string, status?: string, tool?: string) => {
         try {
           ports.trace?.({
@@ -186,33 +189,16 @@ export function createConversation(ports: ConversationPorts) {
                 })
               })
             : undefined
-          const direct = invocation.attachments.length
-            ? []
-            : tools.filter((tool) => tool.direct?.matches(invocation))
-          if (direct.length === 1) {
-            const tool = direct[0]
-            const result = await executor.execute({
-              id: 'direct',
-              name: tool.name,
-              input: tool.direct!.input,
-            })
-            results.push(result)
-            trace('tool_finished', result.status, result.name)
-            text = tool.direct!.render(result)
-          }
-          const recentContext =
-            direct.length === 1
-              ? undefined
-              : await budget.wait(
-                  () =>
-                    ports.loadContext?.({
-                      invocation,
-                      signal,
-                      idempotencyKey: invocation.messageId,
-                      external: (work) => budget.external(work),
-                    }) ?? Promise.resolve(undefined),
-                )
-          for (; direct.length !== 1 && budget.steps < 5; ) {
+          const recentContext = await budget.wait(
+            () =>
+              ports.loadContext?.({
+                invocation,
+                signal,
+                idempotencyKey: invocation.messageId,
+                external: (work) => budget.external(work),
+              }) ?? Promise.resolve(undefined),
+          )
+          for (; budget.steps < 5; ) {
             budget.check()
             if (
               images?.length &&
@@ -232,10 +218,13 @@ export function createConversation(ports: ConversationPorts) {
                 images,
               }),
             )
-            trace('model_finished')
+            // 'empty': the provider returned neither text nor calls (e.g. a silently incomplete response).
+            trace('model_finished', turn.text || turn.calls.length ? undefined : 'empty')
             if (turn.text) text = turn.text
             if (!turn.calls.length) break
+            const lead = turn.text
             text = ''
+            const before = results.length
             const run = async (call: ModelTurn['calls'][number]) => {
               const result = await executor.execute(call)
               results.push(result)
@@ -252,6 +241,20 @@ export function createConversation(ports: ConversationPorts) {
                 batch.push(turn.calls[index++])
               if (batch.length) await Promise.all(batch.map(run))
               else await run(turn.calls[index++])
+            }
+            // Only verbatim tools (e.g. a collection phrase/photo): deliver them as-is, no extra step.
+            const fresh = results.slice(before)
+            const exact = turn.calls.map((call) => {
+              const tool = tools.find((entry) => entry.name === call.name)
+              const result = fresh.find((entry) => entry.id === call.id)
+              if (!tool?.verbatim || !result) return undefined
+              // Standalone outputs (photos) are delivered on their own after the loop.
+              return standalone(result) ? '' : tool.verbatim(result)
+            })
+            if (exact.every((value) => value !== undefined)) {
+              // A photo reply carries no model chatter around it.
+              text = [fresh.some(standalone) ? '' : lead, ...exact].filter(Boolean).join('\n')
+              break
             }
             if (budget.steps === 5) text = ''
           }
@@ -283,8 +286,18 @@ export function createConversation(ports: ConversationPorts) {
         budget.close()
       }
       const confirmed = results.filter((r) => r.status === 'success' || r.status === 'partial')
+      // Each successful standalone result (an image URL) becomes its own message, nothing else.
+      const alone = results
+        .filter(standalone)
+        .map((result) => tools.find((entry) => entry.name === result.name)!.verbatim!(result))
+      for (const value of alone)
+        text = text
+          .split(value)
+          .join('')
+          .replace(/ {2,}/g, ' ')
+          .trim()
       // Phrase confirmed results with one tool-less turn instead of dumping raw tool payloads.
-      if (!text && confirmed.length && ports.synthesisTimeoutMs) {
+      if (!text && confirmed.some((r) => !standalone(r)) && ports.synthesisTimeoutMs) {
         const grace = new Budget(clock, clock.now(), ports.synthesisTimeoutMs)
         try {
           trace('synthesis_started')
@@ -305,7 +318,23 @@ export function createConversation(ports: ConversationPorts) {
           grace.close()
         }
       }
-      if (!text) {
+      // Verbatim results are never paraphrased away: append any the final answer left out.
+      // The synthesis turn may have quoted the URL again.
+      for (const value of alone)
+        text = text
+          .split(value)
+          .join('')
+          .replace(/ {2,}/g, ' ')
+          .trim()
+      const exact = results
+        .filter((result) => result.status === 'success' && !standalone(result))
+        .flatMap((result) => {
+          const tool = tools.find((entry) => entry.name === result.name)
+          return tool?.verbatim ? [tool.verbatim(result)] : []
+        })
+        .filter((value) => !text.includes(value))
+      if (exact.length) text = [text, ...exact].filter(Boolean).join('\n')
+      if (!text && !alone.length) {
         const writes = [
           ...new Set(
             confirmed
@@ -327,7 +356,9 @@ export function createConversation(ports: ConversationPorts) {
               ? 'No pude completar toda la petición.'
               : 'No pude obtener una respuesta.'),
           writes.length ? `Eso sí, alcancé a ${writes.join(' y ')}.` : '',
-          evidence.length ? `Lo que sí confirmé:\n${evidence.map((e) => `- ${e}`).join('\n')}\n` : '',
+          evidence.length
+            ? `Lo que sí confirmé:\n${evidence.map((e) => `- ${e}`).join('\n')}\n`
+            : '',
           'Inténtalo nuevamente en un ratito.',
         ]
           .filter(Boolean)
@@ -337,10 +368,11 @@ export function createConversation(ports: ConversationPorts) {
       }
       let chunks: string[]
       try {
-        chunks = splitReply(text)
+        chunks = text ? splitReply(text) : []
       } catch {
         chunks = ['Una fuente excede el tamaño permitido por Discord; no pude enviarla completa.']
       }
+      chunks.push(...alone)
       const delivery = new Budget(clock, budget.startedAt, 15000)
       try {
         for (const content of chunks) {

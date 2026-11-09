@@ -91,7 +91,7 @@ test('the reminder tool is offered by intent, not by keywords in the request', (
     'oye, en 10 min me pasas la voz',
   ])
     assert.equal(capabilityAllowed({ ...invocation, content }, reminder), true, content)
-  assert.equal(reminder.direct, undefined)
+  assert.equal('direct' in reminder, false)
 })
 
 test('model-chosen reminder time is validated against the request time', async () => {
@@ -122,7 +122,7 @@ test('memory writes are chosen by intent and require model-supplied content or s
   const tools = composeCapabilities().tools
   const tool = (name: string) => tools.find((entry) => entry.name === name)!
   for (const name of ['memory_save', 'memory_search', 'memory_update', 'memory_forget']) {
-    assert.equal(tool(name).direct, undefined, name)
+    assert.equal('direct' in tool(name), false, name)
     assert.equal(
       capabilityAllowed({ ...invocation, content: 'acuérdate que juego Valorant' }, tool(name)),
       true,
