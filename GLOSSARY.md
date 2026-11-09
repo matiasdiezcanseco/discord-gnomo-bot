@@ -39,3 +39,7 @@ _Evitar_: Autor del recuerdo.
 **Medio guardado**:
 Imagen que un miembro pide explícitamente al bot que conserve, con una descripción para encontrarla y compartirla después dentro del mismo canal.
 _Evitar_: Foto de la colección (las fotos aleatorias del Gnomo), adjunto.
+
+**Generación con costo**:
+Creación de un archivo (imagen, mensaje de voz) que gasta créditos del proveedor. Cada miembro tiene un turno por ventana de espera, que se toma antes de gastar; un rechazo del proveedor devuelve el turno y cualquier otra falla lo conserva.
+_Evitar_: Cuota de imágenes, cuando la regla aplica también a audios.

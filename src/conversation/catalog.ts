@@ -37,6 +37,11 @@ export interface Capability {
   capability: string
   scope: 'channel'
   effect: 'read' | 'write'
+  /**
+   * Writes only: what the action does, as a Spanish infinitive phrase ("guardar el recuerdo").
+   * Names a confirmed write when the model left no usable answer.
+   */
+  label?: string
   input: z.ZodType
   output: z.ZodType
   maxCalls: number

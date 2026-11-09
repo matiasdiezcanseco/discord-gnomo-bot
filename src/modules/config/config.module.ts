@@ -18,17 +18,30 @@ const envSchema = z
     RUNTIME_MODE: z.enum(['paused', 'pilot', 'guild']).default('paused'),
     RUNTIME_CHANNEL_IDS: z.string().default(''),
     CONVERSATION_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
+    // Whole-request budget and the grace turn that phrases confirmed results (0 disables it).
+    CONVERSATION_TIMEOUT_MS: z.coerce.number().int().min(0).optional(),
+    CONVERSATION_SYNTHESIS_TIMEOUT_MS: z.coerce.number().int().min(0).optional(),
 
     // External Services
     BUCKET_URL: z.string().url().optional(),
     OPENAI_API_KEY: z.string().min(1).optional(),
     OPENAI_MODEL: z.string().default(DEFAULT_OPENAI_MODEL),
+    // minimal | low | medium | high; anything else sends no reasoning option (see runtime-settings).
+    OPENAI_REASONING_EFFORT: z.string().optional(),
     OPENAI_IMAGE_MODEL: z.string().min(1).optional(),
     OPENAI_IMAGE_QUALITY: z.enum(['low', 'medium', 'high', 'auto']).optional(),
     OPENAI_SPEECH_MODEL: z.string().min(1).optional(),
     OPENAI_SPEECH_VOICE: z.string().min(1).optional(),
     OPENAI_SPEECH_COOLDOWN_MINUTES: z.coerce.number().int().min(1).max(1440).optional(),
     BROWSERBASE_API_KEY: z.string().optional(),
+
+    // Media library: public-read S3-compatible bucket (validated when the store is built).
+    BUCKET_NAME: z.string().optional(),
+    AWS_ENDPOINT_URL_S3: z.string().optional(),
+    AWS_REGION: z.string().optional(),
+    AWS_ACCESS_KEY_ID: z.string().optional(),
+    AWS_SECRET_ACCESS_KEY: z.string().optional(),
+    MEDIA_PUBLIC_URL: z.string().optional(),
 
     // Durable admission and scheduled notices; active runtime requires Redis.
     REDIS_URL: z.string().optional(),

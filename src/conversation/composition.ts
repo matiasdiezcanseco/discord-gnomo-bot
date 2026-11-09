@@ -1,12 +1,7 @@
 import type { ConfigService } from '@nestjs/config'
 import type Redis from 'ioredis'
 import { openai } from '@ai-sdk/openai'
-import {
-  DEFAULT_OPENAI_IMAGE_MODEL,
-  DEFAULT_OPENAI_MODEL,
-  DEFAULT_OPENAI_SPEECH_MODEL,
-  DEFAULT_OPENAI_SPEECH_VOICE,
-} from '../modules/config/constants'
+import { configuredFacts, enablement, runtimeSettings } from '../modules/config/runtime-settings'
 import type { Invocation } from '../core/conversation/invocation'
 import { runtimeAllows } from './runtime-policy'
 import { browserbaseSearch } from './public-search'
@@ -22,9 +17,8 @@ import { attachedImages } from './attached-images'
 import { mediaCapabilities, s3MediaStore, type MediaObjectStore } from './media-library'
 import { ScheduledNotices } from './scheduled-notices'
 import { aiSdkImages } from './image-generation'
-import { redisImageQuota } from './image-quota'
+import { redisCooldown } from './paid-generation'
 import { openaiRealtimeSpeech } from './speech-generation'
-import { capabilityAllowed } from './execution-policy'
 import type { MemberDirectory } from './member-directory'
 import type { LiveMembers } from './live-members'
 import type { HistoryReader } from './channel-history'
@@ -57,48 +51,32 @@ export interface RuntimeComposition {
   mediaStore?: MediaObjectStore
 }
 
-function imageQuality(config: ConfigService) {
-  const quality = config.get<string>('OPENAI_IMAGE_QUALITY', 'medium')
-  return quality === 'low' || quality === 'medium' || quality === 'high' || quality === 'auto'
-    ? quality
-    : 'medium'
-}
-
-function speechCooldownMinutes(config: ConfigService) {
-  const value = Number(config.get('OPENAI_SPEECH_COOLDOWN_MINUTES', 10))
-  return Number.isInteger(value) && value >= 1 && value <= 1440 ? value : 10
-}
-
-function reasoningEffort(config: ConfigService) {
-  const effort = config.get<string>('OPENAI_REASONING_EFFORT', 'low')
-  return effort === 'minimal' || effort === 'low' || effort === 'medium' || effort === 'high'
-    ? effort
-    : undefined
-}
-
 export function composeRuntimeConversation({
   platform,
   config,
   redis,
   trace,
   clock,
-  model = aiSdkModel(
-    openai(config.get<string>('OPENAI_MODEL', DEFAULT_OPENAI_MODEL)),
-    1500,
-    reasoningEffort(config),
-  ),
+  model,
   web = safeReader(),
   memory,
   mediaStore = s3MediaStore((key) => config.get<string>(key)),
 }: RuntimeComposition) {
-  const enabled: ConversationPorts['authorize'] = async (invocation, tool) =>
-    capabilityAllowed(invocation, tool)
-  const authorize: ConversationPorts['authorize'] = async (invocation, tool, signal) => {
+  const settings = runtimeSettings(config)
+  // The environment promises; what was actually connected decides.
+  const on = enablement({
+    ...configuredFacts(config),
+    redis: !!redis,
+    database: !!memory,
+    mediaBucket: !!mediaStore,
+  })
+  // Every tool in the catalog is permitted by its own definition, so authorization is only
+  // about where and who: deployment policy, then fresh platform access.
+  const authorize: ConversationPorts['authorize'] = async (invocation, _tool, signal) => {
     signal?.throwIfAborted()
     if (!runtimeAllows(config, invocation)) return false
     // Fresh platform data; model arguments never participate in this lookup.
-    if (!(await platform.access(invocation, signal))) return false
-    return enabled(invocation, tool)
+    return platform.access(invocation, signal)
   }
   // With durable memory enabled, never retain history pages that may contain old memory replies.
   const history = platform.history(
@@ -119,66 +97,67 @@ export function composeRuntimeConversation({
   return createConversation({
     loadImages,
     loadContext: async (context) => history(context, 30),
-    model,
+    model: model ?? aiSdkModel(openai(settings.model), 1500, settings.reasoningEffort),
     catalog: composeCapabilities({
-      collection: bucketCollection(config.get<string>('BUCKET_URL')),
+      collection: bucketCollection(settings.collectionUrl),
       members: platform.members,
       history,
-      search: browserbaseSearch(config.get<string>('BROWSERBASE_API_KEY')),
+      search: browserbaseSearch(settings.searchApiKey),
       live: platform.live,
       web,
-      memory: memoryCapabilities(memory, config.get<string>('MEMORY_OWNER_ID'), reauthorize),
-      media: mediaCapabilities(
-        memory && mediaStore
-          ? { pool: memory.pool, embedding: memory.embedding, store: mediaStore, loadImages }
-          : undefined,
-        config.get<string>('MEMORY_OWNER_ID'),
+      memory: memoryCapabilities(
+        on.memory.enabled ? memory : undefined,
+        settings.memoryOwnerId,
         reauthorize,
       ),
-      notices: redis ? new ScheduledNotices(redis) : undefined,
-      // Without Redis there is no shared per-user limit, so image creation stays off.
-      images: redis
-        ? {
-            generator: aiSdkImages(
-              openai.image(config.get<string>('OPENAI_IMAGE_MODEL', DEFAULT_OPENAI_IMAGE_MODEL)),
-              imageQuality(config),
-            ),
-            quota: redisImageQuota(redis),
-          }
-        : undefined,
-      // Same rule as images: no Redis, no shared cooldown, so voice messages stay off.
+      media: mediaCapabilities(
+        on.media.enabled && memory && mediaStore
+          ? { pool: memory.pool, embedding: memory.embedding, store: mediaStore, loadImages }
+          : undefined,
+        settings.memoryOwnerId,
+        reauthorize,
+      ),
+      notices: on.reminders.enabled && redis ? new ScheduledNotices(redis) : undefined,
+      images:
+        on.images.enabled && redis
+          ? {
+              generator: aiSdkImages(openai.image(settings.image.model), settings.image.quality),
+              cooldown: redisCooldown(redis, 3600, 'gnomo:image-quota:v1'),
+            }
+          : undefined,
       speech:
-        redis && config.get<string>('OPENAI_API_KEY')
+        on.speech.enabled && redis && settings.openaiApiKey
           ? {
               generator: openaiRealtimeSpeech({
-                apiKey: config.get<string>('OPENAI_API_KEY')!,
-                model: config.get<string>('OPENAI_SPEECH_MODEL', DEFAULT_OPENAI_SPEECH_MODEL),
-                voice: config.get<string>('OPENAI_SPEECH_VOICE', DEFAULT_OPENAI_SPEECH_VOICE),
+                apiKey: settings.openaiApiKey,
+                model: settings.speech.model,
+                voice: settings.speech.voice,
               }),
-              quota: redisImageQuota(
+              cooldown: redisCooldown(
                 redis,
-                speechCooldownMinutes(config) * 60,
+                settings.speech.cooldownMinutes * 60,
                 'gnomo:speech-quota:v1',
               ),
-              cooldownMinutes: speechCooldownMinutes(config),
+              cooldownMinutes: settings.speech.cooldownMinutes,
             }
           : undefined,
     }),
     allowedUserMentions: memberMentions(platform.members),
     trace,
     // Opt-in: request/reply text (redacted, truncated) in traces for debugging.
-    traceContent: config.get<string>('LOG_CONTENT') === 'true',
+    traceContent: settings.logContent,
     clock,
-    concurrency: config.get<number>('CONVERSATION_CONCURRENCY', 4),
-    timeoutMs: Number(config.get('CONVERSATION_TIMEOUT_MS', 60000)) || 60000,
-    synthesisTimeoutMs: Number(config.get('CONVERSATION_SYNTHESIS_TIMEOUT_MS', 20000)) || 0,
+    concurrency: settings.concurrency,
+    timeoutMs: settings.timeoutMs,
+    synthesisTimeoutMs: settings.synthesisTimeoutMs,
     claim: redis
       ? redisClaims(redis)
       : async () => {
           throw new Error('Redis unavailable')
         },
     authorize,
-    discover: enabled,
+    // Discovery needs no second platform lookup: the invocation was authorized before the loop.
+    discover: async () => true,
     // Delivery is bound to the originating message by the sole receiver.
     reply: async () => {
       throw new Error('Origin reply transport required')

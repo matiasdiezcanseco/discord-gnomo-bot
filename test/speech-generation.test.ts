@@ -17,8 +17,7 @@ import {
   pcmVoiceMetadata,
 } from '../src/conversation/voice-message'
 import { encodeOggOpus } from '../src/conversation/ogg-opus'
-import type { ImageQuota } from '../src/conversation/image-quota'
-import { capabilityAllowed } from '../src/conversation/execution-policy'
+import type { RequesterCooldown } from '../src/conversation/paid-generation'
 import type { Invocation } from '../src/core/conversation/invocation'
 import { voiceFile, voiceMessageBody } from '../src/modules/discord/voice-reply'
 
@@ -67,7 +66,7 @@ function fakeGenerator(behaviour: () => Promise<void> = async () => {}) {
 
 function memoryQuota() {
   const taken = new Set<string>()
-  const quota: ImageQuota = {
+  const quota: RequesterCooldown = {
     async reserve(invocation) {
       const key = invocation.requester.id
       if (taken.has(key)) return { granted: false, retryInMs: 7 * 60_000 }
@@ -78,10 +77,15 @@ function memoryQuota() {
   return quota
 }
 
-function app(generator: SpeechGenerator, quota: ImageQuota, reply = 'Ahí va.', speech?: string) {
+function app(
+  generator: SpeechGenerator,
+  quota: RequesterCooldown,
+  reply = 'Ahí va.',
+  speech?: string,
+) {
   const replies: Reply[] = []
   const conversation = createConversation({
-    catalog: composeCapabilities({ speech: { generator, quota, cooldownMinutes: 10 } }),
+    catalog: composeCapabilities({ speech: { generator, cooldown: quota, cooldownMinutes: 10 } }),
     authorize: async () => true,
     claim: async () => true,
     model: model(reply, speech),
@@ -112,13 +116,13 @@ test('anything that is not Ogg/Opus is refused rather than sent as a broken voic
   assert.throws(() => describeOggOpus(fixture.subarray(0, 40)), InvalidVoiceAudio)
 })
 
-test('speech generation is an allowed, bounded write', () => {
+test('speech generation is a bounded, labelled write', () => {
   const [tool] = composeCapabilities({ speech: {} }).tools.filter(
     (t) => t.name === 'speech_generate',
   )
   assert.equal(tool.effect, 'write')
   assert.equal(tool.maxCalls, 1)
-  assert.equal(capabilityAllowed(base, tool), true)
+  assert.equal(tool.label, 'crear el audio')
 })
 
 test('the audio is delivered alone, after the text, as a voice-message file', async () => {
@@ -164,7 +168,7 @@ test('each requester waits out the cooldown; a refusal gives the slot back', asy
 test('text over the safe length is refused before the quota or any credit is touched', async () => {
   const { generator, calls } = fakeGenerator()
   let reserved = 0
-  const quota: ImageQuota = {
+  const quota: RequesterCooldown = {
     async reserve() {
       reserved++
       return { granted: true, release: async () => {} }
