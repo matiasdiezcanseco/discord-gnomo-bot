@@ -20,8 +20,8 @@
     "lint:check": "eslint src test",
     "verify": "npm test && npm run ts:check && npm run build && npm run lint:check",
     "measure:live": "tsx --tsconfig tsconfig.nest.json src/conversation/live-measurement.ts",
-    "sandbox": "tsx --tsconfig tsconfig.nest.json src/sandbox/cli.ts",
-    "sandbox:setup": "tsx --tsconfig tsconfig.nest.json src/sandbox/setup.ts",
+    "sandbox": "nest start --entryFile console",
+    "sandbox:watch": "nest start --entryFile console --watch",
     "notices:transfer": "tsx --tsconfig tsconfig.nest.json scripts/transfer-pilot-reminders.ts"
   },
   "author": "Matias Diez-Canseco",

@@ -12,6 +12,10 @@ const discordMessage = z.object({
   timestamp: z.iso.datetime({ offset: true }),
 })
 
+/** Shown to the model with every history page; shared by all transports. */
+export const HISTORY_LIMITS =
+  'Máximo 200 mensajes, dos páginas de 100 y 14000 caracteres JSON; contenido por mensaje hasta 2000 caracteres. Cobertura limitada al canal actual y anterior a la invocación.'
+
 /** Native fetch has no hidden SDK retries; every page shares the invocation budget. */
 export function discordHistory(
   client: Client,
@@ -47,8 +51,7 @@ export function discordHistory(
       requested: limit,
       messages: [],
       partial: false,
-      limits:
-        'Máximo 200 mensajes, dos páginas de 100 y 14000 caracteres JSON; contenido por mensaje hasta 2000 caracteres. Cobertura limitada al canal actual y anterior a la invocación.',
+      limits: HISTORY_LIMITS,
     }
     let before = invocation.messageId
     const seen = new Set([before])

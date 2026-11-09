@@ -2,6 +2,12 @@ import { GatewayIntentBits, PermissionFlagsBits, type Client } from 'discord.js'
 import type { LiveMembers } from '../../conversation/live-members'
 import type { MemberDirectory } from '../../conversation/member-directory'
 
+/** Shown to the model with live results; shared by all transports. */
+export const PRESENCE_NOTE =
+  'Observaciones de caché al consultar, sin fecha de evento garantizada ni censo completo. Invisible no se puede detectar; offline solo aparece desconectado. Datos ausentes son desconocidos. No se infiere de mensajes ni voz.'
+export const VOICE_NOTE =
+  'Caché de voz al consultar, sin fecha de evento garantizada. Solo canales visibles; cobertura parcial, no confirma ausencia de llamada ni presencia en línea.'
+
 /** Gateway cache observations are never a complete census or a REST presence snapshot. */
 export function discordLiveMembers(client: Client, members: MemberDirectory): LiveMembers {
   return {
@@ -40,7 +46,7 @@ export function discordLiveMembers(client: Client, members: MemberDirectory): Li
         nextAfter: page.nextAfter,
         queriedAt: new Date().toISOString(),
         source: 'discord-gateway',
-        note: 'Observaciones de caché al consultar, sin fecha de evento garantizada ni censo completo. Invisible no se puede detectar; offline solo aparece desconectado. Datos ausentes son desconocidos. No se infiere de mensajes ni voz.',
+        note: PRESENCE_NOTE,
       }
     },
     async voice(context, limit, after) {
@@ -52,7 +58,7 @@ export function discordLiveMembers(client: Client, members: MemberDirectory): Li
         nextAfter: null,
         queriedAt: new Date().toISOString(),
         source: 'discord-gateway' as const,
-        note: 'Caché de voz al consultar, sin fecha de evento garantizada. Solo canales visibles; cobertura parcial, no confirma ausencia de llamada ni presencia en línea.',
+        note: VOICE_NOTE,
       }
       const guild = client.guilds.cache.get(context.invocation.guildId)
       if (

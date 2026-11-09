@@ -35,7 +35,8 @@ No data is copied between providers. `MEMORY_OWNER_ID` remains
 required for memory tools. Redis and Discord settings remain unchanged; use the
 paused/pilot rollout before enabling production replies.
 
-The sandbox ignores both production variables and stays on its local database.
+The console sandbox refuses any non-local database/Redis URL; set
+`DATABASE_URL_POOLED=` empty in `.env.sandbox` if `.env` holds the Neon URL.
 Development Compose also pins bot/migrator URLs to local PostgreSQL and clears
 the pooled setting. Deploy the standard image with production secrets, rather
 than using development Compose endpoints. Diagnostics report variable presence only.

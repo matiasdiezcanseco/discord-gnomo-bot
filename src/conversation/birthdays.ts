@@ -1,4 +1,4 @@
-import { ScheduledNotices } from './scheduled-notices'
+import { NoticeFailure, ScheduledNotices, type BirthdayOrigin } from './scheduled-notices'
 
 export type BirthdaySource = () => Promise<unknown>
 export const discordId = /^\d{17,20}$/
@@ -61,4 +61,21 @@ export async function scheduleBirthdays(
     )
   }
   return records
+}
+
+/** Shared delivery-time check: a queued greeting is sent only while the source still confirms it. */
+export async function birthdayStillDue(
+  origin: BirthdayOrigin,
+  gnomosChannelId: string | undefined,
+  source: BirthdaySource | undefined,
+  now: number,
+): Promise<boolean> {
+  if (origin.channelId !== gnomosChannelId || origin.calendarDate !== limaDate(now) || !source)
+    return false
+  const data = await source()
+  if (data === null || data === undefined)
+    throw new NoticeFailure('transient', 'birthday source unavailable')
+  return birthdayRecords(data).some(
+    (row) => row.id === origin.requester.id && row.date === origin.calendarDate.slice(5),
+  )
 }

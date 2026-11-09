@@ -8,6 +8,9 @@ import { DEFAULT_OPENAI_MODEL } from './constants'
  */
 const envSchema = z
   .object({
+    // Where invocations arrive: Discord in production, the terminal for the local console.
+    GNOMO_TRANSPORT: z.enum(['discord', 'console']).default('discord'),
+
     // Discord
     BOT_TOKEN: z.string().min(1).optional(),
     GUILD_ID: z.string().min(1).optional(),
@@ -32,7 +35,10 @@ const envSchema = z
       (value) => (value === '' ? undefined : value),
       z.string().url().optional(),
     ),
-    PILOT_MEMORY_DATABASE_URL: z.string().url().optional(),
+    PILOT_MEMORY_DATABASE_URL: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.string().url().optional(),
+    ),
     PILOT_MEMORY_EMBEDDING_MODEL: z.string().min(1).optional(),
     MEMORY_OWNER_ID: z
       .string()
@@ -48,7 +54,11 @@ const envSchema = z
   })
   .superRefine((env, ctx) => {
     if (env.RUNTIME_MODE !== 'paused') {
-      for (const key of ['BOT_TOKEN', 'GUILD_ID', 'OPENAI_API_KEY', 'REDIS_URL'] as const) {
+      const required = ['GUILD_ID', 'OPENAI_API_KEY', 'REDIS_URL'] as const
+      // The console transport never logs into Discord, so it needs no token.
+      for (const key of env.GNOMO_TRANSPORT === 'discord'
+        ? (['BOT_TOKEN', ...required] as const)
+        : required) {
         if (!env[key])
           ctx.addIssue({ code: 'custom', path: [key], message: 'Required for active runtime' })
       }

@@ -5,10 +5,9 @@ request phrases/photos, channel history, members/presence/voice, public search a
 web reading, image understanding, explicit channel memories and own reminders.
 Birthdays use the approved collection and the same reliable notice dispatcher.
 
-To interact without connecting to Discord, run `npm run sandbox:setup` once, then
-`npm run sandbox`. The sandbox uses local fixtures and isolated storage; opt-in
-real-model/web modes also keep replies and scheduled deliveries local.
-See [sandbox usage](docs/sandbox.md).
+To debug locally without Discord, run `npm run sandbox`: the full production runtime
+(real model, tools, memory, reminders, schedulers) with the terminal as transport and
+only local PostgreSQL/Redis. See [sandbox usage](docs/sandbox.md).
 
 Install Node 24 and run `npm ci --ignore-scripts`. Copy `.env-example` to `.env`.
 `npm start` defaults to **paused**, without logging into Discord. Configure the
@@ -49,7 +48,7 @@ resources, use [the transition runbook](docs/runtime-transition.md). Persistence
 Drizzle ORM over node-postgres with versioned migrations. When a database is
 configured, server startup automatically applies pending migrations before
 Discord login, scheduled jobs or HTTP listening; failure aborts startup. Applied
-migrations are skipped. The isolated sandbox still uses `npm run sandbox:setup`.
+migrations are skipped. The console sandbox runs the same startup migrations.
 See [Drizzle operations](docs/drizzle.md).
 
 `GET /health` checks Discord readiness, configured Redis and optional bucket.

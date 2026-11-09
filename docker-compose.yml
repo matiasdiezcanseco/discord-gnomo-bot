@@ -40,17 +40,26 @@ services:
       postgres:
         condition: service_healthy
 
+  # Production image and runtime with the terminal as transport (see docs/sandbox.md).
   sandbox:
     profiles: ['sandbox']
     build:
       context: .
       target: runtime
-    command: ['node', 'dist/sandbox/cli.js']
+    command: ['node', 'dist/console.js']
     stdin_open: true
     tty: true
+    # Later files win in Compose: .env.sandbox overrides .env, then `environment` overrides both.
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.sandbox
+        required: false
     environment:
-      SANDBOX_DATABASE_URL: postgresql://gnomo:gnomo-local@postgres:5432/gnomo_sandbox
-      SANDBOX_REDIS_URL: redis://:gnomo123@redis:6379/14
+      DATABASE_URL: postgresql://gnomo:gnomo-local@postgres:5432/gnomo
+      DATABASE_URL_POOLED: ''
+      PILOT_MEMORY_DATABASE_URL: ''
+      REDIS_URL: redis://:gnomo123@redis:6379/14
     depends_on:
       postgres:
         condition: service_healthy

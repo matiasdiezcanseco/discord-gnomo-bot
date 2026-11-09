@@ -318,7 +318,7 @@ test(
 import { execFileSync } from 'node:child_process'
 import { BirthdayCheckTask } from '../src/modules/schedule/birthday-check.task'
 import { ReliableNoticesTask } from '../src/modules/schedule/reliable-notices.task'
-import type { DiscordService } from '../src/modules/discord/discord.service'
+import type { Transport } from '../src/modules/transport/transport'
 import type { BucketService } from '../src/modules/services/bucket/bucket.service'
 import type { LoggerService } from '../src/modules/services/logger/logger.service'
 
@@ -338,9 +338,11 @@ test(
     const source = [{ ...birthday, date }]
     const bucket = { fetchBucketData: async () => source } as unknown as BucketService
     const discord = {
+      name: 'discord',
       isReady: () => true,
-      getClient: () => fixture.client,
-    } as unknown as DiscordService
+      scheduledDelivery: (birthdays: () => Promise<unknown>) =>
+        discordScheduledDelivery(fixture.client, fixture.config, birthdays),
+    } as unknown as Transport
     const logger = { error: () => assert.fail('runtime failed') } as unknown as LoggerService
     // Random configured channel ensures the production namespace cannot share another test's identity.
     const channelId = String(

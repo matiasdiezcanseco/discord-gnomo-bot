@@ -3,8 +3,45 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { Pool } from 'pg'
 import { migrateMemoryDatabase } from '../src/database/migrate'
-import { createSandbox } from '../src/sandbox/sandbox'
 import { execFileSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { createConversation, type Reply } from '../src/conversation/harness'
+import { composeCapabilities } from '../src/conversation/capabilities'
+import { memoryCapabilities } from '../src/conversation/explicit-memory'
+import { commandModel } from './command-model'
+
+/** Explicit-memory conversation over the given pool; each call is a fresh receiver instance. */
+function memoryApp(pool: Pool) {
+  const app = createConversation({
+    model: commandModel(),
+    catalog: composeCapabilities({
+      memory: memoryCapabilities({ pool }, '100000000000000004', async () => true),
+    }),
+    authorize: async () => true,
+    claim: async () => true,
+    reply: async () => undefined,
+  })
+  return {
+    async ask(content: string) {
+      const replies: Reply[] = []
+      await app.handle(
+        {
+          guildId: '100000000000000001',
+          channelId: '100000000000000002',
+          messageId: randomUUID(),
+          requester: { id: '100000000000000004', username: 'tester' },
+          content,
+          createdAt: Date.now(),
+          attachments: [],
+        },
+        async (_, reply) => {
+          replies.push(reply)
+        },
+      )
+      return { replies }
+    },
+  }
+}
 
 test(
   'Drizzle installs fresh storage and adopts existing memories once under concurrent migration',
@@ -44,7 +81,7 @@ test(
         ),
         /Drizzle memory migrations applied/,
       )
-      let sandbox = createSandbox({ session: 'drizzle-test', memory: { pool } })
+      let sandbox = memoryApp(pool)
       assert.match(
         (await sandbox.ask('guarda recuerdo [clave=fresh]: Portal')).replies[0].content,
         /saved/,
@@ -52,18 +89,14 @@ test(
       assert.match((await sandbox.ask('busca recuerdos: Portal')).replies[0].content, /Portal/)
       await reset()
       await pool.query(await readFile('test/fixtures/database/pre-drizzle.sql', 'utf8'))
-      sandbox = createSandbox({ session: 'drizzle-test', memory: { pool } })
+      sandbox = memoryApp(pool)
       const original = JSON.parse(
         (await sandbox.ask('guarda recuerdo [clave=existing]: Portal existente')).replies[0]
           .content,
       )
       await Promise.all([migrateMemoryDatabase(pool), migrateMemoryDatabase(pool)])
       const recalled = JSON.parse(
-        (
-          await createSandbox({ session: 'drizzle-test', memory: { pool } }).ask(
-            'busca recuerdos: Portal',
-          )
-        ).replies[0].content,
+        (await memoryApp(pool).ask('busca recuerdos: Portal')).replies[0].content,
       )
       assert.equal(recalled.records[0].id, original.id)
       assert.equal(recalled.records[0].content, 'Portal existente')

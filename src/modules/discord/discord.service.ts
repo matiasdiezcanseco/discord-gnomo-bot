@@ -2,15 +2,20 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common'
 import { Client, GatewayIntentBits } from 'discord.js'
 import { ConfigService } from '@nestjs/config'
 import { LoggerService } from '../services/logger/logger.service'
+import { Transport } from '../transport/transport'
+import type { BirthdaySource } from '../../conversation/birthdays'
+import { discordScheduledDelivery } from './scheduled-delivery'
 
 @Injectable()
-export class DiscordService implements OnModuleInit, OnModuleDestroy {
+export class DiscordService extends Transport implements OnModuleInit, OnModuleDestroy {
+  readonly name = 'discord'
   private readonly client: Client
 
   constructor(
     private readonly config: ConfigService,
     private readonly logger: LoggerService,
   ) {
+    super()
     this.client = new Client({
       // Discord 5xx can mean acceptance is unknown. The notice dispatcher owns retry policy.
       rest: { retries: 0, timeout: 10000, rejectOnRateLimit: () => true },
@@ -26,6 +31,10 @@ export class DiscordService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
+    if (this.config.get<string>('GNOMO_TRANSPORT') === 'console')
+      throw new Error(
+        'GNOMO_TRANSPORT=console is only valid for the local console (npm run sandbox)',
+      )
     this.client.once('ready', () => {
       this.logger.log({ tag: this.client.user?.tag }, 'Discord client ready')
     })
@@ -51,6 +60,10 @@ export class DiscordService implements OnModuleInit, OnModuleDestroy {
    */
   isReady(): boolean {
     return this.client.isReady()
+  }
+
+  scheduledDelivery(source: BirthdaySource) {
+    return discordScheduledDelivery(this.client, this.config, source)
   }
 
   /**

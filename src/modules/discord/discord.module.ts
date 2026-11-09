@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common'
+import { Global, Module } from '@nestjs/common'
+import { Transport } from '../transport/transport'
 import { DiscordService } from './discord.service'
 import { MessageHandlerService } from './message-handler.service'
 import { RedisModule } from '../services/redis/redis.module'
@@ -10,10 +11,13 @@ import { LoggerService } from '../services/logger/logger.service'
 import { composeConversation } from './conversation-composition'
 import { RuntimeMemory } from './runtime-memory'
 
+/** Production transport: Discord receiver, replies and scheduled delivery. */
+@Global()
 @Module({
   imports: [RedisModule, LoggerModule, ConfigModule],
   providers: [
     DiscordService,
+    { provide: Transport, useExisting: DiscordService },
     MessageHandlerService,
     RuntimeMemory,
     {
@@ -35,6 +39,6 @@ import { RuntimeMemory } from './runtime-memory'
         }),
     },
   ],
-  exports: [DiscordService],
+  exports: [DiscordService, Transport],
 })
 export class DiscordModule {}

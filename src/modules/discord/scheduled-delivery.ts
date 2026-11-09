@@ -9,7 +9,7 @@ import {
   type ScheduledDelivery,
   type ScheduledOrigin,
 } from '../../conversation/scheduled-notices'
-import { birthdayRecords, limaDate, type BirthdaySource } from '../../conversation/birthdays'
+import { birthdayStillDue, type BirthdaySource } from '../../conversation/birthdays'
 
 export function discordScheduledDelivery(
   client: Client,
@@ -19,23 +19,11 @@ export function discordScheduledDelivery(
 ): ScheduledDelivery {
   async function channelFor(origin: ScheduledOrigin) {
     if (!runtimeAllows(config, origin) || !client.user) return null
-    if (isBirthday(origin)) {
-      if (
-        origin.channelId !== config.get<string>('GNOMOS_CHANNEL_ID') ||
-        origin.calendarDate !== limaDate(now()) ||
-        !source
-      )
-        return null
-      const data = await source()
-      if (data === null || data === undefined)
-        throw new NoticeFailure('transient', 'birthday source unavailable')
-      if (
-        !birthdayRecords(data).some(
-          (row) => row.id === origin.requester.id && row.date === origin.calendarDate.slice(5),
-        )
-      )
-        return null
-    }
+    if (
+      isBirthday(origin) &&
+      !(await birthdayStillDue(origin, config.get<string>('GNOMOS_CHANNEL_ID'), source, now()))
+    )
+      return null
     const guild = await client.guilds.fetch(origin.guildId)
     const channel = await guild.channels.fetch(origin.channelId, { force: true })
     if (!channel || !channel.isTextBased() || !channel.isSendable()) return null
