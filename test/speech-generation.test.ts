@@ -6,6 +6,7 @@ import { MessageFlags } from 'discord.js'
 import { createConversation, type ModelInput, type Reply } from '../src/conversation/harness'
 import { composeCapabilities } from '../src/conversation/capabilities'
 import {
+  MAX_SPEECH_CHARS,
   openaiRealtimeSpeech,
   SpeechRejected,
   type SpeechGenerator,
@@ -34,7 +35,7 @@ const base: Invocation = {
   attachments: [],
 }
 
-function model(text = 'Ahí va.') {
+function model(text = 'Ahí va.', speech = 'Habla causa, ¿qué fue?') {
   return {
     generate: async ({ results }: ModelInput) =>
       results.length
@@ -45,7 +46,7 @@ function model(text = 'Ahí va.') {
               {
                 id: 's',
                 name: 'speech_generate',
-                input: { text: 'Habla causa, ¿qué fue?', style: 'emocionado' },
+                input: { text: speech, style: 'emocionado' },
               },
             ],
           },
@@ -77,13 +78,13 @@ function memoryQuota() {
   return quota
 }
 
-function app(generator: SpeechGenerator, quota: ImageQuota, reply = 'Ahí va.') {
+function app(generator: SpeechGenerator, quota: ImageQuota, reply = 'Ahí va.', speech?: string) {
   const replies: Reply[] = []
   const conversation = createConversation({
     catalog: composeCapabilities({ speech: { generator, quota, cooldownMinutes: 10 } }),
     authorize: async () => true,
     claim: async () => true,
-    model: model(reply),
+    model: model(reply, speech),
     reply: async (_origin, message) => {
       replies.push(message)
     },
@@ -158,6 +159,22 @@ test('each requester waits out the cooldown; a refusal gives the slot back', asy
   await handle({ messageId: 'c' })
   assert.equal(calls.length, 2, 'second audio within the cooldown spends no credit')
   assert.equal(replies.at(-1)!.files, undefined)
+})
+
+test('text over the safe length is refused before the quota or any credit is touched', async () => {
+  const { generator, calls } = fakeGenerator()
+  let reserved = 0
+  const quota: ImageQuota = {
+    async reserve() {
+      reserved++
+      return { granted: true, release: async () => {} }
+    },
+  }
+  const { replies, handle } = app(generator, quota, 'Ahí va.', 'a'.repeat(MAX_SPEECH_CHARS + 1))
+  await handle()
+  assert.equal(calls.length, 0)
+  assert.equal(reserved, 0)
+  assert.ok(replies.every((reply) => !reply.files))
 })
 
 test('Discord payload: voice flag, no content, attachment metadata bound to the upload', () => {
@@ -288,6 +305,26 @@ test('Realtime speech: narrator session, PCM deltas encoded to a voice-message O
   assert.equal(describeOggOpus(speech.data).durationSecs, 1)
   assert.equal(speech.voice.durationSecs, 1)
   assert.ok(realtime.isClosed(), 'one socket per audio, closed when done')
+})
+
+test('Realtime speech: audio past 30 s is cut there and the socket closed early', async () => {
+  const second = pcm(1, 0)
+  const realtime = fakeRealtime(() => [
+    ...Array.from({ length: 45 }, () => ({
+      type: 'response.output_audio.delta',
+      delta: second.toString('base64'),
+    })),
+    { type: 'response.done', response: { status: 'completed' } },
+  ])
+  const speech = await openaiRealtimeSpeech({
+    apiKey: 'k',
+    model: 'm',
+    voice: 'v',
+    connect: realtime.connect,
+  }).generate('x', undefined, new AbortController().signal)
+  assert.equal(describeOggOpus(speech.data).durationSecs, 30)
+  assert.equal(speech.voice.durationSecs, 30)
+  assert.ok(realtime.isClosed())
 })
 
 test('Realtime speech: a content filter is a refusal; errors and empty audio are failures', async () => {
