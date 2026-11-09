@@ -418,7 +418,9 @@ export function createConversation(ports: ConversationPorts) {
         chunks = ['Una fuente excede el tamaño permitido por Discord; no pude enviarla completa.']
       }
       chunks.push(...alone)
-      const delivery = new Budget(clock, budget.startedAt, 15000)
+      // Delivery gets its own window: the processing loop and synthesis can legitimately run
+      // past 15 s, and anchoring here to the request start would silently drop the reply.
+      const delivery = new Budget(clock, clock.now(), 15000)
       try {
         for (const content of chunks) {
           if (

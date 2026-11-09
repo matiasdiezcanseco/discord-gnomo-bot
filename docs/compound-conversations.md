@@ -126,7 +126,7 @@ las necesitan; no aceptar `unavailable` como resolución útil.
 
 En la configuración privada suministrada por root: BOT_TOKEN, OPENAI_API_KEY,
 OPENAI_MODEL explícito, GUILD_ID, T14_REDIS_URL (aislado), T14_CHANNEL_ID,
-T14_REQUESTER_ID, T14_EXCLUSIVE_RECEIVER=yes. Opcionales: TAVILY_API_KEY, BUCKET_URL,
+T14_REQUESTER_ID, T14_EXCLUSIVE_RECEIVER=yes. Opcionales: BROWSERBASE_API_KEY, BUCKET_URL,
 PILOT_MEMORY_DATABASE_URL ya preparado, MEMORY_OWNER_ID y modelo de embeddings
 aprobado. No almacenar la configuración ni reportes privados en git.
 

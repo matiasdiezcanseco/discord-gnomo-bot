@@ -93,7 +93,7 @@ For unrestricted local conversations without reaching Discord, use the
 The following requirements apply specifically to later Discord transport acceptance.
 
 - Private `BOT_TOKEN`, `OPENAI_API_KEY`, an explicit `OPENAI_MODEL`, and
-  `TAVILY_API_KEY` for real search/news. `BUCKET_URL` is needed to test the existing
+  `BROWSERBASE_API_KEY` for real search/news. `BUCKET_URL` is needed to test the existing
   phrases/photos/birthday collection; an embedding model is optional.
 - `GUILD_ID`, one isolated test channel ID, the human test requester's Discord ID,
   and trusted `MEMORY_OWNER_ID`. `GNOMOS_CHANNEL_ID` selects the birthday/migration

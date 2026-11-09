@@ -25,7 +25,7 @@ export class HealthController {
           'BOT_TOKEN',
           'REDIS_URL',
           'BUCKET_URL',
-          'TAVILY_API_KEY',
+          'BROWSERBASE_API_KEY',
           'PILOT_MEMORY_DATABASE_URL',
           'DATABASE_URL',
           'DATABASE_URL_POOLED',
