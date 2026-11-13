@@ -1,6 +1,8 @@
 /** Authenticated event data, independent of Discord's live objects. */
 export interface Invocation {
   messageId: string
+  /** Replied-to message, only when it belongs to the invocation channel. */
+  referencedMessageId?: string
   guildId: string
   /** A thread's own ID, never its parent's ID. */
   channelId: string

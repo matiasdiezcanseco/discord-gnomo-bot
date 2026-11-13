@@ -22,12 +22,16 @@ import { openaiRealtimeSpeech } from './speech-generation'
 import type { MemberDirectory } from './member-directory'
 import type { LiveMembers } from './live-members'
 import type { HistoryReader } from './channel-history'
+import type { Reactions } from './reactions'
 
 /**
  * Everything that depends on where messages live (Discord or the local console). The rest of the
  * conversation runtime — model, persona, budgets, tools, memory, reminders — is shared verbatim.
  */
 export interface ConversationPlatform {
+  reactions?(
+    authorize: (invocation: Invocation, signal?: AbortSignal) => Promise<boolean>,
+  ): Reactions
   /** Live requester/bot access to the invocation channel, after deployment policy passed. */
   access(invocation: Invocation, signal?: AbortSignal): Promise<boolean>
   members: MemberDirectory
@@ -102,6 +106,7 @@ export function composeRuntimeConversation({
       collection: bucketCollection(settings.collectionUrl),
       members: platform.members,
       history,
+      reactions: platform.reactions?.(reauthorize),
       search: browserbaseSearch(settings.searchApiKey),
       live: platform.live,
       web,

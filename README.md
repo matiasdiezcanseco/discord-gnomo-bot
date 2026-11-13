@@ -6,6 +6,13 @@ web reading, image understanding, image creation, explicit channel memories, a c
 media library (save, search and share images) and own reminders. Birthdays use the
 approved collection and the same reliable notice dispatcher.
 
+Ask Gnomo to react to a comment by mentioning it in a reply, for example
+`@Gnomo reacciona con algo apropiado`. It scans the server's available custom emojis
+(including role restrictions) with `server_emojis` before choosing an emoji by name;
+Unicode is the fallback. `message_react` targets the replied-to message, the current
+request, or a message selected from the current channel's history. Reactions stay
+within the originating channel/thread and require an explicit request.
+
 Image creation (`image_generate`, OpenAI `OPENAI_IMAGE_MODEL`, default `gpt-image-1-mini`)
 is limited to one image per user per hour. The limit lives in Redis
 (`gnomo:image-quota:v1:<guild>:<user>`, `SET NX EX 3600`) and is taken before any credit
@@ -59,7 +66,8 @@ variables. Missing capability configuration produces unavailable results.
 Enable Guilds, GuildMessages, MessageContent, GuildMembers, GuildPresences and
 GuildVoiceStates intents; enable privileged intents in the Discord developer portal.
 Grant ViewChannel, ReadMessageHistory, SendMessages/SendMessagesInThreads as needed, plus
-SendVoiceMessages for native voice messages.
+SendVoiceMessages for native voice messages and AddReactions for new emoji reactions
+([Discord reaction API](https://github.com/discord/discord-api-docs/blob/main/developers/resources/message.mdx#create-reaction)).
 Private threads also require membership. Execution and delivery recheck effective
 permissions. No administrative permissions are needed. Role/everyone/here mentions
 are disabled; only explicitly authorized individual recipients may be notified.
