@@ -4,6 +4,7 @@ import type Redis from 'ioredis'
 import { effectiveChannelAccess } from './effective-channel-access'
 import { discordMembers } from './members'
 import { discordHistory } from './channel-history'
+import { discordReactions } from './reactions'
 import { discordLiveMembers } from './live-members'
 import type { ConversationPorts } from '../../conversation/harness'
 import type { MemoryDependencies } from '../../conversation/explicit-memory'
@@ -48,6 +49,7 @@ export function discordPlatform(
       return effectiveChannelAccess(channel, requester, bot, signal, true)
     },
     members,
+    reactions: (authorize) => discordReactions(client, authorize, fetcher),
     live: discordLiveMembers(client, members),
     history: (authorize, cacheEnabled) => discordHistory(client, authorize, fetcher, cacheEnabled),
   }

@@ -15,6 +15,7 @@ import type { ScheduledNotices } from './scheduled-notices'
 import { imageCapability, type ImageGenerator } from './image-generation'
 import type { RequesterCooldown } from './paid-generation'
 import { speechCapability, type SpeechGenerator } from './speech-generation'
+import { reactionCapabilities, type Reactions } from './reactions'
 
 /**
  * Single composition point. A capability module owns its whole definition (identity, effect,
@@ -24,6 +25,7 @@ export interface CapabilityDependencies {
   collection?: CollectionSource
   members?: MemberDirectory
   history?: HistoryReader
+  reactions?: Reactions
   search?: PublicSearch
   live?: Partial<LiveMembers>
   web?: SafeReader
@@ -38,6 +40,7 @@ export function composeCapabilities({
   collection,
   members,
   history,
+  reactions,
   search,
   live,
   web = safeReader(),
@@ -50,6 +53,7 @@ export function composeCapabilities({
 }: CapabilityDependencies = {}) {
   return new Catalog([
     ...extensions,
+    ...reactionCapabilities(reactions),
     reminderCapability(notices),
     imageCapability(images?.generator, images?.cooldown),
     speechCapability(speech?.generator, speech?.cooldown, speech?.cooldownMinutes),

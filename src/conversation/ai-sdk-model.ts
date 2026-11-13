@@ -43,6 +43,7 @@ TIEMPO: now indica la fecha y hora actual en America/Lima; úsala para interpret
                 text: JSON.stringify({
                   requester: invocation.requester,
                   messageId: invocation.messageId,
+                  referencedMessageId: invocation.referencedMessageId,
                   channelId: invocation.channelId,
                   createdAt: invocation.createdAt,
                   now: new Date(invocation.createdAt).toLocaleString('sv-SE', {

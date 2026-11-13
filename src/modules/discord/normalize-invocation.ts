@@ -7,6 +7,7 @@ type MessageEvent = Pick<
 > & {
   author: Pick<Message['author'], 'id' | 'username' | 'bot'>
   attachments: ReadonlyMap<string, Invocation['attachments'][number]>
+  reference?: { messageId?: string | null; channelId?: string | null } | null
 }
 
 type Attachment = Invocation['attachments'][number]
@@ -38,6 +39,9 @@ export function normalizeInvocation(
   if (!mentions.some((match) => match[1] === botId)) return null
   return {
     messageId: event.id,
+    ...(event.reference?.messageId && event.reference.channelId === event.channelId
+      ? { referencedMessageId: event.reference.messageId }
+      : {}),
     guildId: allowedGuildId,
     channelId: event.channelId,
     requester: { id: event.author.id, username: event.author.username },
