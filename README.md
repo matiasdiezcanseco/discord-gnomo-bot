@@ -19,9 +19,13 @@ is limited to one image per user per hour. The limit lives in Redis
 is spent. If Redis cannot be reached, no image is created. A content-policy refusal gives
 the slot back; a timeout or provider error keeps it, because the credit may already be spent.
 
-Voice messages (`speech_generate`, OpenAI Realtime `OPENAI_SPEECH_MODEL`, default
-`gpt-realtime-2.1-mini`, voice `OPENAI_SPEECH_VOICE`, default `cedar`) speak in the Gnomo's voice,
-one audio per user per `OPENAI_SPEECH_COOLDOWN_MINUTES` (default 10), using the same Redis rule
+Voice messages (`speech_generate`) speak in the Gnomo's voice. With `FISH_AUDIO_API_KEY` and
+`FISH_AUDIO_VOICE_ID` set, they use Fish Audio's pay-as-you-go `/v1/tts` with that custom voice
+(`FISH_AUDIO_MODEL`, default `s2.1-pro`; the optional style goes in as a leading `[cue]`, and 24 kHz
+PCM goes through the same encoder and 30 s cut, cancelling the download past it). Otherwise they
+use OpenAI Realtime `OPENAI_SPEECH_MODEL`, default `gpt-realtime-2.1-mini`, voice
+`OPENAI_SPEECH_VOICE`, default `cedar`. Each user gets one audio per `SPEECH_COOLDOWN_MINUTES`
+(or the older `OPENAI_SPEECH_COOLDOWN_MINUTES`; default 10), using the same Redis rule
 (`gnomo:speech-quota:v1:<guild>:<user>`). Text is capped at 350 characters (~25 s) and the audio
 is cut at 30 s, closing the socket so the overrun spends nothing more. The `/v1/audio/speech` models (`gpt-4o-mini-tts`,
 `tts-1`) shut down on 2027-01-06, so one Realtime WebSocket session per audio returns 24 kHz PCM,

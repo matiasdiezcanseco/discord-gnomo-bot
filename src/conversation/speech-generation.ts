@@ -167,6 +167,81 @@ export function openaiRealtimeSpeech({
   }
 }
 
+interface FishAudioSpeechOptions {
+  apiKey: string
+  /** The voice model created on fish.audio (its `reference_id`). */
+  voiceId: string
+  /** Sent as the `model` header, e.g. `s2.1-pro`. */
+  model: string
+  /** Overridable for tests. */
+  url?: string
+  fetch?: typeof fetch
+}
+
+/** S2 models read a leading `[...]` as a free-form delivery cue; brackets in it would end it early. */
+export function fishAudioText(text: string, style?: string) {
+  const cue = style?.replace(/[[\]]/g, '').trim()
+  return cue ? `[${cue}] ${text}` : text
+}
+
+/**
+ * Text to speech through Fish Audio's pay-as-you-go `/v1/tts` with a cloned voice. The voice
+ * itself carries the accent, so no narrator instructions are needed: Fish reads the text as is.
+ * Raw 24 kHz PCM is requested so it goes through the same Ogg/Opus encoder and 30 s ceiling as
+ * Realtime; past the ceiling the stream is cancelled, which stops the download. No retries.
+ */
+export function fishAudioSpeech({
+  apiKey,
+  voiceId,
+  model,
+  url = 'https://api.fish.audio/v1/tts',
+  fetch: request = fetch,
+}: FishAudioSpeechOptions): SpeechGenerator {
+  return {
+    async generate(text, style, signal) {
+      signal.throwIfAborted()
+      const response = await request(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          model,
+        },
+        body: JSON.stringify({
+          text: fishAudioText(text, style),
+          reference_id: voiceId,
+          format: 'pcm',
+          sample_rate: PCM_RATE,
+          language: 'es',
+        }),
+        signal,
+      })
+      if (!response.ok || !response.body) {
+        await response.body?.cancel().catch(() => undefined)
+        throw new Error(`Fish Audio error ${response.status}`)
+      }
+      const maxBytes = MAX_SPEECH_SECONDS * PCM_RATE * 2
+      const chunks: Buffer[] = []
+      let bytes = 0
+      const reader = response.body.getReader()
+      while (bytes < maxBytes) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(Buffer.from(value))
+        bytes += value.length
+      }
+      if (bytes >= maxBytes) await reader.cancel().catch(() => undefined)
+      // Whole 16-bit samples only: a stream can split one across chunks.
+      const total = Math.min(bytes, maxBytes)
+      const pcm = Buffer.concat(chunks).subarray(0, total - (total % 2))
+      if (!pcm.length) throw new Error('Fish Audio response without audio')
+      const data = encodeOggOpus(pcm, PCM_RATE)
+      describeOggOpus(data)
+      return { data, voice: pcmVoiceMetadata(pcm, PCM_RATE) }
+    },
+  }
+}
+
 /**
  * Model-chosen by intent, bounded by a per-requester cooldown taken before any credit is spent.
  * The audio never passes through the model: the transport sends it as a Discord voice message.

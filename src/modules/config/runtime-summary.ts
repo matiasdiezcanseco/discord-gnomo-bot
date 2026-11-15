@@ -25,8 +25,17 @@ export function runtimeSummary(config: Pick<ConfigService, 'get'>) {
     reasoningEffort: settings.reasoningEffort ?? null,
     imageModel: defaulted('OPENAI_IMAGE_MODEL', settings.image.model),
     imageQuality: settings.image.quality,
-    speechModel: defaulted('OPENAI_SPEECH_MODEL', settings.speech.model),
-    speechVoice: defaulted('OPENAI_SPEECH_VOICE', settings.speech.voice),
+    speechProvider: settings.speech.provider,
+    // The Fish voice ID names a public voice model, not a credential.
+    ...(settings.speech.provider === 'fish'
+      ? {
+          speechModel: defaulted('FISH_AUDIO_MODEL', settings.speech.fish.model),
+          speechVoice: settings.speech.fish.voiceId,
+        }
+      : {
+          speechModel: defaulted('OPENAI_SPEECH_MODEL', settings.speech.model),
+          speechVoice: defaulted('OPENAI_SPEECH_VOICE', settings.speech.voice),
+        }),
     speechCooldownMinutes: settings.speech.cooldownMinutes,
     timeoutMs: settings.timeoutMs,
     synthesisTimeoutMs: settings.synthesisTimeoutMs,
@@ -34,6 +43,8 @@ export function runtimeSummary(config: Pick<ConfigService, 'get'>) {
     configured: {
       BOT_TOKEN: has('BOT_TOKEN'),
       OPENAI_API_KEY: facts.openaiKey,
+      FISH_AUDIO_API_KEY: has('FISH_AUDIO_API_KEY'),
+      FISH_AUDIO_VOICE_ID: has('FISH_AUDIO_VOICE_ID'),
       REDIS_URL: has('REDIS_URL'),
       DATABASE_URL: has('DATABASE_URL'),
       DATABASE_URL_POOLED: has('DATABASE_URL_POOLED'),

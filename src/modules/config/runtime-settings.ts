@@ -3,6 +3,7 @@ import {
   DEFAULT_OPENAI_MODEL,
   DEFAULT_OPENAI_SPEECH_MODEL,
   DEFAULT_OPENAI_SPEECH_VOICE,
+  DEFAULT_FISH_AUDIO_MODEL,
 } from './constants'
 
 /** Nest's ConfigService or any stand-in; values may be raw strings or already coerced. */
@@ -26,6 +27,8 @@ export function runtimeSettings(source: SettingsSource) {
     return Number.isInteger(value) && value >= min && value <= max ? value : fallback
   }
   const owner = text('MEMORY_OWNER_ID')
+  const fishApiKey = text('FISH_AUDIO_API_KEY')
+  const fishVoiceId = text('FISH_AUDIO_VOICE_ID')
   return {
     openaiApiKey: text('OPENAI_API_KEY'),
     model: text('OPENAI_MODEL') ?? DEFAULT_OPENAI_MODEL,
@@ -39,9 +42,24 @@ export function runtimeSettings(source: SettingsSource) {
       quality: oneOf('OPENAI_IMAGE_QUALITY', imageQualities) ?? ('medium' as const),
     },
     speech: {
+      /** A complete Fish Audio setup (key and voice) wins; otherwise OpenAI Realtime. */
+      provider: fishApiKey && fishVoiceId ? ('fish' as const) : ('openai' as const),
       model: text('OPENAI_SPEECH_MODEL') ?? DEFAULT_OPENAI_SPEECH_MODEL,
       voice: text('OPENAI_SPEECH_VOICE') ?? DEFAULT_OPENAI_SPEECH_VOICE,
-      cooldownMinutes: integer('OPENAI_SPEECH_COOLDOWN_MINUTES', 10, 1, 1440),
+      fish: {
+        apiKey: fishApiKey,
+        voiceId: fishVoiceId,
+        model: text('FISH_AUDIO_MODEL') ?? DEFAULT_FISH_AUDIO_MODEL,
+      },
+      /** Provider-neutral name first; the original OpenAI-prefixed one still works. */
+      cooldownMinutes: integer(
+        text('SPEECH_COOLDOWN_MINUTES')
+          ? 'SPEECH_COOLDOWN_MINUTES'
+          : 'OPENAI_SPEECH_COOLDOWN_MINUTES',
+        10,
+        1,
+        1440,
+      ),
     },
     concurrency: integer('CONVERSATION_CONCURRENCY', 4, 1, 16),
     timeoutMs: integer('CONVERSATION_TIMEOUT_MS', 60000, 1),
@@ -59,6 +77,8 @@ export type RuntimeSettings = ReturnType<typeof runtimeSettings>
 /** What exists for this process. Configuration can only promise it; composition knows it. */
 export interface RuntimeFacts {
   openaiKey: boolean
+  /** FISH_AUDIO_API_KEY and FISH_AUDIO_VOICE_ID are both set. */
+  fishAudio: boolean
   redis: boolean
   database: boolean
   memoryOwner: boolean
@@ -74,6 +94,7 @@ export function configuredFacts(source: SettingsSource): RuntimeFacts {
   const settings = runtimeSettings(source)
   return {
     openaiKey: !!settings.openaiApiKey,
+    fishAudio: settings.speech.provider === 'fish',
     redis: has('REDIS_URL'),
     database: has('DATABASE_URL_POOLED') || has('DATABASE_URL') || has('PILOT_MEMORY_DATABASE_URL'),
     memoryOwner: !!settings.memoryOwnerId,
@@ -99,7 +120,9 @@ const requirements = {
   images: { name: 'image creation', missing: (f) => !f.redis && 'REDIS_URL' },
   speech: {
     name: 'voice messages',
-    missing: (f) => (!f.redis && 'REDIS_URL') || (!f.openaiKey && 'OPENAI_API_KEY'),
+    missing: (f) =>
+      (!f.redis && 'REDIS_URL') ||
+      (!f.fishAudio && !f.openaiKey && 'FISH_AUDIO_API_KEY+FISH_AUDIO_VOICE_ID or OPENAI_API_KEY'),
   },
   memory: {
     name: 'memory',

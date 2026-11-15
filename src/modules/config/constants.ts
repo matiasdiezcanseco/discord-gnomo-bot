@@ -11,3 +11,5 @@ export const DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-1-mini'
 export const DEFAULT_OPENAI_SPEECH_MODEL = 'gpt-realtime-2.1-mini'
 /** One of the two voices OpenAI recommends for best quality (marin, cedar). */
 export const DEFAULT_OPENAI_SPEECH_VOICE = 'cedar'
+/** Fish Audio's recommended production TTS model; explicit FISH_AUDIO_MODEL always wins. */
+export const DEFAULT_FISH_AUDIO_MODEL = 's2.1-pro'

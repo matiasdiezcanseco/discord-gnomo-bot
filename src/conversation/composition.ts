@@ -18,7 +18,7 @@ import { mediaCapabilities, s3MediaStore, type MediaObjectStore } from './media-
 import { ScheduledNotices } from './scheduled-notices'
 import { aiSdkImages } from './image-generation'
 import { redisCooldown } from './paid-generation'
-import { openaiRealtimeSpeech } from './speech-generation'
+import { fishAudioSpeech, openaiRealtimeSpeech } from './speech-generation'
 import type { MemberDirectory } from './member-directory'
 import type { LiveMembers } from './live-members'
 import type { HistoryReader } from './channel-history'
@@ -98,6 +98,17 @@ export function composeRuntimeConversation({
     })
   const reauthorize = (invocation: Invocation, signal?: AbortSignal) =>
     authorize(invocation, undefined, signal)
+  const { fish } = settings.speech
+  const speechGenerator =
+    settings.speech.provider === 'fish' && fish.apiKey && fish.voiceId
+      ? fishAudioSpeech({ apiKey: fish.apiKey, voiceId: fish.voiceId, model: fish.model })
+      : settings.openaiApiKey
+        ? openaiRealtimeSpeech({
+            apiKey: settings.openaiApiKey,
+            model: settings.speech.model,
+            voice: settings.speech.voice,
+          })
+        : undefined
   return createConversation({
     loadImages,
     loadContext: async (context) => history(context, 30),
@@ -131,13 +142,9 @@ export function composeRuntimeConversation({
             }
           : undefined,
       speech:
-        on.speech.enabled && redis && settings.openaiApiKey
+        on.speech.enabled && redis && speechGenerator
           ? {
-              generator: openaiRealtimeSpeech({
-                apiKey: settings.openaiApiKey,
-                model: settings.speech.model,
-                voice: settings.speech.voice,
-              }),
+              generator: speechGenerator,
               cooldown: redisCooldown(
                 redis,
                 settings.speech.cooldownMinutes * 60,

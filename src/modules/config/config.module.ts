@@ -33,6 +33,11 @@ const envSchema = z
     OPENAI_SPEECH_MODEL: z.string().min(1).optional(),
     OPENAI_SPEECH_VOICE: z.string().min(1).optional(),
     OPENAI_SPEECH_COOLDOWN_MINUTES: z.coerce.number().int().min(1).max(1440).optional(),
+    // Fish Audio voice messages; with key and voice ID set they replace OpenAI Realtime.
+    FISH_AUDIO_API_KEY: z.string().optional(),
+    FISH_AUDIO_VOICE_ID: z.string().optional(),
+    FISH_AUDIO_MODEL: z.string().min(1).optional(),
+    SPEECH_COOLDOWN_MINUTES: z.coerce.number().int().min(1).max(1440).optional(),
     BROWSERBASE_API_KEY: z.string().optional(),
 
     // Media library: public-read S3-compatible bucket (validated when the store is built).
