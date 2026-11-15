@@ -14,6 +14,7 @@ const source = (values: Record<string, unknown>) => ({ get: (key: string) => val
 
 const everything: RuntimeFacts = {
   openaiKey: true,
+  fishAudio: true,
   redis: true,
   database: true,
   memoryOwner: true,
@@ -34,7 +35,12 @@ test('each feature is off for the first requirement it is missing', () => {
     'images: REDIS_URL',
     'speech: REDIS_URL',
   ])
-  assert.deepEqual(off({ openaiKey: false }), ['model: OPENAI_API_KEY', 'speech: OPENAI_API_KEY'])
+  assert.deepEqual(off({ openaiKey: false }), ['model: OPENAI_API_KEY'], 'Fish Audio still speaks')
+  assert.deepEqual(off({ fishAudio: false }), [], 'OpenAI Realtime still speaks')
+  assert.deepEqual(off({ openaiKey: false, fishAudio: false }), [
+    'model: OPENAI_API_KEY',
+    'speech: FISH_AUDIO_API_KEY+FISH_AUDIO_VOICE_ID or OPENAI_API_KEY',
+  ])
   assert.deepEqual(off({ database: false }), [
     'memory: no database URL',
     'media: needs database and MEMORY_OWNER_ID',
@@ -64,6 +70,7 @@ test('the environment is read into facts without trusting blank or malformed val
   assert.deepEqual(facts, {
     ...everything,
     openaiKey: false,
+    fishAudio: false,
     memoryOwner: false,
     mediaBucket: false,
     collection: false,
@@ -119,6 +126,29 @@ test('settings apply defaults and bounds once, for raw and coerced values alike'
   assert.equal(invalid.memoryOwnerId, undefined)
 })
 
+test('a complete Fish Audio setup replaces OpenAI as the voice provider', () => {
+  const openaiOnly = runtimeSettings(source({ OPENAI_API_KEY: 'sk-x', FISH_AUDIO_API_KEY: 'fa' }))
+  assert.equal(openaiOnly.speech.provider, 'openai', 'a key without a voice is not a setup')
+  const fish = runtimeSettings(
+    source({ FISH_AUDIO_API_KEY: 'fa', FISH_AUDIO_VOICE_ID: ' v1 ', SPEECH_COOLDOWN_MINUTES: '5' }),
+  )
+  assert.equal(fish.speech.provider, 'fish')
+  assert.deepEqual(fish.speech.fish, { apiKey: 'fa', voiceId: 'v1', model: 's2.1-pro' })
+  assert.equal(fish.speech.cooldownMinutes, 5)
+  assert.equal(
+    runtimeSettings(source({ OPENAI_SPEECH_COOLDOWN_MINUTES: '7' })).speech.cooldownMinutes,
+    7,
+    'the older cooldown name still works',
+  )
+  const summary = runtimeSummary(
+    source({ FISH_AUDIO_API_KEY: 'fa', FISH_AUDIO_VOICE_ID: 'v1' }) as never,
+  )
+  assert.equal(summary.speechProvider, 'fish')
+  assert.equal(summary.speechModel, 's2.1-pro (default)')
+  assert.equal(summary.speechVoice, 'v1')
+  assert.ok(!JSON.stringify(summary).includes('"fa"'), 'the key itself is never logged')
+})
+
 test('the startup summary names every feature the environment leaves off', () => {
   const { disabled } = runtimeSummary(source({ OPENAI_API_KEY: 'sk-x' }) as never)
   for (const feature of ['claims/reminders', 'image creation', 'voice messages'])
@@ -167,5 +197,10 @@ async function offered(values: Record<string, unknown>) {
 
 test('composition offers paid generation exactly when its requirements hold', async () => {
   assert.deepEqual(await offered({ OPENAI_API_KEY: 'sk-x' }), ['image_generate', 'speech_generate'])
-  assert.deepEqual(await offered({}), ['image_generate'], 'voice needs the OpenAI key')
+  assert.deepEqual(await offered({}), ['image_generate'], 'voice needs a provider')
+  assert.deepEqual(
+    await offered({ FISH_AUDIO_API_KEY: 'fa', FISH_AUDIO_VOICE_ID: 'v1' }),
+    ['image_generate', 'speech_generate'],
+    'Fish Audio alone is enough for voice',
+  )
 })

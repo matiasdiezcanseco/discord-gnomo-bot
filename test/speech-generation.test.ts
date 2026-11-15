@@ -6,6 +6,8 @@ import { MessageFlags } from 'discord.js'
 import { createConversation, type ModelInput, type Reply } from '../src/conversation/harness'
 import { composeCapabilities } from '../src/conversation/capabilities'
 import {
+  fishAudioSpeech,
+  fishAudioText,
   MAX_SPEECH_CHARS,
   openaiRealtimeSpeech,
   SpeechRejected,
@@ -371,4 +373,104 @@ test('Realtime speech: aborting the invocation closes the socket and fails the c
   controller.abort(new Error('budget exhausted'))
   await assert.rejects(pending, /budget exhausted/)
   assert.ok(realtime.isClosed())
+})
+
+/** Scripted stand-in for Fish Audio's /v1/tts: streams `chunks` and records the request. */
+function fakeFish(status: number, chunks: Buffer[]) {
+  const requests: { url: string; init: NonNullable<Parameters<typeof fetch>[1]> }[] = []
+  let cancelled = false
+  const request = (async (url: string, init: NonNullable<Parameters<typeof fetch>[1]>) => {
+    requests.push({ url, init })
+    let index = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (index < chunks.length) controller.enqueue(new Uint8Array(chunks[index++]))
+        else controller.close()
+      },
+      cancel() {
+        cancelled = true
+      },
+    })
+    return new Response(body, { status })
+  }) as unknown as typeof fetch
+  return { request, requests, isCancelled: () => cancelled }
+}
+
+test('Fish Audio speech: custom voice, PCM stream encoded to a voice-message Ogg', async () => {
+  const audio = pcm(1, 0)
+  // An odd split puts half a sample in each chunk.
+  const fish = fakeFish(200, [audio.subarray(0, 24001), audio.subarray(24001)])
+  const speech = await fishAudioSpeech({
+    apiKey: 'fa-test',
+    voiceId: 'voice-1',
+    model: 's2.1-pro',
+    fetch: fish.request,
+  }).generate('Habla causa', 'susurrando', new AbortController().signal)
+  const [{ url, init }] = fish.requests
+  assert.equal(url, 'https://api.fish.audio/v1/tts')
+  assert.deepEqual(init.headers, {
+    Authorization: 'Bearer fa-test',
+    'Content-Type': 'application/json',
+    model: 's2.1-pro',
+  })
+  assert.deepEqual(JSON.parse(String(init.body)), {
+    text: '[susurrando] Habla causa',
+    reference_id: 'voice-1',
+    format: 'pcm',
+    sample_rate: 24000,
+    language: 'es',
+  })
+  assert.equal(speech.data.toString('latin1', 0, 4), 'OggS')
+  assert.equal(describeOggOpus(speech.data).durationSecs, 1)
+  assert.equal(speech.voice.durationSecs, 1)
+})
+
+test('Fish Audio speech: the style cue cannot break out of its brackets', () => {
+  assert.equal(fishAudioText('hola'), 'hola')
+  assert.equal(fishAudioText('hola', ' [gritando] ] '), '[gritando] hola')
+  assert.equal(fishAudioText('hola', '[]'), 'hola')
+})
+
+test('Fish Audio speech: audio past 30 s is cut there and the download cancelled', async () => {
+  const second = pcm(1, 0)
+  const fish = fakeFish(
+    200,
+    Array.from({ length: 45 }, () => second),
+  )
+  const speech = await fishAudioSpeech({
+    apiKey: 'k',
+    voiceId: 'v',
+    model: 'm',
+    fetch: fish.request,
+  }).generate('x', undefined, new AbortController().signal)
+  assert.equal(describeOggOpus(speech.data).durationSecs, 30)
+  assert.equal(speech.voice.durationSecs, 30)
+  assert.ok(fish.isCancelled(), 'the stream stops at the ceiling')
+})
+
+test('Fish Audio speech: HTTP errors and empty audio are failures, not refusals', async () => {
+  const generate = (status: number, chunks: Buffer[]) =>
+    fishAudioSpeech({
+      apiKey: 'k',
+      voiceId: 'v',
+      model: 'm',
+      fetch: fakeFish(status, chunks).request,
+    }).generate('x', undefined, new AbortController().signal)
+  await assert.rejects(generate(402, []), (error: Error) => {
+    assert.ok(!(error instanceof SpeechRejected))
+    assert.match(error.message, /402/)
+    return true
+  })
+  await assert.rejects(generate(200, []), /without audio/)
+  const aborted = new AbortController()
+  aborted.abort(new Error('timeout'))
+  await assert.rejects(
+    fishAudioSpeech({
+      apiKey: 'k',
+      voiceId: 'v',
+      model: 'm',
+      fetch: fakeFish(200, []).request,
+    }).generate('x', undefined, aborted.signal),
+    /timeout/,
+  )
 })
