@@ -1,19 +1,14 @@
 import type { Invocation } from '../core/conversation/invocation'
-import { Catalog, type Capability, type ExecutionContext, type ReplyFile } from './catalog'
+import { Catalog, type Capability, type ExecutionContext } from './catalog'
 import type { HistoryResult } from './channel-history'
 import { Budget, systemClock, type Clock } from './budget'
-import { splitReply } from './delivery'
+import { ReplyCompletion, type Reply } from './reply-completion'
 import { describeError, redact, type ErrorSummary } from '../diagnostics'
 import { Admission } from './admission'
 import { Executor } from './executor'
 import { AttachmentError, type VerifiedImage } from './attached-images'
 
-export interface Reply {
-  content: string
-  allowedMentions: { parse: []; users: string[]; roles: []; repliedUser: false }
-  /** Tool-produced files (generated images), sent with the last message. */
-  files?: ReplyFile[]
-}
+export type { Reply } from './reply-completion'
 /** Provider facts about one model call, for diagnostics only. */
 export interface ModelMeta {
   finishReason?: string
@@ -109,19 +104,6 @@ export interface ConversationPorts {
   synthesisTimeoutMs?: number
 }
 
-/** Human-readable leaves of a tool result (titles, text, URLs, names), never structure or IDs. */
-function readable(value: unknown, key = ''): string[] {
-  if (typeof value === 'string')
-    return /(?:^|[^a-z])(?:id|ids)$|Id$|At$|^(?:source|coverage|memberCoverage|status|outcome|note|limits|fromAfter|nextAfter|after|cursor)$/.test(
-      key,
-    ) || !value.trim()
-      ? []
-      : [value.trim().replace(/\s+/g, ' ').slice(0, 300)]
-  if (Array.isArray(value)) return value.flatMap((entry) => readable(entry, key))
-  if (value && typeof value === 'object')
-    return Object.entries(value).flatMap(([entry, nested]) => readable(nested, entry))
-  return []
-}
 /** Model output that is a raw data dump (JSON object/array) is never sent to Discord. */
 export function looksLikeJson(text: string): boolean {
   const trimmed = text.trim().replace(/^```(?:json)?\s*|\s*```$/g, '')
@@ -151,9 +133,7 @@ export function createConversation(ports: ConversationPorts) {
       const results: ToolResult[] = []
       // Attachments are untrusted data; execution still requires current text consent and permissions.
       const tools = ports.catalog?.tools ?? []
-      const standalone = (result: ToolResult) =>
-        result.status === 'success' &&
-        !!tools.find((entry) => entry.name === result.name && entry.verbatim && entry.standalone)
+      const completion = new ReplyCompletion(tools)
       const trace = (event: string, status?: string, tool?: string, extra?: Partial<Trace>) => {
         try {
           ports.trace?.({
@@ -268,7 +248,6 @@ export function createConversation(ports: ConversationPorts) {
             )
             if (turn.text) text = turn.text
             if (!turn.calls.length) break
-            const lead = turn.text
             text = ''
             const before = results.length
             const run = async (call: ModelTurn['calls'][number]) => {
@@ -291,18 +270,9 @@ export function createConversation(ports: ConversationPorts) {
               if (batch.length) await Promise.all(batch.map(run))
               else await run(turn.calls[index++])
             }
-            // Only verbatim tools (e.g. a collection phrase/photo): deliver them as-is, no extra step.
-            const fresh = results.slice(before)
-            const exact = turn.calls.map((call) => {
-              const tool = tools.find((entry) => entry.name === call.name)
-              const result = fresh.find((entry) => entry.id === call.id)
-              if (!tool?.verbatim || !result) return undefined
-              // Standalone outputs (photos) are delivered on their own after the loop.
-              return standalone(result) ? '' : tool.verbatim(result)
-            })
-            if (exact.every((value) => value !== undefined)) {
-              // A photo reply carries no model chatter around it.
-              text = [fresh.some(standalone) ? '' : lead, ...exact].filter(Boolean).join('\n')
+            const finished = completion.finishTurn(turn, results.slice(before))
+            if (finished !== undefined) {
+              text = finished
               break
             }
             if (budget.steps === 5) text = ''
@@ -336,103 +306,47 @@ export function createConversation(ports: ConversationPorts) {
         release?.()
         budget.close()
       }
-      const confirmed = results.filter((r) => r.status === 'success' || r.status === 'partial')
-      // Each successful standalone result (an image URL) becomes its own message, nothing else.
-      const alone = results
-        .filter(standalone)
-        .map((result) => tools.find((entry) => entry.name === result.name)!.verbatim!(result))
-      for (const value of alone) text = text.split(value).join('').replace(/ {2,}/g, ' ').trim()
-      // Phrase confirmed results with one tool-less turn instead of dumping raw tool payloads.
-      if (!text && confirmed.some((r) => !standalone(r)) && ports.synthesisTimeoutMs) {
-        const grace = new Budget(clock, clock.now(), ports.synthesisTimeoutMs)
-        try {
-          trace('synthesis_started')
-          const turn = await grace.wait(() =>
-            ports.model.generate({
-              invocation,
-              signal: grace.controller.signal,
-              results: [...results],
-              tools: [],
-              finalize: true,
-            }),
-          )
-          if (turn.text) text = turn.text
-          trace('synthesis_finished', text ? 'success' : 'empty', undefined, { model: turn.meta })
-        } catch (error) {
-          trace('synthesis_finished', 'error', undefined, { error: describeError(error) })
-        } finally {
-          grace.close()
-        }
-      }
-      // Verbatim results are never paraphrased away: append any the final answer left out.
-      // The synthesis turn may have quoted the URL again.
-      for (const value of alone) text = text.split(value).join('').replace(/ {2,}/g, ' ').trim()
-      const exact = results
-        .filter((result) => result.status === 'success' && !standalone(result))
-        .flatMap((result) => {
-          const tool = tools.find((entry) => entry.name === result.name)
-          return tool?.verbatim ? [tool.verbatim(result)] : []
-        })
-        .filter((value) => !text.includes(value))
-      if (exact.length) text = [text, ...exact].filter(Boolean).join('\n')
-      const files = executor.files
-      if (!text && !alone.length && !files.length) {
-        const writes = [
-          ...new Set(
-            confirmed
-              .map((r) => tools.find((tool) => tool.name === r.name))
-              .filter((tool) => tool?.effect === 'write')
-              .map((tool) => tool!.label ?? 'completar una acción'),
-          ),
-        ]
-        const evidence = [
-          ...new Set(
-            confirmed
-              .filter((r) => tools.find((tool) => tool.name === r.name)?.effect === 'read')
-              .flatMap((r) => readable(r.value)),
-          ),
-        ].slice(0, 15)
-        text = [
-          failure ??
-            (results.length
-              ? 'No pude completar toda la petición.'
-              : 'No pude obtener una respuesta.'),
-          writes.length ? `Eso sí, alcancé a ${writes.join(' y ')}.` : '',
-          evidence.length
-            ? `Lo que sí confirmé:\n${evidence.map((e) => `- ${e}`).join('\n')}\n`
-            : '',
-          'Inténtalo nuevamente en un ratito.',
-        ]
-          .filter(Boolean)
-          .join(' ')
-        if (executor.pendingWrite || results.some((r) => r.status === 'uncertain'))
-          text += '\nUna operación tiene estado incierto; no la reintentaré automáticamente.'
-      }
-      let chunks: string[]
-      try {
-        chunks = text ? splitReply(text) : []
-      } catch {
-        chunks = ['Una fuente excede el tamaño permitido por Discord; no pude enviarla completa.']
-      }
-      chunks.push(...alone)
-      // Discord rejects voice messages with text or other files: each one is its own message.
-      const voices = files.filter((file) => file.voice)
-      const attached = files.filter((file) => !file.voice)
-      // Generated files ride on the last message, or alone when there is no text at all.
-      if (attached.length && !chunks.length) chunks.push('')
-      const messages: { content: string; files?: ReplyFile[] }[] = [
-        ...chunks.map((content, index) =>
-          attached.length && index === chunks.length - 1
-            ? { content, files: attached }
-            : { content },
-        ),
-        ...voices.map((file) => ({ content: '', files: [file] })),
-      ]
+      const { messages, content } = await completion.complete(
+        {
+          text,
+          results,
+          files: executor.files,
+          users,
+          failure,
+          pendingWrite: executor.pendingWrite,
+        },
+        ports.synthesisTimeoutMs
+          ? async () => {
+              const grace = new Budget(clock, clock.now(), ports.synthesisTimeoutMs)
+              try {
+                trace('synthesis_started')
+                const turn = await grace.wait(() =>
+                  ports.model.generate({
+                    invocation,
+                    signal: grace.controller.signal,
+                    results: [...results],
+                    tools: [],
+                    finalize: true,
+                  }),
+                )
+                trace('synthesis_finished', turn.text ? 'success' : 'empty', undefined, {
+                  model: turn.meta,
+                })
+                return turn.text
+              } catch (error) {
+                trace('synthesis_finished', 'error', undefined, { error: describeError(error) })
+                throw error
+              } finally {
+                grace.close()
+              }
+            }
+          : undefined,
+      )
       // Delivery gets its own window: the processing loop and synthesis can legitimately run
       // past 15 s, and anchoring here to the request start would silently drop the reply.
       const delivery = new Budget(clock, clock.now(), 15000)
       try {
-        for (const { content, files: sent } of messages) {
+        for (const message of messages) {
           if (
             !(await delivery.wait(() =>
               ports.authorize(invocation, undefined, delivery.controller.signal),
@@ -441,16 +355,10 @@ export function createConversation(ports: ConversationPorts) {
             trace('delivery', 'denied')
             return
           }
-          await delivery.wait(() =>
-            reply(invocation, {
-              content,
-              allowedMentions: { parse: [], users, roles: [], repliedUser: false },
-              ...(sent ? { files: sent } : {}),
-            }),
-          )
+          await delivery.wait(() => reply(invocation, message))
           trace('visible_send', 'confirmed', undefined, {
-            contentLength: content.length,
-            ...(sent ? { attachments: sent.length } : {}),
+            contentLength: message.content.length,
+            ...(message.files ? { attachments: message.files.length } : {}),
           })
         }
       } catch (error) {
@@ -461,8 +369,8 @@ export function createConversation(ports: ConversationPorts) {
       }
       trace('delivered', undefined, undefined, {
         parts: messages.length,
-        ...(files.length ? { attachments: files.length } : {}),
-        ...(ports.traceContent ? { reply: redact(chunks.join('\n'), 1000) } : {}),
+        ...(executor.files.length ? { attachments: executor.files.length } : {}),
+        ...(ports.traceContent ? { reply: redact(content, 1000) } : {}),
       })
     },
   }
