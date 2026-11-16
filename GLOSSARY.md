@@ -8,6 +8,10 @@ Asistente del servidor con el que los miembros conversan mediante menciones y al
 Mensaje de un miembro que menciona al bot para dirigirle una petición.
 _Evitar_: Comando, cuando se trata de una petición en lenguaje natural.
 
+**Respuesta de Gnomo**:
+Contenido con el que el bot contesta una invocación. Puede incluir texto, imágenes o mensajes de voz y entregarse en varios mensajes dentro del mismo canal.
+_Evitar_: Mensaje, cuando se habla de toda la respuesta y no de una sola de sus partes.
+
 **Historial del canal**:
 Mensajes publicados en un canal de Discord, participara o no el bot en la conversación.
 _Evitar_: Memoria, historial del bot.

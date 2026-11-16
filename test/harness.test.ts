@@ -435,6 +435,34 @@ test('permission revoked during generation prevents delivery of model content', 
   assert.ok(!replies.join('').includes('sensitive'))
 })
 
+test('delivery stops between reply parts when access is revoked or a send becomes uncertain', async (t) => {
+  for (const failure of ['revoked', 'uncertain']) {
+    await t.test(failure, async () => {
+      let allowed = true
+      let sends = 0
+      const events: string[] = []
+      await createConversation({
+        model: { generate: async () => ({ text: 'x'.repeat(2100), calls: [] }) },
+        authorize: async () => allowed,
+        claim: async () => true,
+        reply: async () => {
+          sends++
+          if (failure === 'uncertain') throw new Error('connection lost after send')
+          allowed = false
+        },
+        trace: (trace) => events.push(`${trace.event}:${trace.status ?? ''}`),
+      }).handle(invocation)
+      assert.equal(sends, 1, 'do not send another part or retry an uncertain send')
+      assert.ok(events.includes(`delivery:${failure === 'revoked' ? 'denied' : 'uncertain'}`))
+      assert.ok(!events.includes('delivered:'))
+      assert.equal(
+        events.filter((event) => event === 'visible_send:confirmed').length,
+        failure === 'revoked' ? 1 : 0,
+      )
+    })
+  }
+})
+
 test('an uncertain write cannot be retried by another model tool call', async () => {
   let effects = 0
   const probe = defineCapability({
