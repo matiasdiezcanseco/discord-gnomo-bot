@@ -244,7 +244,7 @@ export function fishAudioSpeech({
 
 /**
  * Model-chosen by intent, bounded by a per-requester cooldown taken before any credit is spent.
- * The audio never passes through the model: the transport sends it as a Discord voice message.
+ * The model sees the generation result; the transport receives the audio bytes for delivery.
  */
 export function speechCapability(
   generator?: SpeechGenerator,

@@ -141,6 +141,13 @@ export function discordVoiceStage(
         connection.on('error', disconnect)
         connection.on(voice.VoiceConnectionStatus.Disconnected, disconnect)
         connection.on(voice.VoiceConnectionStatus.Destroyed, disconnect)
+        connection.on('stateChange', (previous, next) => {
+          if (
+            previous.status === voice.VoiceConnectionStatus.Ready &&
+            next.status !== voice.VoiceConnectionStatus.Ready
+          )
+            disconnect()
+        })
         if (connection.state.status === voice.VoiceConnectionStatus.Disconnected) disconnect()
         await voice.entersState(
           connection,
