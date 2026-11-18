@@ -4,6 +4,7 @@ import {
   DEFAULT_OPENAI_SPEECH_MODEL,
   DEFAULT_OPENAI_SPEECH_VOICE,
   DEFAULT_FISH_AUDIO_MODEL,
+  MAX_VOICE_CONNECT_TIMEOUT_MS,
 } from './constants'
 
 /** Nest's ConfigService or any stand-in; values may be raw strings or already coerced. */
@@ -61,6 +62,12 @@ export function runtimeSettings(source: SettingsSource) {
         1440,
       ),
     },
+    voiceConnectTimeoutMs: integer(
+      'VOICE_CONNECT_TIMEOUT_MS',
+      10000,
+      1000,
+      MAX_VOICE_CONNECT_TIMEOUT_MS,
+    ),
     concurrency: integer('CONVERSATION_CONCURRENCY', 4, 1, 16),
     timeoutMs: integer('CONVERSATION_TIMEOUT_MS', 60000, 1),
     /** 0 disables the synthesis turn. */

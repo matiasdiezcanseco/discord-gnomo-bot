@@ -7,6 +7,7 @@ import type { Invocation } from '../../core/conversation/invocation'
 import type { SafeReader } from '../../web/safe-reader'
 import { HISTORY_LIMITS } from '../discord/channel-history'
 import { PRESENCE_NOTE, VOICE_NOTE } from '../discord/live-members'
+import type { VoicePlaybackDependencies } from '../../conversation/voice-playback'
 
 export interface ConsoleIdentity {
   id: string
@@ -15,6 +16,7 @@ export interface ConsoleIdentity {
 export type ChannelMessage = HistoryResult['messages'][number]
 export type ConsoleEvent =
   | { type: 'typing'; channelId: string }
+  | { type: 'voice'; channelId: string; durationSecs: number }
   | { type: 'reply'; channelId: string; content: string; mentions: string[]; files?: string[] }
   | { type: 'scheduled'; channelId: string; content: string; kind: 'reminder' | 'birthday' }
   | { type: 'ignored'; reason: string }
@@ -26,6 +28,7 @@ export const CONSOLE_DEFAULTS = {
   channelId: '100000000000000002',
   botId: '100000000000000003',
   userId: '100000000000000004',
+  voiceChannelId: '100000000000000005',
 } as const
 const snowflake = /^\d{17,20}$/
 const DISCORD_EPOCH = 1420070400000n
@@ -43,6 +46,25 @@ export class ConsoleSession {
   channelId: string
   /** Set by the terminal; events before that are discarded. */
   output: (event: ConsoleEvent) => void = () => undefined
+  readonly voicePlayback: VoicePlaybackDependencies = {
+    location: async ({ signal }) => {
+      signal.throwIfAborted()
+      return {
+        status: 'found',
+        channelId: CONSOLE_DEFAULTS.voiceChannelId,
+        channelName: 'Sala de prueba',
+      }
+    },
+    stage: {
+      isBusy: () => false,
+      play: async (_guildId, channelId, file, signal, onStarted) => {
+        if (signal.aborted) return { status: 'failed', reason: 'aborted', started: false }
+        onStarted?.()
+        this.output({ type: 'voice', channelId, durationSecs: file.voice.durationSecs })
+        return { status: 'played' }
+      },
+    },
+  }
   private readonly transcripts = new Map<string, ChannelMessage[]>()
   private readonly roster = new Map<string, ConsoleIdentity>()
   private readonly active = new Set<string>()
@@ -177,6 +199,7 @@ export class ConsoleSession {
       }
     }
     return {
+      voicePlayback: this.voicePlayback,
       // The terminal user is always a member of the channel they type into.
       access: async (_invocation, signal) => {
         signal?.throwIfAborted()

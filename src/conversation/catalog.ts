@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { Invocation } from '../core/conversation/invocation'
 import type { ToolResult } from './harness'
+import type { VoicePlayback } from './voice-playback'
 
 export class PartialResult<T> {
   constructor(readonly value: T) {}
@@ -29,7 +30,9 @@ export interface ExecutionContext {
   /** Tool calls only: kept and delivered with the reply only if the call succeeds. */
   attach?(file: ReplyFile): void
   /** Tool calls only: files earlier successful calls of this invocation attached to the reply. */
-  generated?(): readonly ReplyFile[]
+  generated?(toolName?: string): readonly ReplyFile[]
+  /** Tool calls only: committed with the reply if the call succeeds. */
+  playVoice?(playback: VoicePlayback, channelName: string): void
 }
 export interface Capability {
   name: string

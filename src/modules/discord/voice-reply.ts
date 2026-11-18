@@ -1,8 +1,7 @@
 import { MessageFlags, PermissionFlagsBits, Routes, type Message } from 'discord.js'
 import type { Reply } from '../../conversation/harness'
-import type { ReplyFile } from '../../conversation/catalog'
-
-type VoiceFile = ReplyFile & { voice: NonNullable<ReplyFile['voice']> }
+import type { VoiceFile, VoiceStage, VoiceStageResult } from '../../conversation/voice-playback'
+import { reportError } from '../../diagnostics'
 
 export function voiceFile(reply: Reply): VoiceFile | undefined {
   const file = reply.files?.length === 1 ? reply.files[0] : undefined
@@ -50,4 +49,46 @@ export async function replyWithVoice(message: Message, file: VoiceFile) {
     body: voiceMessageBody(message.id, file),
     files: [{ name: file.name, data: file.attachment, contentType: 'audio/ogg' }],
   })
+}
+
+export async function replyWithPlayback(
+  message: Message,
+  reply: Reply,
+  stage: VoiceStage | undefined,
+  signal: AbortSignal,
+  logFailure: (failure: Extract<VoiceStageResult, { status: 'failed' }>) => void,
+) {
+  const playback = reply.voicePlayback
+  if (!playback || signal.aborted) return
+  const { guildId, channelId, file } = playback
+  const text = (content: string) =>
+    message.reply({ content, allowedMentions: reply.allowedMentions })
+  let confirmation: Promise<void> | undefined
+  const confirm = () => {
+    if (!signal.aborted)
+      confirmation ??= Promise.resolve()
+        .then(() => text(reply.content))
+        .then(
+          () => undefined,
+          (error) => reportError('discord.voice-confirmation', error),
+        )
+  }
+  const result = stage
+    ? await stage.play(guildId, channelId, file, signal, confirm)
+    : ({ status: 'failed', started: false, reason: 'unavailable' } as const)
+  if (result.status === 'played') {
+    confirm()
+  } else {
+    logFailure(result)
+    if (!result.started && result.reason !== 'aborted' && !signal.aborted) {
+      const reason =
+        result.reason === 'busy'
+          ? 'Ya estoy reproduciendo otro audio en este servidor.'
+          : 'No pude reproducir el audio en la llamada.'
+      await text(`${reason} Lo envío por el chat.`)
+      signal.throwIfAborted()
+      await replyWithVoice(message, file)
+    }
+  }
+  await confirmation
 }
