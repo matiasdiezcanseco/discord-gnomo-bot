@@ -3,21 +3,33 @@ import { test } from 'node:test'
 import { REST, RateLimitError } from 'discord.js'
 import { DISCORD_REST } from '../src/modules/discord/rest-policy'
 
+function jsonResponse(value: unknown, init: Parameters<typeof Response.json>[1]) {
+  const response = Response.json(value, init)
+  return {
+    arrayBuffer: () => response.arrayBuffer(),
+    body: null,
+    get bodyUsed() {
+      return response.bodyUsed
+    },
+    headers: response.headers,
+    json: () => response.json(),
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText,
+    text: () => response.text(),
+  }
+}
+
 function rest(retryAfterSeconds: number, global = false) {
   let calls = 0
   const client = new REST({
     ...DISCORD_REST,
     makeRequest: async () => {
       calls++
-      if (calls > 1)
-        return new Response(JSON.stringify({ user: { id: '1' } }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        })
-      return new Response(JSON.stringify({ retry_after: retryAfterSeconds, global }), {
+      if (calls > 1) return jsonResponse({ user: { id: '1' } }, { status: 200 })
+      return jsonResponse({ retry_after: retryAfterSeconds, global }, {
         status: 429,
         headers: {
-          'content-type': 'application/json',
           'retry-after': String(retryAfterSeconds),
           'x-ratelimit-scope': global ? 'global' : 'user',
           ...(global ? { 'x-ratelimit-global': 'true' } : {}),

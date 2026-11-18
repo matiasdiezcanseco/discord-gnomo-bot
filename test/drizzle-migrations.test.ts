@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { Pool } from 'pg'
+import { readMigrationFiles } from 'drizzle-orm/migrator'
 import { migrateMemoryDatabase } from '../src/database/migrate'
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
@@ -55,7 +56,7 @@ test(
     const pool = new Pool({ connectionString: url })
     const reset = () =>
       pool.query(
-        'DROP TABLE IF EXISTS pilot_memory_operations; DROP TABLE IF EXISTS pilot_memories CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE',
+        'DROP TABLE IF EXISTS channel_media, pilot_memory_operations, pilot_memories CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE',
       )
     try {
       await reset()
@@ -103,7 +104,7 @@ test(
       assert.equal(
         (await pool.query('SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations'))
           .rows[0].count,
-        1,
+        readMigrationFiles({ migrationsFolder: 'drizzle' }).length,
       )
       await pool.query(
         'DROP SCHEMA drizzle CASCADE; ALTER TABLE pilot_memories ALTER COLUMN content DROP NOT NULL',
