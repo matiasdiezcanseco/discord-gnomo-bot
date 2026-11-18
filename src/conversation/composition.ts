@@ -14,7 +14,8 @@ import { bucketCollection } from './collection-content'
 import { memoryCapabilities, type MemoryDependencies } from './explicit-memory'
 import { safeReader, type SafeReader } from '../web/safe-reader'
 import { attachedImages } from './attached-images'
-import { mediaCapabilities, s3MediaStore, type MediaObjectStore } from './media-library'
+import { mediaCapabilities } from './media-library'
+import { s3CatalogStore, type CatalogObjectStore } from './catalog-object-store'
 import { ScheduledNotices } from './scheduled-notices'
 import { aiSdkImages } from './image-generation'
 import { redisCooldown } from './paid-generation'
@@ -52,7 +53,7 @@ export interface RuntimeComposition {
   web?: SafeReader
   memory?: MemoryDependencies
   /** Defaults to the S3-compatible bucket from BUCKET_NAME/AWS_* configuration. */
-  mediaStore?: MediaObjectStore
+  mediaStore?: CatalogObjectStore
 }
 
 export function composeRuntimeConversation({
@@ -64,7 +65,7 @@ export function composeRuntimeConversation({
   model,
   web = safeReader(),
   memory,
-  mediaStore = s3MediaStore((key) => config.get<string>(key)),
+  mediaStore = s3CatalogStore((key) => config.get<string>(key)),
 }: RuntimeComposition) {
   const settings = runtimeSettings(config)
   // The environment promises; what was actually connected decides.

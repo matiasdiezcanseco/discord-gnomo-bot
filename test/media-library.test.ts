@@ -7,13 +7,12 @@ import sharp from 'sharp'
 import { migrateMemoryDatabase } from '../src/database/migrate'
 import { createConversation, type ModelInput, type ModelTurn } from '../src/conversation/harness'
 import { composeCapabilities } from '../src/conversation/capabilities'
+import { mediaCapabilities, queryTerms, rankMedia } from '../src/conversation/media-library'
 import {
-  mediaCapabilities,
-  queryTerms,
-  rankMedia,
-  s3MediaStore,
-  type MediaObjectStore,
-} from '../src/conversation/media-library'
+  s3CatalogStore as s3MediaStore,
+  type CatalogObjectStore as MediaObjectStore,
+} from '../src/conversation/catalog-object-store'
+import { queryTerms as catalogQueryTerms, rankCatalog } from '../src/conversation/catalog-search'
 import type { VerifiedImage } from '../src/conversation/attached-images'
 import type { Invocation } from '../src/core/conversation/invocation'
 import { normalizeInvocation, referencedImages } from '../src/modules/discord/normalize-invocation'
@@ -70,6 +69,22 @@ test('ranking prefers title/tag matches, then description, then vectors', () => 
   assert.deepEqual(
     rankMedia(rows, 'gato').map((row) => row.id),
     ['4', '2', '1'],
+  )
+})
+
+test('catalog ranking can find a clip by its transcript without image metadata', () => {
+  const clip = {
+    title: 'El grito',
+    tags: ['Pedro'],
+    description: 'Una frase de Pedro',
+    transcript: 'Esa canción no existe',
+    similarity: null,
+  }
+  const unrelated = { ...clip, title: 'El saludo', transcript: 'Buenos días' }
+
+  assert.deepEqual(
+    rankCatalog([unrelated, clip], catalogQueryTerms('La cancion'), (row) => row.transcript),
+    [clip],
   )
 })
 
