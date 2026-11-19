@@ -15,7 +15,12 @@ import { memoryCapabilities, type MemoryDependencies } from './explicit-memory'
 import { safeReader, type SafeReader } from '../web/safe-reader'
 import { attachedImages } from './attached-images'
 import { mediaCapabilities } from './media-library'
-import { s3CatalogStore, type CatalogObjectStore } from './catalog-object-store'
+import { audioCapabilities } from './audio-catalog'
+import {
+  catalogObjectReader,
+  s3CatalogStore,
+  type CatalogObjectStore,
+} from './catalog-object-store'
 import { ScheduledNotices } from './scheduled-notices'
 import { aiSdkImages } from './image-generation'
 import { redisCooldown } from './paid-generation'
@@ -134,6 +139,17 @@ export function composeRuntimeConversation({
           ? { pool: memory.pool, embedding: memory.embedding, store: mediaStore, loadImages }
           : undefined,
         settings.memoryOwnerId,
+        reauthorize,
+      ),
+      audio: audioCapabilities(
+        on.audio.enabled && memory && mediaStore
+          ? {
+              pool: memory.pool,
+              embedding: memory.embedding,
+              store: mediaStore,
+              read: catalogObjectReader(mediaStore),
+            }
+          : undefined,
         reauthorize,
       ),
       notices: on.reminders.enabled && redis ? new ScheduledNotices(redis) : undefined,

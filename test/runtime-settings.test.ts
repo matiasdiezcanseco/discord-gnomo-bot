@@ -44,12 +44,16 @@ test('each feature is off for the first requirement it is missing', () => {
   assert.deepEqual(off({ database: false }), [
     'memory: no database URL',
     'media: needs database and MEMORY_OWNER_ID',
+    'audio: no database URL',
   ])
   assert.deepEqual(off({ memoryOwner: false }), [
     'memory: MEMORY_OWNER_ID missing/invalid',
     'media: needs database and MEMORY_OWNER_ID',
   ])
-  assert.deepEqual(off({ mediaBucket: false }), ['media: BUCKET_NAME/AWS_* object storage'])
+  assert.deepEqual(off({ mediaBucket: false }), [
+    'media: BUCKET_NAME/AWS_* object storage',
+    'audio: BUCKET_NAME/AWS_* object storage',
+  ])
   assert.deepEqual(off({ collection: false }), ['collection: BUCKET_URL'])
   assert.deepEqual(off({ search: false }), ['search: BROWSERBASE_API_KEY'])
   assert.deepEqual(off({ birthdayChannel: false }), ['birthdays: GNOMOS_CHANNEL_ID'])
@@ -154,6 +158,21 @@ test('the startup summary names every feature the environment leaves off', () =>
   for (const feature of ['claims/reminders', 'image creation', 'voice messages'])
     assert.ok(disabled.includes(`${feature} (REDIS_URL)`), feature)
   assert.ok(!disabled.some((line) => line.startsWith('model')))
+})
+
+test('the startup summary reports the audio catalog by database and bucket presence', () => {
+  const bucket = {
+    BUCKET_NAME: 'gnomo-media',
+    AWS_ENDPOINT_URL_S3: 'https://fly.storage.tigris.dev',
+    AWS_ACCESS_KEY_ID: 'synthetic-key',
+    AWS_SECRET_ACCESS_KEY: 'synthetic-secret',
+  }
+  const database = { DATABASE_URL: 'postgresql://localhost/gnomo' }
+  assert.equal(runtimeSummary(source(bucket) as never).configured.AUDIO_CATALOG, false)
+  assert.equal(runtimeSummary(source(database) as never).configured.AUDIO_CATALOG, false)
+  const summary = runtimeSummary(source({ ...bucket, ...database }) as never)
+  assert.equal(summary.configured.AUDIO_CATALOG, true)
+  assert.doesNotMatch(JSON.stringify(summary), /synthetic-key|synthetic-secret|gnomo-media/)
 })
 
 /** Which generation tools the composed conversation actually offers the model. */

@@ -5,7 +5,7 @@ import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import type { Invocation } from '../core/conversation/invocation'
-import { defineCapability } from './catalog'
+import { defineCapability, type ReplyFile } from './catalog'
 import type { VoiceMetadata } from './voice-message'
 
 dayjs.extend(utc)
@@ -63,6 +63,14 @@ export interface GeneratedFile {
   data: Buffer
   /** Present only for audio delivered as a Discord voice message. */
   voice?: VoiceMetadata
+  transcript?: string
+}
+
+// The catalog can recover the spoken text from the file without putting it in the reply payload.
+const transcriptByFile = new WeakMap<ReplyFile, string>()
+
+export function generatedSpeechTranscript(file: ReplyFile): string | undefined {
+  return transcriptByFile.get(file)
 }
 
 export interface PaidGeneration<I> {
@@ -138,11 +146,13 @@ export function paidGeneration<I>({ cooldown, produce, words, ...identity }: Pai
         await reservation.release().catch(() => undefined)
         return { status: 'rejected' as const, message: words.rejected }
       }
-      context.attach({
+      const replyFile: ReplyFile = {
         name: `gnomo-${context.invocation.messageId}.${file.extension}`,
         attachment: file.data,
         ...(file.voice ? { voice: file.voice } : {}),
-      })
+      }
+      if (file.transcript !== undefined) transcriptByFile.set(replyFile, file.transcript)
+      context.attach(replyFile)
       return { status: 'created' as const, message: words.created }
     },
   })
