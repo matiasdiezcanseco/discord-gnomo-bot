@@ -124,6 +124,7 @@ export function composeRuntimeConversation({
           embedding: memory.embedding,
           store: mediaStore,
           read: catalogObjectReader(mediaStore),
+          ownerId: settings.memoryOwnerId,
         }
       : undefined,
     reauthorize,

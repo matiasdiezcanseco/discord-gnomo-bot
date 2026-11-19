@@ -22,6 +22,7 @@ export interface AudioDependencies {
   store: Pick<CatalogObjectStore, 'put' | 'remove'>
   read: CatalogObjectReader
   embedding?: MemoryEmbedding
+  ownerId?: string
 }
 
 const maxAudioBytes = 8 * 1024 * 1024
@@ -297,8 +298,85 @@ export function audioCatalog(
     },
   })
 
+  const forgetOutput = z.discriminatedUnion('outcome', [
+    z.strictObject({ outcome: z.literal('forgotten'), id: z.string() }),
+    z.strictObject({ outcome: z.literal('not_found') }),
+    z.strictObject({
+      outcome: z.enum(['invalid', 'denied', 'cleanup_failed']),
+      message: z.string(),
+    }),
+  ])
+  const forget = defineCapability({
+    name: 'audio_forget',
+    capability: 'audio.forget',
+    label: 'olvidar el audio',
+    scope: 'channel',
+    effect: 'write',
+    description: `Borra un audio guardado del catálogo de este canal por ID («olvida el audio <ID>»). ${onlyCurrentRequest} Usa el ID indicado o el que devuelve audio_search. Solo quien guardó el audio o el propietario del bot puede borrarlo. Confirma el borrado solo con forgotten. Si responde not_found, di que no encontraste ese audio en este canal.`,
+    input: z.strictObject({ id: text(100) }),
+    output: forgetOutput,
+    maxCalls: 1,
+    maxResultChars: 1000,
+    available: async () => !!dependencies,
+    verbatim: ({ status, value }) => {
+      if (status === 'denied') return 'No tienes permiso para borrar audios en este canal.'
+      if (status === 'invalid') return 'Usa el ID que devuelve audio_search.'
+      if (status === 'success') {
+        const result = forgetOutput.parse(value)
+        if (result.outcome === 'forgotten') return 'Olvidé el audio de este canal.'
+        if (result.outcome === 'not_found') return 'No encontré ese audio en este canal.'
+        return result.message
+      }
+      return 'No pude confirmar el borrado del audio.'
+    },
+    execute: async ({ id }, context) => {
+      if (!uuid.test(id))
+        return { outcome: 'invalid' as const, message: 'Usa el ID que devuelve audio_search.' }
+
+      const { invocation, signal } = context
+      const { pool, store, ownerId } = dependencies!
+      const inChannel = and(scope(invocation), eq(channelAudio.id, id))
+      return context.external(async () => {
+        const result = await memoryDatabase(pool).transaction(async (db) => {
+          await db.execute(sql`SET LOCAL statement_timeout='2000ms'`)
+          const [audio] = await db
+            .select({ authorId: channelAudio.authorId })
+            .from(channelAudio)
+            .where(inChannel)
+          if (!audio) return { outcome: 'not_found' as const }
+          if (audio.authorId !== invocation.requester.id && ownerId !== invocation.requester.id)
+            return {
+              outcome: 'denied' as const,
+              message: 'Solo quien guardó el audio o el propietario del bot puede borrarlo.',
+            }
+          if (!(await reauthorize(invocation, signal)))
+            return { outcome: 'denied' as const, message: 'Permisos actuales insuficientes.' }
+          signal.throwIfAborted()
+          const [deleted] = await db
+            .delete(channelAudio)
+            .where(and(inChannel, eq(channelAudio.authorId, audio.authorId)))
+            .returning({ id: channelAudio.id, objectKey: channelAudio.objectKey })
+          return deleted ?? { outcome: 'not_found' as const }
+        })
+
+        if ('outcome' in result) return result
+        // Once committed, finish the bucket cleanup even if the invocation has timed out.
+        try {
+          await store.remove(result.objectKey)
+        } catch (error) {
+          reportError('audio.remove', error, { invocationId: invocation.messageId })
+          return {
+            outcome: 'cleanup_failed' as const,
+            message: 'Quité el audio del catálogo, pero no pude borrar el archivo del bucket.',
+          }
+        }
+        return { outcome: 'forgotten' as const, id: result.id }
+      })
+    },
+  })
+
   return {
-    capabilities: [save, search, share],
+    capabilities: [save, search, share, forget],
     findSavedAudio: dependencies ? findSavedAudio : undefined,
   }
 }

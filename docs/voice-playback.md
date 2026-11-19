@@ -38,6 +38,12 @@ Para reproducir un audio recién generado, tiene que haberse creado en esa invoc
   o ID en el catálogo del canal de texto. Gnomo lo reproduce en voz o lo envía al chat si
   quien lo pidió está fuera de la llamada. Con «@Gnomo di que ganamos en el canal de voz
   y guarda el audio», el archivo generado se reproduce y se guarda en la misma invocación.
+- **Olvidar** (`audio_forget`). «@Gnomo olvida el audio <ID>» borra el audio de este canal
+  o hilo. Solo puede hacerlo quien lo guardó o el propietario indicado en `MEMORY_OWNER_ID`,
+  con permisos vigentes en el canal. Gnomo elimina primero la entrada del catálogo y después
+  el archivo del bucket. Tras borrar el archivo, la URL pública puede seguir sirviendo una
+  copia en caché durante hasta una hora. Si el bucket falla, Gnomo avisa y el audio queda
+  fuera del catálogo.
 
 Cada canal o hilo tiene su propio catálogo. [ADR 0003](adr/0003-channel-memory-ownership.md).
 Postgres guarda la metadata y la clave del objeto en `channel_audio`. Los bytes Ogg/Opus quedan

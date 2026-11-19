@@ -23,6 +23,7 @@ const saveInput = {
 }
 const spokenText = 'La misión terminó, causa.'
 const voice = { durationSecs: 1, waveform: '/wCA' }
+const owner = { id: '100000000000000002', username: 'owner' }
 const generateAndSave = (input = saveInput, text = spokenText) => [
   call('speech_generate', { text }),
   call('audio_save', input),
@@ -40,6 +41,7 @@ async function withCatalog(
     ): Promise<Reply[]>
     invocation: Invocation
     uploads: string[]
+    removals: { key: string; catalogEntryExists: boolean }[]
   }) => Promise<void>,
   options: {
     embedding?: MemoryEmbedding
@@ -47,12 +49,15 @@ async function withCatalog(
     savedCooldown?: RequesterCooldown
     speechCooldown?: RequesterCooldown
     sequential?: boolean
+    reauthorize?: () => Promise<boolean>
+    failRemoval?: boolean
   } = {},
 ) {
   const pool = new Pool({ connectionString: process.env.T10_DATABASE_URL })
   const bytes = await readFile('test/fixtures/tone-then-silence.ogg')
   const objects = new Map<string, Uint8Array>()
   const uploads: string[] = []
+  const removals: { key: string; catalogEntryExists: boolean }[] = []
   const invocation: Invocation = {
     messageId: randomUUID(),
     guildId: randomUUID(),
@@ -69,6 +74,7 @@ async function withCatalog(
         {
           pool,
           embedding: options.embedding,
+          ownerId: owner.id,
           async read(key) {
             const body = objects.get(key)
             assert.ok(body)
@@ -80,11 +86,17 @@ async function withCatalog(
               objects.set(key, body)
             },
             async remove(key) {
+              const { rowCount } = await pool.query(
+                'SELECT 1 FROM channel_audio WHERE object_key = $1',
+                [key],
+              )
+              removals.push({ key, catalogEntryExists: rowCount !== 0 })
+              if (options.failRemoval) throw new Error('Fake bucket unavailable')
               objects.delete(key)
             },
           },
         },
-        async () => true,
+        options.reauthorize ?? (async () => true),
       ),
       speech: {
         generator: {
@@ -145,7 +157,7 @@ async function withCatalog(
         plans.delete(request.messageId)
       }
     }
-    await run({ pool, objects, bytes, ask, invocation, uploads })
+    await run({ pool, objects, bytes, ask, invocation, uploads, removals })
   } finally {
     try {
       await pool.query('DELETE FROM channel_audio WHERE guild_id = $1', [invocation.guildId])
@@ -433,3 +445,118 @@ test('one speech allowance covers generating, playing and saving the same audio'
     },
   )
 })
+
+test('the author can forget an audio, removing it from the catalog and the bucket', dbTest, () =>
+  withCatalog(async ({ ask, objects, removals }) => {
+    const saved = modelAnswer(await ask('Di esto y guárdalo.', generateAndSave()))
+    assert.equal(saved.outcome, 'saved')
+    assert.equal(objects.size, 1)
+    const [key] = objects.keys()
+    const forgotten = await ask(`Olvida el audio ${saved.id}.`, [
+      call('audio_forget', { id: saved.id }),
+    ])
+    assert.equal(forgotten[0]?.content, 'Olvidé el audio de este canal.')
+    assert.deepEqual(removals, [{ key, catalogEntryExists: false }])
+    assert.equal(objects.size, 0)
+
+    const search = await ask('¿Qué audios tienes?', [call('audio_search', { query: '' })])
+    assert.deepEqual(modelAnswer(search), { outcome: 'none', records: [], limited: false })
+    const share = await ask(`Manda el audio ${saved.id}.`, [
+      call('audio_share', { selector: saved.id }),
+    ])
+    assert.deepEqual(modelAnswer(share), { outcome: 'not_found' })
+    assert.ok(share.every(({ files }) => !files?.length))
+  }),
+)
+
+test('the bot owner can forget audio saved by another member', dbTest, () =>
+  withCatalog(async ({ ask, objects }) => {
+    const saved = modelAnswer(await ask('Di esto y guárdalo.', generateAndSave()))
+    assert.equal(saved.outcome, 'saved')
+    const forgotten = await ask(
+      `Olvida el audio ${saved.id}.`,
+      [call('audio_forget', { id: saved.id })],
+      { requester: owner },
+    )
+    assert.equal(forgotten[0]?.content, 'Olvidé el audio de este canal.')
+    assert.equal(objects.size, 0)
+  }),
+)
+
+test('another member cannot forget audio they did not save', dbTest, () =>
+  withCatalog(async ({ ask, objects, removals }) => {
+    const saved = modelAnswer(await ask('Di esto y guárdalo.', generateAndSave()))
+    assert.equal(saved.outcome, 'saved')
+    const member = { id: '100000000000000003', username: 'juan' }
+    const refused = await ask(
+      `Olvida el audio ${saved.id}.`,
+      [call('audio_forget', { id: saved.id })],
+      { requester: member },
+    )
+    assert.equal(
+      refused[0]?.content,
+      'Solo quien guardó el audio o el propietario del bot puede borrarlo.',
+    )
+    assert.deepEqual(removals, [])
+    assert.equal(objects.size, 1)
+    const search = await ask('¿Qué audios tienes?', [call('audio_search', { query: '' })])
+    assert.equal(modelAnswer(search).records[0]?.id, saved.id)
+  }),
+)
+
+test('even the bot owner cannot forget an audio ID from another channel', dbTest, () =>
+  withCatalog(async ({ ask, objects, removals }) => {
+    const saved = modelAnswer(await ask('Di esto y guárdalo.', generateAndSave()))
+    assert.equal(saved.outcome, 'saved')
+    const missing = await ask(
+      `Olvida el audio ${saved.id}.`,
+      [call('audio_forget', { id: saved.id })],
+      { requester: owner, channelId: 'thread' },
+    )
+    assert.equal(missing[0]?.content, 'No encontré ese audio en este canal.')
+    assert.deepEqual(removals, [])
+    assert.equal(objects.size, 1)
+    const search = await ask('¿Qué audios tienes?', [call('audio_search', { query: '' })])
+    assert.equal(modelAnswer(search).records[0]?.id, saved.id)
+  }),
+)
+
+test('forget refuses the author if the permission recheck fails', dbTest, () => {
+  let allowed = true
+  return withCatalog(
+    async ({ ask, objects, removals }) => {
+      const saved = modelAnswer(await ask('Di esto y guárdalo.', generateAndSave()))
+      assert.equal(saved.outcome, 'saved')
+      allowed = false
+      const refused = await ask(`Olvida el audio ${saved.id}.`, [
+        call('audio_forget', { id: saved.id }),
+      ])
+      assert.equal(refused[0]?.content, 'Permisos actuales insuficientes.')
+      assert.deepEqual(removals, [])
+      assert.equal(objects.size, 1)
+      const search = await ask('¿Qué audios tienes?', [call('audio_search', { query: '' })])
+      assert.equal(modelAnswer(search).records[0]?.id, saved.id)
+    },
+    { reauthorize: async () => allowed },
+  )
+})
+
+test('forget reports a bucket failure without restoring the catalog entry', dbTest, () =>
+  withCatalog(
+    async ({ ask, objects }) => {
+      const saved = modelAnswer(await ask('Di esto y guárdalo.', generateAndSave()))
+      assert.equal(saved.outcome, 'saved')
+      const forgotten = await ask(`Olvida el audio ${saved.id}.`, [
+        call('audio_forget', { id: saved.id }),
+      ])
+      assert.equal(
+        forgotten[0]?.content,
+        'Quité el audio del catálogo, pero no pude borrar el archivo del bucket.',
+      )
+      const search = await ask('¿Qué audios tienes?', [call('audio_search', { query: '' })])
+      assert.equal(modelAnswer(search).outcome, 'none')
+      assert.equal(objects.size, 1)
+    },
+    { failRemoval: true },
+  ),
+)
