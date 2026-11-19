@@ -47,12 +47,16 @@ export class ConsoleSession {
   /** Set by the terminal; events before that are discarded. */
   output: (event: ConsoleEvent) => void = () => undefined
   readonly voicePlayback: VoicePlaybackDependencies = {
-    location: async ({ signal }) => {
+    location: async ({ signal }, target) => {
       signal.throwIfAborted()
+      const channelId = CONSOLE_DEFAULTS.voiceChannelId
+      const channelName = 'Sala de prueba'
+      if (target && target !== channelId && target.toLowerCase() !== channelName.toLowerCase())
+        return { status: 'invalid', message: 'No encontré ese canal de voz en este servidor.' }
       return {
         status: 'found',
-        channelId: CONSOLE_DEFAULTS.voiceChannelId,
-        channelName: 'Sala de prueba',
+        channelId,
+        channelName,
       }
     },
     stage: {
