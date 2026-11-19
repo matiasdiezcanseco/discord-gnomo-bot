@@ -15,7 +15,7 @@ import { memoryCapabilities, type MemoryDependencies } from './explicit-memory'
 import { safeReader, type SafeReader } from '../web/safe-reader'
 import { attachedImages } from './attached-images'
 import { mediaCapabilities } from './media-library'
-import { audioCapabilities } from './audio-catalog'
+import { audioCatalog } from './audio-catalog'
 import {
   catalogObjectReader,
   s3CatalogStore,
@@ -117,6 +117,17 @@ export function composeRuntimeConversation({
             voice: settings.speech.voice,
           })
         : undefined
+  const audio = audioCatalog(
+    on.audio.enabled && memory && mediaStore
+      ? {
+          pool: memory.pool,
+          embedding: memory.embedding,
+          store: mediaStore,
+          read: catalogObjectReader(mediaStore),
+        }
+      : undefined,
+    reauthorize,
+  )
   return createConversation({
     loadImages,
     loadContext: async (context) => history(context, 30),
@@ -141,19 +152,21 @@ export function composeRuntimeConversation({
         settings.memoryOwnerId,
         reauthorize,
       ),
-      audio: audioCapabilities(
-        on.audio.enabled && memory && mediaStore
+      audio,
+      notices: on.reminders.enabled && redis ? new ScheduledNotices(redis) : undefined,
+      voicePlayback:
+        platform.voicePlayback && redis
           ? {
-              pool: memory.pool,
-              embedding: memory.embedding,
-              store: mediaStore,
-              read: catalogObjectReader(mediaStore),
+              ...platform.voicePlayback,
+              savedCooldown: audio.findSavedAudio
+                ? redisCooldown(
+                    redis,
+                    settings.savedAudioCooldownSeconds,
+                    'gnomo:saved-audio-quota:v1',
+                  )
+                : undefined,
             }
           : undefined,
-        reauthorize,
-      ),
-      notices: on.reminders.enabled && redis ? new ScheduledNotices(redis) : undefined,
-      voicePlayback: on.speech.enabled && speechGenerator ? platform.voicePlayback : undefined,
       images:
         on.images.enabled && redis
           ? {

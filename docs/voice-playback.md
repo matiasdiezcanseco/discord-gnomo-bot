@@ -4,7 +4,7 @@ Al pedir «@Gnomo únete y di X», Gnomo genera el audio con su proveedor habitu
 
 Si la persona está fuera de una llamada, el modelo recibe `delivered: 'chat'` y Gnomo envía un mensaje de voz. Si falla la conexión antes de reproducir, el bot avisa y envía el mismo archivo al chat. Si se corta una reproducción ya iniciada, el bot deja el canal y registra el fallo.
 
-Solo se puede reproducir el audio generado para la invocación actual. Se mantienen el costo, el límite de 30 segundos y la espera por persona de la generación de voz. La etapa de voz admite una reproducción a la vez por servidor. La reproducción usa `@discordjs/voice` con DAVE y lee los paquetes Opus del Ogg sin transcodificar.
+Para reproducir un audio recién generado, tiene que haberse creado en esa invocación. Se mantienen el costo, el límite de 30 segundos y la espera por persona de la generación de voz. La etapa de voz admite una reproducción a la vez por servidor. La reproducción usa `@discordjs/voice` con DAVE y lee los paquetes Opus del Ogg sin transcodificar.
 
 `VOICE_PLAYBACK` en el resumen de arranque indica si el proceso tiene una etapa de voz. En Discord se desactiva si la dependencia de voz o su biblioteca nativa DAVE no carga. La conexión tiene un límite de 10 segundos, configurable mediante `VOICE_CONNECT_TIMEOUT_MS` entre 1 000 y 15 000 ms. La consola simula que la persona está en **Sala de prueba** y muestra el ID del canal y la duración del audio.
 
@@ -29,6 +29,10 @@ Solo se puede reproducir el audio generado para la invocación actual. Se mantie
   y transcripción. Con `PILOT_MEMORY_EMBEDDING_MODEL` se añade similitud vectorial.
 - **Compartir** (`audio_share`). «@Gnomo manda el audio de la victoria por el chat» envía
   la mejor coincidencia por descripción o ID como un mensaje de voz con duración y forma de onda.
+- **Reproducir** (`voice_play`). «@Gnomo pon el audio de la victoria» busca por descripción
+  o ID en el catálogo del canal de texto. Gnomo lo reproduce en voz o lo envía al chat si
+  quien lo pidió está fuera de la llamada. Con «@Gnomo di que ganamos en el canal de voz
+  y guarda el audio», el archivo generado se reproduce y se guarda en la misma invocación.
 
 Cada canal o hilo tiene su propio catálogo. [ADR 0003](adr/0003-channel-memory-ownership.md).
 Postgres guarda la metadata y la clave del objeto en `channel_audio`. Los bytes Ogg/Opus quedan
@@ -49,3 +53,8 @@ El resumen de arranque muestra `AUDIO_CATALOG` como booleano. Con la base de dat
 bucket sin configurar, las herramientas del catálogo quedan ocultas. La creación de un
 audio sigue usando la configuración y el límite de `speech_generate`. Buscar y compartir
 usan el audio existente.
+
+`SAVED_AUDIO_COOLDOWN_SECONDS` controla la espera entre reproducciones de audios guardados
+en voz para cada persona en cada servidor. El valor predeterminado es 60 segundos y acepta
+enteros de 1 a 3600. Enviar el audio al chat cuando la persona está fuera de una llamada
+no usa esta espera. Para un audio recién generado solo se aplica el límite de `speech_generate`.
