@@ -136,6 +136,14 @@ async function withCatalog(
             return { text: '', calls: [plan[results.length]] }
           if (!results.length) return { text: '', calls: plan }
           const result = results.at(-1)!
+          if (
+            result.name === 'voice_play' &&
+            typeof result.value === 'object' &&
+            result.value &&
+            'status' in result.value &&
+            (result.value.status === 'not_found' || result.value.status === 'rate_limited')
+          )
+            return { calls: [], text: '' }
           return { calls: [], text: JSON.stringify(result.value ?? result.status) }
         },
       },
@@ -342,7 +350,7 @@ test('playing an audio by ID schedules it from the invocation channel only', dbT
     assert.ok(replies.every(({ files }) => !files?.length))
 
     const missing = await ask('Pon este audio en voz.', play, { channelId: 'thread' })
-    assert.match(modelAnswer(missing).message, /no encontré/i)
+    assert.equal(missing[0]?.content, 'No encontré ese audio guardado en este canal.')
     assert.ok(missing.every(({ voicePlayback, files }) => !voicePlayback && !files?.length))
   }),
 )
@@ -368,7 +376,10 @@ test(
           { name: `gnomo-${saved.id}.ogg`, attachment: bytes, voice },
         ])
       },
-      { location: async () => ({ status: 'absent' }) },
+      {
+        location: async () => ({ status: 'absent' }),
+        savedCooldown: { reserve: async () => ({ granted: false, retryInMs: 5000 }) },
+      },
     ),
 )
 
@@ -383,13 +394,10 @@ test('repeat playback in the same server reports the wait to that requester', db
       assert.ok(first.some(({ voicePlayback }) => voicePlayback))
       const repeated = await ask('Pon el audio del grito otra vez.', play, { channelId: 'thread' })
       assert.ok(repeated.every(({ voicePlayback, files }) => !voicePlayback && !files?.length))
-      const result = modelAnswer(repeated)
-      assert.equal(result.status, 'rate_limited')
-      assert.equal(result.retryInSeconds, 23)
-      assert.match(result.message, /23 segundos/)
+      assert.equal(repeated[0]?.content, 'Espera 23 segundos para reproducir otro audio guardado.')
 
       const other = await ask('Pon el audio del grito.', play, {
-        requester: { id: '100000000000000002', username: 'pedro' },
+        requester: { id: '100000000000000004', username: 'pedro' },
       })
       assert.ok(other.some(({ voicePlayback }) => voicePlayback))
     },
