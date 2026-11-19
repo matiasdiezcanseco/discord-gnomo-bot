@@ -1,10 +1,29 @@
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { readBoundedBody } from '../web/bounded-body'
 
 /** Where a catalog's bytes live. */
 export interface CatalogObjectStore {
   put(key: string, body: Uint8Array, contentType: string, signal: AbortSignal): Promise<void>
   remove(key: string): Promise<void>
   publicUrl(key: string): string
+}
+
+export type CatalogObjectReader = (
+  key: string,
+  maxBytes: number,
+  signal: AbortSignal,
+) => Promise<Buffer>
+
+/** Only reads a catalog key from the configured public bucket. */
+export function catalogObjectReader(store: CatalogObjectStore): CatalogObjectReader {
+  return async (key, maxBytes, signal) => {
+    const response = await fetch(store.publicUrl(key), { signal, redirect: 'error' })
+    if (!response.ok || !response.body) {
+      await response.body?.cancel()
+      throw new Error('Catalog object unavailable')
+    }
+    return readBoundedBody(response.body, maxBytes, signal)
+  }
 }
 
 /** Use a catalog-generated ID and a format extension without the leading dot. */

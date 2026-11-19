@@ -16,6 +16,8 @@ export interface ReplyFile {
   attachment: Buffer
   /** Ogg/Opus audio to deliver as a Discord voice message: always sent alone, without text. */
   voice?: import('./voice-message').VoiceMetadata
+  /** The exact text passed to the speech generator, available within this invocation. */
+  transcript?: string
 }
 
 export interface ExecutionContext {

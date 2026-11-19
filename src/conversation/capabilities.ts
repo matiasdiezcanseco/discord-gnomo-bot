@@ -7,6 +7,7 @@ import { messagesHistory, type HistoryReader } from './channel-history'
 import { collectionCapabilities, type CollectionSource } from './collection-content'
 import { memoryCapabilities } from './explicit-memory'
 import { mediaCapabilities } from './media-library'
+import { audioCapabilities } from './audio-catalog'
 import { webRead } from './web-read'
 import { safeReader, type SafeReader } from '../web/safe-reader'
 import { presenceCapability, voiceCapability, type LiveMembers } from './live-members'
@@ -31,6 +32,7 @@ export interface CapabilityDependencies {
   web?: SafeReader
   memory?: ReturnType<typeof memoryCapabilities>
   media?: ReturnType<typeof mediaCapabilities>
+  audio?: ReturnType<typeof audioCapabilities>
   notices?: ScheduledNotices
   images?: { generator?: ImageGenerator; cooldown?: RequesterCooldown }
   speech?: { generator?: SpeechGenerator; cooldown?: RequesterCooldown; cooldownMinutes?: number }
@@ -46,6 +48,7 @@ export function composeCapabilities({
   web = safeReader(),
   memory,
   media,
+  audio,
   notices,
   images,
   speech,
@@ -63,6 +66,7 @@ export function composeCapabilities({
     ...searchCapabilities(search),
     ...(memory ?? memoryCapabilities()),
     ...(media ?? mediaCapabilities()),
+    ...(audio ?? audioCapabilities()),
     ...(members ? memberCapabilities(members) : []),
     ...(live?.presence ? [presenceCapability(live.presence)] : []),
     ...(live?.voice ? [voiceCapability(live.voice)] : []),

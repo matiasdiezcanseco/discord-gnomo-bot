@@ -15,6 +15,13 @@
       "when": 1794197540489,
       "tag": "0001_channel_media",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795046499636,
+      "tag": "0002_channel_audio",
+      "breakpoints": true
     }
   ]
 }

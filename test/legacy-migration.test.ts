@@ -24,7 +24,7 @@ test(
     try {
       assert.equal(new URL(process.env.T11_DATABASE_URL!).pathname, '/gnomo_t11')
       await pool.query(
-        'DROP SCHEMA IF EXISTS memory_migration CASCADE; DROP TABLE IF EXISTS public.memories, channel_media, pilot_memory_operations, pilot_memories CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE',
+        'DROP SCHEMA IF EXISTS memory_migration CASCADE; DROP TABLE IF EXISTS public.memories, channel_audio, channel_media, pilot_memory_operations, pilot_memories CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE',
       )
       await migrateMemoryDatabase(pool)
       await pool.query(`CREATE TABLE memories (id text PRIMARY KEY, key text, content text,

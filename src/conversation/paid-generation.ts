@@ -63,6 +63,7 @@ export interface GeneratedFile {
   data: Buffer
   /** Present only for audio delivered as a Discord voice message. */
   voice?: VoiceMetadata
+  transcript?: string
 }
 
 export interface PaidGeneration<I> {
@@ -142,6 +143,7 @@ export function paidGeneration<I>({ cooldown, produce, words, ...identity }: Pai
         name: `gnomo-${context.invocation.messageId}.${file.extension}`,
         attachment: file.data,
         ...(file.voice ? { voice: file.voice } : {}),
+        ...(file.transcript === undefined ? {} : { transcript: file.transcript }),
       })
       return { status: 'created' as const, message: words.created }
     },

@@ -56,11 +56,14 @@ test(
     const pool = new Pool({ connectionString: url })
     const reset = () =>
       pool.query(
-        'DROP TABLE IF EXISTS channel_media, pilot_memory_operations, pilot_memories CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE',
+        'DROP TABLE IF EXISTS channel_audio, channel_media, pilot_memory_operations, pilot_memories CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE',
       )
     try {
       await reset()
       await migrateMemoryDatabase(pool)
+      assert.ok(
+        (await pool.query("SELECT to_regclass('public.channel_audio') AS name")).rows[0].name,
+      )
       assert.match(
         execFileSync(
           process.execPath,
@@ -96,6 +99,9 @@ test(
           .content,
       )
       await Promise.all([migrateMemoryDatabase(pool), migrateMemoryDatabase(pool)])
+      assert.ok(
+        (await pool.query("SELECT to_regclass('public.channel_audio') AS name")).rows[0].name,
+      )
       const recalled = JSON.parse(
         (await memoryApp(pool).ask('busca recuerdos: Portal')).replies[0].content,
       )
