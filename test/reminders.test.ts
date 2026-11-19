@@ -256,6 +256,7 @@ test(
       client: client,
       config: config,
       redis: redis,
+      discordFetch: async () => Response.json([]),
       model: planned({
         [origin.content]: inTwoMinutes,
         'recuérdame 2026-11-06 a las 08:00 tomar agua': {

@@ -93,6 +93,7 @@ test(
           config: config,
           redis: redis,
           model: commandModel(),
+          discordFetch: async () => Response.json([]),
           memory: { pool, embedding: { model: 'test-3d', embed: async () => [1, 0, 0] } },
         })
         await app.handle(
