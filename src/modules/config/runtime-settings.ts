@@ -68,6 +68,7 @@ export function runtimeSettings(source: SettingsSource) {
       1000,
       MAX_VOICE_CONNECT_TIMEOUT_MS,
     ),
+    savedAudioCooldownSeconds: integer('SAVED_AUDIO_COOLDOWN_SECONDS', 60, 1, 3600),
     audioUpload: {
       maxBytes: integer('AUDIO_UPLOAD_MAX_BYTES', 8 * 1024 * 1024, 1, 16 * 1024 * 1024),
       maxSeconds: integer('AUDIO_UPLOAD_MAX_SECONDS', 60, 1, 120),

@@ -1,11 +1,20 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { MessageFlags, PermissionFlagsBits, type Message } from 'discord.js'
+import {
+  ChannelType,
+  Collection,
+  MessageFlags,
+  PermissionFlagsBits,
+  PermissionsBitField,
+  type Client,
+  type Message,
+} from 'discord.js'
 import { composeCapabilities } from '../src/conversation/capabilities'
 import { createConversation, type ModelInput, type Reply } from '../src/conversation/harness'
 import type { Invocation } from '../src/core/conversation/invocation'
 import type { VoicePlaybackDependencies } from '../src/conversation/voice-playback'
 import { replyWithPlayback } from '../src/modules/discord/voice-reply'
+import { discordVoiceLocation } from '../src/modules/discord/voice-stage'
 import type { HistoryResult } from '../src/conversation/channel-history'
 
 const invocation: Invocation = {
@@ -21,19 +30,23 @@ const audio = Buffer.from('generated audio')
 const voice = { durationSecs: 3, waveform: 'AA==' }
 
 async function conversation(
-  location: Awaited<ReturnType<VoicePlaybackDependencies['location']>>,
+  location:
+    | VoicePlaybackDependencies['location']
+    | Awaited<ReturnType<VoicePlaybackDependencies['location']>>,
   {
     withStage = true,
     generateFirst = true,
     busy = false,
     content = invocation.content,
     history,
+    channel,
   }: {
     withStage?: boolean
     generateFirst?: boolean
     busy?: boolean
     content?: string
     history?: HistoryResult
+    channel?: string
   } = {},
 ) {
   const replies: Reply[] = []
@@ -53,11 +66,7 @@ async function conversation(
       voicePlayback: withStage
         ? {
             stage: { isBusy: () => busy, play: async () => ({ status: 'played' }) },
-            location: async ({ invocation: origin }) => {
-              assert.equal(origin.requester.id, 'ana')
-              assert.equal(origin.guildId, 'guild')
-              return location
-            },
+            location: typeof location === 'function' ? location : async () => location,
           }
         : undefined,
     }),
@@ -75,7 +84,7 @@ async function conversation(
         if (!turn.results.some((result) => result.id === 'play') && withStage)
           return {
             text: '',
-            calls: [{ id: 'play', name: 'voice_play', input: { audio: 'generated' } }],
+            calls: [{ id: 'play', name: 'voice_play', input: { audio: 'generated', channel } }],
           }
         return { text: '', calls: [] }
       },
@@ -89,6 +98,108 @@ async function conversation(
 }
 
 const general = { status: 'found', channelId: 'voice', channelName: 'General' } as const
+const namedVoiceId = '123456789012345678'
+
+function discordLocation({
+  channelType = ChannelType.GuildVoice,
+  channelGuildId = invocation.guildId,
+  requesterMissing,
+  botMissing,
+}: {
+  channelType?: ChannelType
+  channelGuildId?: string
+  requesterMissing?: bigint
+  botMissing?: bigint
+} = {}) {
+  const { ViewChannel, Connect, Speak } = PermissionFlagsBits
+  const voiceChannel = {
+    id: namedVoiceId,
+    name: 'General',
+    type: channelType,
+    permissionsFor: (member: { id: string }) =>
+      new PermissionsBitField([ViewChannel, Connect, Speak]).remove(
+        (member.id === 'bot' ? botMissing : requesterMissing) ?? 0n,
+      ),
+  }
+  const channels = new Collection([[namedVoiceId, voiceChannel]])
+  const client = {
+    isReady: () => true,
+    user: { id: 'bot' },
+    guilds: {
+      cache: new Collection([
+        [
+          invocation.guildId,
+          {
+            available: true,
+            channels: {
+              cache: channelGuildId === invocation.guildId ? channels : new Collection(),
+            },
+            members: {
+              cache: new Collection([[invocation.requester.id, invocation.requester]]),
+              me: { id: 'bot' },
+            },
+            voiceStates: { cache: new Collection() },
+          },
+        ],
+        ...(channelGuildId !== invocation.guildId
+          ? [[channelGuildId, { available: true, channels: { cache: channels } }] as const]
+          : []),
+      ]),
+    },
+  } as unknown as Client
+  return discordVoiceLocation(client)
+}
+
+test('a member outside a call can send Gnomo to a named voice channel in their server', async () => {
+  const { replies } = await conversation(discordLocation(), {
+    content: 've a General y di que Juan perdió',
+    channel: 'general',
+  })
+  assert.equal(replies[0].content, 'Reproduciendo en General.')
+  assert.equal(replies[0].voicePlayback?.channelId, namedVoiceId)
+  assert.equal(replies[0].files, undefined)
+})
+
+test('a channel ID can target only a normal voice channel in the invocation’s server', async () => {
+  const { replies } = await conversation(discordLocation(), { channel: namedVoiceId })
+  assert.equal(replies[0].voicePlayback?.channelId, namedVoiceId)
+
+  for (const [location, channel] of [
+    [discordLocation({ channelGuildId: 'another-guild' }), namedVoiceId],
+    [discordLocation({ channelType: ChannelType.GuildText }), namedVoiceId],
+    [discordLocation({ channelType: ChannelType.GuildStageVoice }), 'General'],
+    [discordLocation(), 'Unknown'],
+  ] as const) {
+    const { replies, turns } = await conversation(location, { channel })
+    assert.equal((turns.at(-1)?.results.at(-1)?.value as { status: string }).status, 'invalid')
+    assert.ok(replies.every((reply) => !reply.voicePlayback))
+  }
+})
+
+test('a member cannot send Gnomo to a voice channel they cannot see or join', async () => {
+  for (const requesterMissing of [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect]) {
+    const { replies, turns } = await conversation(discordLocation({ requesterMissing }), {
+      channel: 'General',
+    })
+    assert.equal((turns.at(-1)?.results.at(-1)?.value as { status: string }).status, 'forbidden')
+    assert.ok(replies.every((reply) => !reply.voicePlayback))
+  }
+})
+
+test('Gnomo identifies each missing bot permission when it cannot enter or speak', async () => {
+  for (const permission of ['ViewChannel', 'Connect', 'Speak'] as const) {
+    const { replies, turns } = await conversation(
+      discordLocation({ botMissing: PermissionFlagsBits[permission] }),
+      { channel: 'General' },
+    )
+    assert.deepEqual(turns.at(-1)?.results.at(-1)?.value, {
+      status: 'forbidden',
+      message: `Me falta este permiso en el canal de voz: ${permission}.`,
+    })
+    assert.equal(replies[0].content, `Me falta este permiso en el canal de voz: ${permission}.`)
+    assert.ok(replies.every((reply) => !reply.voicePlayback))
+  }
+})
 
 test('generated speech goes to the requester’s current voice channel once, with a chat confirmation', async () => {
   const { replies, reservations } = await conversation(general)
@@ -150,8 +261,9 @@ test('a playback instruction from history cannot play an audio produced outside 
 test('an active playback stays in its call and the new audio stays in chat', async () => {
   const { replies, turns } = await conversation(general, { busy: true })
   assert.equal((turns.at(-1)?.results.at(-1)?.value as { status: string }).status, 'busy')
-  assert.equal(replies[0].files?.[0].attachment, audio)
-  assert.equal(replies[0].voicePlayback, undefined)
+  assert.equal(replies[0].content, 'Ya estoy reproduciendo otro audio en este servidor.')
+  assert.equal(replies[1].files?.[0].attachment, audio)
+  assert.ok(replies.every((reply) => !reply.voicePlayback))
 })
 
 function discordOrigin() {
@@ -212,6 +324,53 @@ test('a connection failure before playback posts a fallback note and the same au
       files: [{ name: 'gnomo-message.ogg', data: audio, contentType: 'audio/ogg' }],
     },
   ])
+})
+
+test('a permission lost before playback is named in the chat fallback', async () => {
+  const {
+    replies: [reply],
+  } = await conversation(general)
+  const { text, posted, message } = discordOrigin()
+  await replyWithPlayback(
+    message,
+    reply,
+    {
+      isBusy: () => false,
+      async play() {
+        return {
+          status: 'failed',
+          started: false,
+          reason: 'forbidden',
+          message: 'Me falta este permiso en el canal de voz: Speak.',
+        }
+      },
+    },
+    new AbortController().signal,
+    () => {},
+  )
+  assert.deepEqual(text, ['Me falta este permiso en el canal de voz: Speak. Lo envío por el chat.'])
+  assert.equal(posted.length, 1)
+})
+
+test('if the guild becomes busy before delivery, Discord reports busy and keeps the audio in chat', async () => {
+  const {
+    replies: [reply],
+  } = await conversation(general)
+  const { text, posted, message } = discordOrigin()
+  await replyWithPlayback(
+    message,
+    reply,
+    {
+      isBusy: () => true,
+      play: async () => ({ status: 'failed', started: false, reason: 'busy' }),
+    },
+    new AbortController().signal,
+    () => {},
+  )
+  assert.deepEqual(text, [
+    'Ya estoy reproduciendo otro audio en este servidor. Lo envío por el chat.',
+  ])
+  assert.equal(posted.length, 1)
 })
 
 test('Discord confirms when audio starts and logs an interruption without posting a duplicate', async () => {

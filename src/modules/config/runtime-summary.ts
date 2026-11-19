@@ -38,6 +38,7 @@ export function runtimeSummary(config: Pick<ConfigService, 'get'>, voiceStageAva
           speechVoice: defaulted('OPENAI_SPEECH_VOICE', settings.speech.voice),
         }),
     speechCooldownMinutes: settings.speech.cooldownMinutes,
+    savedAudioCooldownSeconds: settings.savedAudioCooldownSeconds,
     timeoutMs: settings.timeoutMs,
     synthesisTimeoutMs: settings.synthesisTimeoutMs,
     concurrency: settings.concurrency,

@@ -24,6 +24,7 @@ export interface AudioDependencies {
   read: CatalogObjectReader
   embedding?: MemoryEmbedding
   upload?: AudioUploadDependencies
+  ownerId?: string
 }
 
 const maxAudioBytes = 8 * 1024 * 1024
@@ -73,7 +74,12 @@ function generatedAudio(context: ExecutionContext) {
   }
 }
 
-export function audioCapabilities(
+export const savedAudioSelector = z.union([
+  z.strictObject({ id: text(200) }),
+  z.strictObject({ query: text(200) }),
+])
+
+export function audioCatalog(
   dependencies?: AudioDependencies,
   reauthorize: (invocation: Invocation, signal: AbortSignal) => Promise<boolean> = async () =>
     false,
@@ -93,8 +99,8 @@ export function audioCapabilities(
     }
   }
 
-  async function find(query: string, context: ExecutionContext, limit: number) {
-    const exactId = uuid.test(query)
+  async function find(query: string, context: ExecutionContext, limit: number, exactId: boolean) {
+    if (exactId && !uuid.test(query)) return []
     const embedded = query && !exactId ? await embed(query, context) : null
     const rows = await memoryDatabase(dependencies!.pool).transaction(async (db) => {
       await db.execute(sql`SET LOCAL statement_timeout='2000ms'`)
@@ -126,6 +132,32 @@ export function audioCapabilities(
         ? rows
         : rankCatalog(rows, queryTerms(query, audioStopwords), (row) => row.transcript)
     return ranked.slice(0, limit)
+  }
+
+  async function findSavedAudio(
+    selector: z.infer<typeof savedAudioSelector>,
+    context: ExecutionContext,
+  ) {
+    const byId = 'id' in selector
+    const [audio] = await find(byId ? selector.id : selector.query, context, 1, byId)
+    if (!audio) return undefined
+    return {
+      id: audio.id,
+      title: audio.title,
+      async load() {
+        if (audio.sizeBytes > maxAudioBytes) throw new Error('Saved audio exceeds size limit')
+        const bytes = await context.external(() =>
+          dependencies!.read(audio.objectKey, audio.sizeBytes, context.signal),
+        )
+        if (bytes.length !== audio.sizeBytes || digest(bytes) !== audio.sha256)
+          throw new Error('Saved audio does not match its catalog entry')
+        return {
+          name: `gnomo-${audio.id}.ogg`,
+          attachment: bytes,
+          voice: { durationSecs: audio.durationMs / 1000, waveform: audio.waveform },
+        }
+      },
+    }
   }
 
   const save = defineCapability({
@@ -257,7 +289,7 @@ export function audioCapabilities(
     maxResultChars: 16000,
     available: async () => !!dependencies,
     execute: async ({ query }, context) => {
-      const found = await find(query, context, searchLimit + 1)
+      const found = await find(query, context, searchLimit + 1, uuid.test(query))
       return {
         outcome: found.length ? 'found' : 'none',
         records: found.slice(0, searchLimit).map(({ id, title, description, durationMs }) => ({
@@ -286,22 +318,96 @@ export function audioCapabilities(
     maxResultChars: 1000,
     available: async () => !!dependencies,
     execute: async ({ selector }, context) => {
-      const [audio] = await find(selector, context, 1)
-      if (!audio) return { outcome: 'not_found' as const }
-      if (audio.sizeBytes > maxAudioBytes) throw new Error('Saved audio exceeds size limit')
-      const bytes = await context.external(() =>
-        dependencies!.read(audio.objectKey, audio.sizeBytes, context.signal),
+      const audio = await findSavedAudio(
+        uuid.test(selector) ? { id: selector } : { query: selector },
+        context,
       )
-      if (bytes.length !== audio.sizeBytes || digest(bytes) !== audio.sha256)
-        throw new Error('Saved audio does not match its catalog entry')
-      context.attach?.({
-        name: `gnomo-${audio.id}.ogg`,
-        attachment: bytes,
-        voice: { durationSecs: audio.durationMs / 1000, waveform: audio.waveform },
-      })
+      if (!audio) return { outcome: 'not_found' as const }
+      const file = await audio.load()
+      context.attach?.(file)
       return { outcome: 'shared' as const, id: audio.id, title: audio.title }
     },
   })
 
-  return [save, search, share]
+  const forgetOutput = z.discriminatedUnion('outcome', [
+    z.strictObject({ outcome: z.literal('forgotten'), id: z.string() }),
+    z.strictObject({ outcome: z.literal('not_found') }),
+    z.strictObject({
+      outcome: z.enum(['invalid', 'denied', 'cleanup_failed']),
+      message: z.string(),
+    }),
+  ])
+  const forget = defineCapability({
+    name: 'audio_forget',
+    capability: 'audio.forget',
+    label: 'olvidar el audio',
+    scope: 'channel',
+    effect: 'write',
+    description: `Borra un audio guardado del catálogo de este canal por ID («olvida el audio <ID>»). ${onlyCurrentRequest} Usa el ID indicado o el que devuelve audio_search. Solo quien guardó el audio o el propietario del bot puede borrarlo. Confirma el borrado solo con forgotten. Si responde not_found, di que no encontraste ese audio en este canal.`,
+    input: z.strictObject({ id: text(100) }),
+    output: forgetOutput,
+    maxCalls: 1,
+    maxResultChars: 1000,
+    available: async () => !!dependencies,
+    verbatim: ({ status, value }) => {
+      if (status === 'denied') return 'No tienes permiso para borrar audios en este canal.'
+      if (status === 'invalid') return 'Usa el ID que devuelve audio_search.'
+      if (status === 'success') {
+        const result = forgetOutput.parse(value)
+        if (result.outcome === 'forgotten') return 'Olvidé el audio de este canal.'
+        if (result.outcome === 'not_found') return 'No encontré ese audio en este canal.'
+        return result.message
+      }
+      return 'No pude confirmar el borrado del audio.'
+    },
+    execute: async ({ id }, context) => {
+      if (!uuid.test(id))
+        return { outcome: 'invalid' as const, message: 'Usa el ID que devuelve audio_search.' }
+
+      const { invocation, signal } = context
+      const { pool, store, ownerId } = dependencies!
+      const inChannel = and(scope(invocation), eq(channelAudio.id, id))
+      return context.external(async () => {
+        const result = await memoryDatabase(pool).transaction(async (db) => {
+          await db.execute(sql`SET LOCAL statement_timeout='2000ms'`)
+          const [audio] = await db
+            .select({ authorId: channelAudio.authorId })
+            .from(channelAudio)
+            .where(inChannel)
+          if (!audio) return { outcome: 'not_found' as const }
+          if (audio.authorId !== invocation.requester.id && ownerId !== invocation.requester.id)
+            return {
+              outcome: 'denied' as const,
+              message: 'Solo quien guardó el audio o el propietario del bot puede borrarlo.',
+            }
+          if (!(await reauthorize(invocation, signal)))
+            return { outcome: 'denied' as const, message: 'Permisos actuales insuficientes.' }
+          signal.throwIfAborted()
+          const [deleted] = await db
+            .delete(channelAudio)
+            .where(and(inChannel, eq(channelAudio.authorId, audio.authorId)))
+            .returning({ id: channelAudio.id, objectKey: channelAudio.objectKey })
+          return deleted ?? { outcome: 'not_found' as const }
+        })
+
+        if ('outcome' in result) return result
+        // Once committed, finish the bucket cleanup even if the invocation has timed out.
+        try {
+          await store.remove(result.objectKey)
+        } catch (error) {
+          reportError('audio.remove', error, { invocationId: invocation.messageId })
+          return {
+            outcome: 'cleanup_failed' as const,
+            message: 'Quité el audio del catálogo, pero no pude borrar el archivo del bucket.',
+          }
+        }
+        return { outcome: 'forgotten' as const, id: result.id }
+      })
+    },
+  })
+
+  return {
+    capabilities: [save, search, share, forget],
+    findSavedAudio: dependencies ? findSavedAudio : undefined,
+  }
 }

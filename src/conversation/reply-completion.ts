@@ -1,6 +1,6 @@
 import type { Capability, ReplyFile } from './catalog'
 import type { ModelTurn, ToolResult } from './harness'
-import type { VoicePlayback } from './voice-playback'
+import { voicePlaybackNotice, type VoicePlayback } from './voice-playback'
 
 export interface Reply {
   content: string
@@ -61,6 +61,7 @@ export class ReplyCompletion {
     // Verbatim results are never paraphrased away: append any the final answer left out.
     // The synthesis turn may have quoted the URL again.
     text = withoutStandalone(text, alone)
+    if (!text) text = voicePlaybackNotice(results)
     const exact = results
       .filter((result) => result.status === 'success' && !this.standalone(result))
       .flatMap((result) => {
