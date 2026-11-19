@@ -46,7 +46,12 @@ const scope = (invocation: Invocation) =>
   )
 const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
 
-export function audioCapabilities(
+export const savedAudioSelector = z.union([
+  z.strictObject({ id: text(200) }),
+  z.strictObject({ query: text(200) }),
+])
+
+export function audioCatalog(
   dependencies?: AudioDependencies,
   reauthorize: (invocation: Invocation, signal: AbortSignal) => Promise<boolean> = async () =>
     false,
@@ -66,8 +71,8 @@ export function audioCapabilities(
     }
   }
 
-  async function find(query: string, context: ExecutionContext, limit: number) {
-    const exactId = uuid.test(query)
+  async function find(query: string, context: ExecutionContext, limit: number, exactId: boolean) {
+    if (exactId && !uuid.test(query)) return []
     const embedded = query && !exactId ? await embed(query, context) : null
     const rows = await memoryDatabase(dependencies!.pool).transaction(async (db) => {
       await db.execute(sql`SET LOCAL statement_timeout='2000ms'`)
@@ -99,6 +104,32 @@ export function audioCapabilities(
         ? rows
         : rankCatalog(rows, queryTerms(query, audioStopwords), (row) => row.transcript)
     return ranked.slice(0, limit)
+  }
+
+  async function findSavedAudio(
+    selector: z.infer<typeof savedAudioSelector>,
+    context: ExecutionContext,
+  ) {
+    const byId = 'id' in selector
+    const [audio] = await find(byId ? selector.id : selector.query, context, 1, byId)
+    if (!audio) return undefined
+    return {
+      id: audio.id,
+      title: audio.title,
+      async load() {
+        if (audio.sizeBytes > maxAudioBytes) throw new Error('Saved audio exceeds size limit')
+        const bytes = await context.external(() =>
+          dependencies!.read(audio.objectKey, audio.sizeBytes, context.signal),
+        )
+        if (bytes.length !== audio.sizeBytes || digest(bytes) !== audio.sha256)
+          throw new Error('Saved audio does not match its catalog entry')
+        return {
+          name: `gnomo-${audio.id}.ogg`,
+          attachment: bytes,
+          voice: { durationSecs: audio.durationMs / 1000, waveform: audio.waveform },
+        }
+      },
+    }
   }
 
   const save = defineCapability({
@@ -227,7 +258,7 @@ export function audioCapabilities(
     maxResultChars: 16000,
     available: async () => !!dependencies,
     execute: async ({ query }, context) => {
-      const found = await find(query, context, searchLimit + 1)
+      const found = await find(query, context, searchLimit + 1, uuid.test(query))
       return {
         outcome: found.length ? 'found' : 'none',
         records: found.slice(0, searchLimit).map(({ id, title, description, durationMs }) => ({
@@ -256,19 +287,13 @@ export function audioCapabilities(
     maxResultChars: 1000,
     available: async () => !!dependencies,
     execute: async ({ selector }, context) => {
-      const [audio] = await find(selector, context, 1)
-      if (!audio) return { outcome: 'not_found' as const }
-      if (audio.sizeBytes > maxAudioBytes) throw new Error('Saved audio exceeds size limit')
-      const bytes = await context.external(() =>
-        dependencies!.read(audio.objectKey, audio.sizeBytes, context.signal),
+      const audio = await findSavedAudio(
+        uuid.test(selector) ? { id: selector } : { query: selector },
+        context,
       )
-      if (bytes.length !== audio.sizeBytes || digest(bytes) !== audio.sha256)
-        throw new Error('Saved audio does not match its catalog entry')
-      context.attach?.({
-        name: `gnomo-${audio.id}.ogg`,
-        attachment: bytes,
-        voice: { durationSecs: audio.durationMs / 1000, waveform: audio.waveform },
-      })
+      if (!audio) return { outcome: 'not_found' as const }
+      const file = await audio.load()
+      context.attach?.(file)
       return { outcome: 'shared' as const, id: audio.id, title: audio.title }
     },
   })
@@ -350,5 +375,8 @@ export function audioCapabilities(
     },
   })
 
-  return [save, search, share, forget]
+  return {
+    capabilities: [save, search, share, forget],
+    findSavedAudio: dependencies ? findSavedAudio : undefined,
+  }
 }

@@ -3,12 +3,14 @@ import { createHash, randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { Pool } from 'pg'
-import { audioCapabilities } from '../src/conversation/audio-catalog'
+import { audioCatalog } from '../src/conversation/audio-catalog'
 import { composeCapabilities } from '../src/conversation/capabilities'
 import type { MemoryEmbedding } from '../src/conversation/explicit-memory'
 import { createConversation, type ModelTurn, type Reply } from '../src/conversation/harness'
 import { encodeOggOpus } from '../src/conversation/ogg-opus'
 import type { Invocation } from '../src/core/conversation/invocation'
+import type { RequesterCooldown } from '../src/conversation/paid-generation'
+import type { VoicePlaybackDependencies } from '../src/conversation/voice-playback'
 import { migrateMemoryDatabase } from '../src/database/migrate'
 
 const dbTest = { skip: !process.env.T10_DATABASE_URL }
@@ -41,11 +43,15 @@ async function withCatalog(
     uploads: string[]
     removals: { key: string; catalogEntryExists: boolean }[]
   }) => Promise<void>,
-  options?: {
+  options: {
     embedding?: MemoryEmbedding
+    location?: VoicePlaybackDependencies['location']
+    savedCooldown?: RequesterCooldown
+    speechCooldown?: RequesterCooldown
+    sequential?: boolean
     reauthorize?: () => Promise<boolean>
     failRemoval?: boolean
-  },
+  } = {},
 ) {
   const pool = new Pool({ connectionString: process.env.T10_DATABASE_URL })
   const bytes = await readFile('test/fixtures/tone-then-silence.ogg')
@@ -64,10 +70,10 @@ async function withCatalog(
   try {
     await migrateMemoryDatabase(pool)
     const catalog = composeCapabilities({
-      audio: audioCapabilities(
+      audio: audioCatalog(
         {
           pool,
-          embedding: options?.embedding,
+          embedding: options.embedding,
           ownerId: owner.id,
           async read(key) {
             const body = objects.get(key)
@@ -85,12 +91,12 @@ async function withCatalog(
                 [key],
               )
               removals.push({ key, catalogEntryExists: rowCount !== 0 })
-              if (options?.failRemoval) throw new Error('Fake bucket unavailable')
+              if (options.failRemoval) throw new Error('Fake bucket unavailable')
               objects.delete(key)
             },
           },
         },
-        options?.reauthorize ?? (async () => true),
+        options.reauthorize ?? (async () => true),
       ),
       speech: {
         generator: {
@@ -99,11 +105,22 @@ async function withCatalog(
             voice,
           }),
         },
-        cooldown: { reserve: async () => ({ granted: true, release: async () => {} }) },
+        cooldown: options.speechCooldown ?? {
+          reserve: async () => ({ granted: true, release: async () => {} }),
+        },
       },
       voicePlayback: {
         stage: { isBusy: () => false, play: async () => ({ status: 'played' }) },
-        location: async () => ({ status: 'found', channelId: 'voice', channelName: 'General' }),
+        location:
+          options.location ??
+          (async () => ({
+            status: 'found',
+            channelId: 'voice',
+            channelName: 'General',
+          })),
+        savedCooldown: options.savedCooldown ?? {
+          reserve: async () => ({ granted: true, release: async () => {} }),
+        },
       },
     })
     const plans = new Map<string, ModelTurn['calls']>()
@@ -114,8 +131,19 @@ async function withCatalog(
       reply: async () => undefined,
       model: {
         async generate({ invocation, results }) {
-          if (!results.length) return { text: '', calls: plans.get(invocation.messageId)! }
+          const plan = plans.get(invocation.messageId)!
+          if (options.sequential && results.length < plan.length)
+            return { text: '', calls: [plan[results.length]] }
+          if (!results.length) return { text: '', calls: plan }
           const result = results.at(-1)!
+          if (
+            result.name === 'voice_play' &&
+            typeof result.value === 'object' &&
+            result.value &&
+            'status' in result.value &&
+            (result.value.status === 'not_found' || result.value.status === 'rate_limited')
+          )
+            return { calls: [], text: '' }
           return { calls: [], text: JSON.stringify(result.value ?? result.status) }
         },
       },
@@ -307,26 +335,124 @@ test('a failed insert removes the uploaded audio', dbTest, () =>
   }),
 )
 
-test('the same generated speech can be scheduled for voice playback and saved', dbTest, () =>
-  withCatalog(async ({ ask, invocation, objects, bytes }) => {
-    const [generate, save] = generateAndSave()
-    const replies = await ask('Únete y di que la misión terminó, y guarda el audio.', [
-      generate,
-      call('voice_play', { audio: 'generated' }),
-      save,
-    ])
-    const saved = modelAnswer(replies)
-    assert.equal(saved.outcome, 'saved')
+test('playing an audio by ID schedules it from the invocation channel only', dbTest, () =>
+  withCatalog(async ({ ask, invocation, bytes }) => {
+    const saved = modelAnswer(await ask('Di esto y guárdalo.', generateAndSave()))
+    const play = [call('voice_play', { audio: { id: saved.id } })]
+    const replies = await ask('Pon este audio en voz.', play)
     const playback = replies.find(({ voicePlayback }) => voicePlayback)?.voicePlayback
-    assert.equal(playback?.channelId, 'voice')
-    assert.deepEqual(playback?.file.attachment, bytes)
+    assert.ok(playback)
+    assert.deepEqual(playback, {
+      guildId: invocation.guildId,
+      channelId: 'voice',
+      file: { name: `gnomo-${saved.id}.ogg`, attachment: bytes, voice },
+    })
     assert.ok(replies.every(({ files }) => !files?.length))
-    assert.deepEqual(
-      objects.get(`${invocation.guildId}/${invocation.channelId}/${saved.id}.ogg`),
-      bytes,
-    )
+
+    const missing = await ask('Pon este audio en voz.', play, { channelId: 'thread' })
+    assert.equal(missing[0]?.content, 'No encontré ese audio guardado en este canal.')
+    assert.ok(missing.every(({ voicePlayback, files }) => !voicePlayback && !files?.length))
   }),
 )
+
+test(
+  'playing by description delivers the best match in chat when the requester is outside voice',
+  dbTest,
+  () =>
+    withCatalog(
+      async ({ ask, bytes }) => {
+        const saved = modelAnswer(await ask('Di esto y guárdalo.', generateAndSave()))
+        const other = { ...saveInput, title: 'La partida', description: 'Un grito al fondo.' }
+        await ask('Di otra cosa y guárdala.', generateAndSave(other, 'Eso fue todo.'))
+        const replies = await ask('Pon el audio del grito.', [
+          call('voice_play', { audio: { query: 'el audio del grito' } }),
+        ])
+        assert.deepEqual(modelAnswer(replies), { status: 'fallback', delivered: 'chat' })
+        assert.ok(replies.every(({ voicePlayback }) => !voicePlayback))
+        const messages = replies.filter(({ files }) => files?.length)
+        assert.equal(messages.length, 1)
+        assert.equal(messages[0].content, '')
+        assert.deepEqual(messages[0].files, [
+          { name: `gnomo-${saved.id}.ogg`, attachment: bytes, voice },
+        ])
+      },
+      {
+        location: async () => ({ status: 'absent' }),
+        savedCooldown: { reserve: async () => ({ granted: false, retryInMs: 5000 }) },
+      },
+    ),
+)
+
+test('repeat playback in the same server reports the wait to that requester', dbTest, () => {
+  const slots = new Set<string>()
+  return withCatalog(
+    async ({ ask }) => {
+      await ask('Di esto y guárdalo.', generateAndSave())
+      await ask('Di esto y guárdalo aquí.', generateAndSave(), { channelId: 'thread' })
+      const play = [call('voice_play', { audio: { query: 'el grito' } })]
+      const first = await ask('Pon el audio del grito.', play)
+      assert.ok(first.some(({ voicePlayback }) => voicePlayback))
+      const repeated = await ask('Pon el audio del grito otra vez.', play, { channelId: 'thread' })
+      assert.ok(repeated.every(({ voicePlayback, files }) => !voicePlayback && !files?.length))
+      assert.equal(repeated[0]?.content, 'Espera 23 segundos para reproducir otro audio guardado.')
+
+      const other = await ask('Pon el audio del grito.', play, {
+        requester: { id: '100000000000000004', username: 'pedro' },
+      })
+      assert.ok(other.some(({ voicePlayback }) => voicePlayback))
+    },
+    {
+      savedCooldown: {
+        async reserve({ guildId, requester }) {
+          const key = `${guildId}:${requester.id}`
+          if (slots.has(key)) return { granted: false, retryInMs: 22_500 }
+          slots.add(key)
+          return {
+            granted: true,
+            release: async () => {
+              slots.delete(key)
+            },
+          }
+        },
+      },
+    },
+  )
+})
+
+test('one speech allowance covers generating, playing and saving the same audio', dbTest, () => {
+  let speechReservations = 0
+  return withCatalog(
+    async ({ ask, invocation, objects, bytes }) => {
+      const [generate, save] = generateAndSave()
+      const replies = await ask('Únete y di que la misión terminó, y guarda el audio.', [
+        generate,
+        call('voice_play', { audio: 'generated' }),
+        save,
+      ])
+      const saved = modelAnswer(replies)
+      assert.equal(saved.outcome, 'saved')
+      assert.equal(speechReservations, 1)
+      const playback = replies.find(({ voicePlayback }) => voicePlayback)?.voicePlayback
+      assert.equal(playback?.channelId, 'voice')
+      assert.deepEqual(playback?.file.attachment, bytes)
+      assert.ok(replies.every(({ files }) => !files?.length))
+      assert.deepEqual(
+        objects.get(`${invocation.guildId}/${invocation.channelId}/${saved.id}.ogg`),
+        bytes,
+      )
+    },
+    {
+      sequential: true,
+      speechCooldown: {
+        async reserve() {
+          speechReservations++
+          return { granted: true, release: async () => {} }
+        },
+      },
+      savedCooldown: { reserve: async () => ({ granted: false, retryInMs: 5000 }) },
+    },
+  )
+})
 
 test('the author can forget an audio, removing it from the catalog and the bucket', dbTest, () =>
   withCatalog(async ({ ask, objects, removals }) => {
