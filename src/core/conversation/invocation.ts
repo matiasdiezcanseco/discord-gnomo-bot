@@ -3,6 +3,8 @@ export interface Invocation {
   messageId: string
   /** Replied-to message, only when it belongs to the invocation channel. */
   referencedMessageId?: string
+  /** Audio attachments from that same-channel message, separately from the invocation's files. */
+  referencedAudioAttachments?: Invocation['attachments']
   guildId: string
   /** A thread's own ID, never its parent's ID. */
   channelId: string
@@ -16,6 +18,10 @@ export interface Invocation {
     contentType: string | null
     size: number
   }[]
+}
+
+export function isAudioAttachment(attachment: Invocation['attachments'][number]): boolean {
+  return attachment.contentType?.trim().toLowerCase().startsWith('audio/') ?? false
 }
 
 export interface InvocationResponse {

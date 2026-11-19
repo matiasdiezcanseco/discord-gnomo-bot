@@ -56,6 +56,9 @@ TIEMPO: now indica la fecha y hora actual en America/Lima; úsala para interpret
                     contentType,
                     size,
                   })),
+                  referencedAudioAttachments: invocation.referencedAudioAttachments?.map(
+                    ({ id, name, contentType, size }) => ({ id, name, contentType, size }),
+                  ),
                   verifiedImages: images?.map((image) => image.source),
                   toolResults: results,
                   recentContext,

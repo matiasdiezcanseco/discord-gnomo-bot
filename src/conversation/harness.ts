@@ -1,4 +1,4 @@
-import type { Invocation } from '../core/conversation/invocation'
+import { isAudioAttachment, type Invocation } from '../core/conversation/invocation'
 import { Catalog, type Capability, type ExecutionContext } from './catalog'
 import type { HistoryResult } from './channel-history'
 import { Budget, systemClock, type Clock } from './budget'
@@ -198,7 +198,7 @@ export function createConversation(ports: ConversationPorts) {
           trace('authorization', 'denied')
         } else {
           trace('authorization', 'allowed')
-          const images = invocation.attachments.length
+          const images = invocation.attachments.some((attachment) => !isAudioAttachment(attachment))
             ? await budget.wait(() => {
                 if (!ports.loadImages)
                   throw new AttachmentError('No puedo leer adjuntos en esta configuración.')

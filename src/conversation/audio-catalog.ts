@@ -15,6 +15,7 @@ import {
 import { catalogSimilarity, queryTerms, rankCatalog } from './catalog-search'
 import type { MemoryEmbedding } from './explicit-memory'
 import { generatedSpeechTranscript } from './paid-generation'
+import { loadAudioUpload, type AudioUploadDependencies } from './audio-upload'
 import { describeOggOpus, InvalidVoiceAudio } from './voice-message'
 
 export interface AudioDependencies {
@@ -22,6 +23,7 @@ export interface AudioDependencies {
   store: Pick<CatalogObjectStore, 'put' | 'remove'>
   read: CatalogObjectReader
   embedding?: MemoryEmbedding
+  upload?: AudioUploadDependencies
   ownerId?: string
 }
 
@@ -45,6 +47,32 @@ const scope = (invocation: Invocation) =>
     eq(channelAudio.channelId, invocation.channelId),
   )
 const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
+
+function generatedAudio(context: ExecutionContext) {
+  const speech = context.generated?.('speech_generate').find((file) => file.voice)
+  const transcript = speech && generatedSpeechTranscript(speech)
+  if (!speech?.voice || transcript === undefined)
+    return { outcome: 'invalid' as const, message: 'No se creó ningún audio en esta petición.' }
+  const { attachment: bytes, voice } = speech
+  try {
+    if (bytes.length > maxAudioBytes) throw new InvalidVoiceAudio('Audio is too large')
+    describeOggOpus(bytes)
+  } catch (error) {
+    if (!(error instanceof InvalidVoiceAudio)) throw error
+    return {
+      outcome: 'invalid' as const,
+      message: 'El audio creado no tiene un formato que pueda guardar.',
+    }
+  }
+  return {
+    outcome: 'ready' as const,
+    bytes,
+    voice,
+    transcript,
+    sourceMessageId: context.invocation.messageId,
+    sourceAttachmentId: undefined,
+  }
+}
 
 export const savedAudioSelector = z.union([
   z.strictObject({ id: text(200) }),
@@ -138,11 +166,11 @@ export function audioCatalog(
     label: 'guardar el audio',
     scope: 'channel',
     effect: 'write',
-    description: `Guarda un audio del Gnomo en el catálogo de este canal cuando el solicitante pide que lo generes y lo guardes («di esto y guárdalo»). ${onlyCurrentRequest} Llama a speech_generate primero. source: 'generated' se refiere al audio creado en esta petición. title: nombre corto y reconocible. description: descripción en español según lo que dice el audio y el contexto de la petición. tags: hasta 10 palabras clave. Si responde already_saved, explica que ese audio ya está guardado.`,
+    description: `Guarda un audio en el catálogo de este canal. ${onlyCurrentRequest} Usa source: 'generated' para el audio creado en esta petición («di esto y guárdalo»), después de speech_generate. Usa source: 'attachment' para el audio adjunto a la petición o al mensaje al que responde, incluso si es un mensaje de voz de Gnomo. No puedes escuchar adjuntos: redacta title, description y tags solo con lo que dijo el solicitante en esta petición. Si no dio una descripción útil, omite description para pedirle una; no la inventes ni uses el nombre del archivo como descripción. title: nombre corto y reconocible. tags: hasta 10 palabras clave. Si responde already_saved, explica que ese audio ya está guardado.`,
     input: z.strictObject({
-      source: z.literal('generated'),
+      source: z.enum(['generated', 'attachment']),
       title: text(100),
-      description: text(1500),
+      description: z.string().trim().max(1500).optional(),
       tags: z.array(tag).max(10).optional(),
     }),
     output: z.discriminatedUnion('outcome', [
@@ -151,28 +179,30 @@ export function audioCatalog(
         id: z.string(),
         title: z.string(),
       }),
-      z.strictObject({ outcome: z.enum(['invalid', 'denied']), message: z.string() }),
+      z.strictObject({
+        outcome: z.enum(['invalid', 'denied', 'unavailable']),
+        message: z.string(),
+      }),
     ]),
     maxCalls: 2,
     maxResultChars: 2000,
     available: async () => !!dependencies,
     execute: async (input, context) => {
       const { invocation, signal } = context
-      const speech = context.generated?.('speech_generate').find((file) => file.voice)
-      const transcript = speech && generatedSpeechTranscript(speech)
-      if (!speech?.voice || transcript === undefined)
-        return { outcome: 'invalid' as const, message: 'No se creó ningún audio en esta petición.' }
-      const { attachment: bytes, voice } = speech
-      try {
-        if (bytes.length > maxAudioBytes) throw new InvalidVoiceAudio('Audio is too large')
-        describeOggOpus(bytes)
-      } catch (error) {
-        if (!(error instanceof InvalidVoiceAudio)) throw error
+      const { description, source } = input
+      if (!description)
         return {
           outcome: 'invalid' as const,
-          message: 'El audio creado no tiene un formato que pueda guardar.',
+          message: 'Dime de qué trata el audio o con qué nombre quieres guardarlo.',
         }
-      }
+
+      const candidate =
+        source === 'attachment'
+          ? await loadAudioUpload(dependencies?.upload, context)
+          : generatedAudio(context)
+      if (candidate.outcome !== 'ready') return candidate
+
+      const { bytes, voice, sourceMessageId, sourceAttachmentId, transcript } = candidate
 
       const durationMs = Math.round(voice.durationSecs * 1000)
       if (!Number.isSafeInteger(durationMs) || durationMs <= 0)
@@ -200,7 +230,7 @@ export function audioCatalog(
           if (existing) return { outcome: 'already_saved' as const, ...existing }
 
           const embedded = await embed(
-            [input.title, input.description, transcript, tags.join(', ')].join('\n'),
+            [input.title, description, transcript, tags.join(', ')].join('\n'),
             context,
           )
           if (!(await reauthorize(invocation, signal)))
@@ -212,11 +242,12 @@ export function audioCatalog(
             guildId: invocation.guildId,
             channelId: invocation.channelId,
             authorId: invocation.requester.id,
-            sourceMessageId: invocation.messageId,
+            sourceMessageId,
+            sourceAttachmentId,
             objectKey: key,
-            origin: 'generated',
+            origin: source === 'attachment' ? 'uploaded' : 'generated',
             title: input.title,
-            description: input.description,
+            description,
             transcript,
             tags,
             durationMs,

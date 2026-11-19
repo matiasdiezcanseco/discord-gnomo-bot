@@ -1,5 +1,5 @@
 import type { Message } from 'discord.js'
-import type { Invocation } from '../../core/conversation/invocation'
+import { isAudioAttachment, type Invocation } from '../../core/conversation/invocation'
 
 type MessageEvent = Pick<
   Message,
@@ -37,10 +37,21 @@ export function normalizeInvocation(
   if (!allowedGuildId || !botId || event.author.bot || event.guildId !== allowedGuildId) return null
   const mentions = [...event.content.matchAll(/<@!?(\d+)>/g)]
   if (!mentions.some((match) => match[1] === botId)) return null
+  const referencedMessageId =
+    event.reference?.channelId === event.channelId ? event.reference.messageId : undefined
+  const referencedAudio = referencedMessageId ? referenced.filter(isAudioAttachment) : []
+  const metadata = ({ id, url, name, contentType, size }: Attachment) => ({
+    id,
+    url,
+    name,
+    contentType,
+    size,
+  })
   return {
     messageId: event.id,
-    ...(event.reference?.messageId && event.reference.channelId === event.channelId
-      ? { referencedMessageId: event.reference.messageId }
+    ...(referencedMessageId ? { referencedMessageId } : {}),
+    ...(referencedAudio.length
+      ? { referencedAudioAttachments: referencedAudio.map(metadata) }
       : {}),
     guildId: allowedGuildId,
     channelId: event.channelId,
@@ -49,8 +60,8 @@ export function normalizeInvocation(
       .replace(/<@!?(\d+)>/g, (mention, id) => (id === botId ? '' : mention))
       .trim(),
     createdAt: event.createdTimestamp,
-    attachments: [...(event.attachments.size ? event.attachments.values() : referenced)].map(
-      ({ id, url, name, contentType, size }) => ({ id, url, name, contentType, size }),
-    ),
+    attachments: [
+      ...(event.attachments.size ? event.attachments.values() : referencedImages(referenced)),
+    ].map(metadata),
   }
 }
