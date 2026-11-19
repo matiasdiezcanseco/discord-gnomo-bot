@@ -58,7 +58,7 @@ export function voiceCapability(read: LiveMembers['voice']) {
   return defineCapability({
     name: 'voice_list',
     description:
-      'Consulta participantes en voz de una página de miembros, solo canales visibles al solicitante y bot. Sigue nextAfter; comunica queriedAt y cobertura parcial. No indica presencia ni confirma ausencia de llamada.',
+      'Consulta participantes en voz de una página de miembros, solo canales visibles al solicitante y bot. Sigue nextAfter; comunica queriedAt y cobertura parcial. No indica presencia ni confirma ausencia de llamada. Úsala para saber a quién saludar en una llamada, no para elegir dónde reproducir un audio.',
     capability: 'discord.voice',
     scope: 'channel',
     effect: 'read',

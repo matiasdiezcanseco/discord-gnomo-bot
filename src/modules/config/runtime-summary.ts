@@ -40,6 +40,7 @@ export function runtimeSummary(config: Pick<ConfigService, 'get'>, voiceStageAva
     speechCooldownMinutes: settings.speech.cooldownMinutes,
     savedAudioCooldownSeconds: settings.savedAudioCooldownSeconds,
     timeoutMs: settings.timeoutMs,
+    maxExternalCalls: settings.maxExternalCalls,
     synthesisTimeoutMs: settings.synthesisTimeoutMs,
     concurrency: settings.concurrency,
     configured: {

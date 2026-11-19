@@ -197,6 +197,7 @@ export function composeRuntimeConversation({
     clock,
     concurrency: settings.concurrency,
     timeoutMs: settings.timeoutMs,
+    maxExternalCalls: settings.maxExternalCalls,
     synthesisTimeoutMs: settings.synthesisTimeoutMs,
     claim: redis
       ? redisClaims(redis)

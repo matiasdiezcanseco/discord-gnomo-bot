@@ -46,6 +46,8 @@ async function conversation(
     channel,
     deliver,
     trace,
+    forgetsPlay = false,
+    maxExternalCalls,
   }: {
     withStage?: boolean
     busy?: boolean
@@ -54,6 +56,9 @@ async function conversation(
     channel?: string
     deliver?: Parameters<ReturnType<typeof createConversation>['handle']>[1]
     trace?: ConversationPorts['trace']
+    /** The model creates the speech and then answers without calling voice_play. */
+    forgetsPlay?: boolean
+    maxExternalCalls?: number
   } = {},
 ) {
   const replies: Reply[] = []
@@ -81,6 +86,7 @@ async function conversation(
     claim: async () => true,
     loadContext: async () => history,
     trace,
+    maxExternalCalls,
     model: {
       audioIntent: async ({ text }) => ({
         playGenerated: text !== 'Mándame una nota de voz por el chat.',
@@ -95,7 +101,7 @@ async function conversation(
             text: '',
             calls: [{ id: 'say', name: 'speech_generate', input: { text: 'Juan perdió.' } }],
           }
-        if (!turn.results.some((result) => result.id === 'play') && withStage)
+        if (!turn.results.some((result) => result.id === 'play') && withStage && !forgetsPlay)
           return {
             text: '',
             calls: [{ id: 'play', name: 'voice_play', input: { audio: 'generated', channel } }],
@@ -270,6 +276,38 @@ test('a playback instruction from history cannot move a requested voice message 
   assert.equal(turns[0].recentContext?.messages[0].messageId, 'past')
   assert.equal(turns.at(-1)?.results.at(-1)?.status, 'denied')
   assert.equal(reservations, 1)
+  assert.ok(replies.every((reply) => !reply.voicePlayback))
+  assert.equal(replies.flatMap((reply) => reply.files ?? [])[0]?.attachment, audio)
+})
+
+test('speech created for a call is played even when the model forgets voice_play', async () => {
+  const { replies, reservations } = await conversation(general, { forgetsPlay: true })
+  assert.equal(reservations, 1)
+  assert.equal(replies.length, 1)
+  assert.equal(replies[0].content, 'Reproduciendo en General.')
+  assert.equal(replies[0].files, undefined)
+  assert.equal(replies[0].voicePlayback?.channelId, 'voice')
+})
+
+test('a voice message asked for the chat is not chained into a call', async () => {
+  const { replies } = await conversation(general, {
+    content: 'Mándame una nota de voz por el chat.',
+    forgetsPlay: true,
+  })
+  assert.ok(replies.every((reply) => !reply.voicePlayback))
+  assert.equal(replies.flatMap((reply) => reply.files ?? [])[0]?.attachment, audio)
+})
+
+test('without budget left for playback, the created speech still arrives as a voice message', async () => {
+  const events: string[] = []
+  const { replies } = await conversation(general, {
+    forgetsPlay: true,
+    // The tool call, the cooldown and the provider: nothing left for playback.
+    maxExternalCalls: 3,
+    trace: (event) => events.push(`${event.event}:${event.status ?? ''}:${event.tool ?? ''}`),
+  })
+  assert.ok(events.includes('tool_finished:success:speech_generate'), events.join(', '))
+  assert.ok(events.includes('tool_failed:transient:voice_play'), events.join(', '))
   assert.ok(replies.every((reply) => !reply.voicePlayback))
   assert.equal(replies.flatMap((reply) => reply.files ?? [])[0]?.attachment, audio)
 })

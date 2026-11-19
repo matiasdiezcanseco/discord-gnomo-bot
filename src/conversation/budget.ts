@@ -1,3 +1,5 @@
+import { DEFAULT_MAX_EXTERNAL_CALLS } from '../modules/config/constants'
+
 export interface Clock {
   now(): number
   schedule(callback: () => void, delay: number): () => void
@@ -18,6 +20,8 @@ export class Budget {
     readonly clock: Clock,
     readonly startedAt: number,
     readonly duration = 12000,
+    /** Tool calls plus the provider/platform subcalls they make, per invocation. */
+    readonly maxCalls = DEFAULT_MAX_EXTERNAL_CALLS,
   ) {
     this.cancelTimer = clock.schedule(
       () => this.controller.abort(new Error('timeout')),
@@ -45,7 +49,7 @@ export class Budget {
   }
   async external<T>(work: () => Promise<T>): Promise<T> {
     this.check()
-    if (this.calls >= 8) throw new Error('budget')
+    if (this.calls >= this.maxCalls) throw new Error('budget')
     this.calls++
     return this.wait(work)
   }
