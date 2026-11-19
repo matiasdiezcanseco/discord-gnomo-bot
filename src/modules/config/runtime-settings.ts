@@ -142,6 +142,11 @@ const requirements = {
       (!f.mediaBucket && 'BUCKET_NAME/AWS_* object storage') ||
       ((!f.database || !f.memoryOwner) && 'needs database and MEMORY_OWNER_ID'),
   },
+  audio: {
+    name: 'audio catalog',
+    missing: (f) =>
+      (!f.database && 'no database URL') || (!f.mediaBucket && 'BUCKET_NAME/AWS_* object storage'),
+  },
   collection: { name: 'phrases/photos/birthdays', missing: (f) => !f.collection && 'BUCKET_URL' },
   search: { name: 'web search/news', missing: (f) => !f.search && 'BROWSERBASE_API_KEY' },
   birthdays: {

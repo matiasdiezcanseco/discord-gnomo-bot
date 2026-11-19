@@ -155,6 +155,7 @@ test(
       try {
         const result = await db.query("SELECT to_regclass('drizzle.__drizzle_migrations') AS name");
         assert.ok(result.rows[0].name, 'schema migrations must complete before Discord login');
+        assert.ok((await db.query("SELECT to_regclass('public.channel_audio') AS name")).rows[0].name, 'audio catalog must exist before Discord login');
           assert.equal((await db.query('SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations')).rows[0].n, readMigrationFiles({ migrationsFolder: 'drizzle' }).length);
       } finally { await db.end(); }
       return 'controlled';
@@ -197,7 +198,7 @@ test(
       })
     try {
       await pool.query(
-        'DROP TABLE IF EXISTS channel_media, pilot_memory_operations, pilot_memories CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE',
+        'DROP TABLE IF EXISTS channel_audio, channel_media, pilot_memory_operations, pilot_memories CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE',
       )
       assert.match(run(), /startup barrier passed/)
       await pool.query(

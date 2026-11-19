@@ -10,6 +10,7 @@ export function runtimeSummary(config: Pick<ConfigService, 'get'>, voiceStageAva
   const has = (key: string) => !!get(key)
   const settings = runtimeSettings(config)
   const facts = configuredFacts(config)
+  const features = enablement(facts)
   const channels = (get('RUNTIME_CHANNEL_IDS') ?? '')
     .split(',')
     .map((id) => id.trim())
@@ -53,11 +54,12 @@ export function runtimeSummary(config: Pick<ConfigService, 'get'>, voiceStageAva
       PILOT_MEMORY_EMBEDDING_MODEL: has('PILOT_MEMORY_EMBEDDING_MODEL'),
       BUCKET_URL: has('BUCKET_URL'),
       MEDIA_BUCKET: facts.mediaBucket,
+      AUDIO_CATALOG: features.audio.enabled,
       VOICE_PLAYBACK: voiceStageAvailable,
       BROWSERBASE_API_KEY: has('BROWSERBASE_API_KEY'),
       GNOMOS_CHANNEL_ID: has('GNOMOS_CHANNEL_ID'),
     },
-    disabled: Object.values(enablement(facts))
+    disabled: Object.values(features)
       .filter((feature) => !feature.enabled)
       .map((feature) => `${feature.name} (${feature.reason})`),
     logContent: settings.logContent,
