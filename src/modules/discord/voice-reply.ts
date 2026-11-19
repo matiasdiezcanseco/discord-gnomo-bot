@@ -73,7 +73,7 @@ export async function replyWithPlayback(
           (error) => reportError('discord.voice-confirmation', error),
         )
   }
-  const result = stage
+  const result: VoiceStageResult = stage
     ? await stage.play(guildId, channelId, file, signal, confirm)
     : ({ status: 'failed', started: false, reason: 'unavailable' } as const)
   if (result.status === 'played') {
@@ -82,9 +82,10 @@ export async function replyWithPlayback(
     logFailure(result)
     if (!result.started && result.reason !== 'aborted' && !signal.aborted) {
       const reason =
-        result.reason === 'busy'
+        result.message ??
+        (result.reason === 'busy'
           ? 'Ya estoy reproduciendo otro audio en este servidor.'
-          : 'No pude reproducir el audio en la llamada.'
+          : 'No pude reproducir el audio en la llamada.')
       await text(`${reason} Lo envío por el chat.`)
       signal.throwIfAborted()
       await replyWithVoice(message, file)
