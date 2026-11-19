@@ -16,6 +16,10 @@ _Evitar_: Mensaje, cuando se habla de toda la respuesta y no de una sola de sus 
 Mensajes publicados en un canal de Discord, participara o no el bot en la conversación.
 _Evitar_: Memoria, historial del bot.
 
+**Reproducción en voz**:
+Entrega del audio de una respuesta de Gnomo en un canal de voz de Discord. Gnomo entra, reproduce el audio y sale cuando termina.
+_Evitar_: Mensaje de voz (se publica en el chat).
+
 **Historial de conversación con Gnomo**:
 Intercambios de peticiones y respuestas entre los miembros y el bot.
 _Evitar_: Historial del canal.

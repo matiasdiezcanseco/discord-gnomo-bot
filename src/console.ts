@@ -50,7 +50,7 @@ async function main() {
   await app.init()
   logger
     .createLogger('startup')
-    .info(runtimeSummary(app.get(ConfigService)), 'Runtime configuration')
+    .info(runtimeSummary(app.get(ConfigService), true), 'Runtime configuration')
   const logs = logFile(app.get(ConfigService))
 
   const session = app.get(ConsoleSession)
@@ -76,6 +76,10 @@ async function main() {
     switch (event.type) {
       case 'typing':
         return print(dim(`${session.bot.username} está escribiendo…`))
+      case 'voice':
+        return print(
+          dim(`[voz simulada en #${event.channelId}: ${event.durationSecs.toFixed(2)} s]`),
+        )
       case 'reply':
         return print(
           `${green(`${session.bot.username}>`)} ${render(event.content)}${(event.files ?? [])

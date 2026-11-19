@@ -114,7 +114,12 @@ export class ConsoleReceiver {
     }
     session.output({ type: 'typing', channelId: invocation.channelId })
     try {
-      await this.conversation.handle(invocation, async (_origin, reply) => {
+      await this.conversation.handle(invocation, async (_origin, reply, signal) => {
+        if (reply.voicePlayback) {
+          const { guildId, channelId, file } = reply.voicePlayback
+          const result = await session.voicePlayback.stage.play(guildId, channelId, file, signal)
+          if (result.status === 'failed') return
+        }
         session.post(session.bot, reply.content, invocation.channelId)
         const files = await saveFiles(reply.files)
         session.output({

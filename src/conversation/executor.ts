@@ -4,6 +4,7 @@ import type { Capability, ExecutionContext, ReplyFile } from './catalog'
 import { PartialResult } from './catalog'
 import type { ConversationPorts, ModelTurn, ToolResult, Trace } from './harness'
 import { describeError } from '../diagnostics'
+import type { VoicePlayback } from './voice-playback'
 
 /** The only effect boundary. Neither model visibility nor validated input grants authorization. */
 export class Executor {
@@ -13,6 +14,8 @@ export class Executor {
   pendingWrite = false
   /** Files from successful calls only, in call order. */
   readonly files: ReplyFile[] = []
+  private readonly filesByTool = new Map<string, ReplyFile[]>()
+  voicePlayback?: { playback: VoicePlayback; channelName: string }
   private readonly context: ExecutionContext
   constructor(
     private readonly invocation: Invocation,
@@ -88,12 +91,17 @@ export class Executor {
       this.trace('tool_started', 'allowed', tool.name)
       this.pendingWrite = tool.effect === 'write'
       const attached: ReplyFile[] = []
+      let voicePlayback: Executor['voicePlayback']
       const scoped: ExecutionContext = {
         ...this.context,
         attach: (file) => {
           attached.push(file)
         },
-        generated: () => Object.freeze([...this.files]),
+        generated: (toolName) =>
+          Object.freeze([...(toolName ? (this.filesByTool.get(toolName) ?? []) : this.files)]),
+        playVoice: (playback, channelName) => {
+          voicePlayback = { playback, channelName }
+        },
         discoveredUrls: Object.freeze([...this.discoveredUrls]),
         idempotencyKey: `${this.invocation.guildId}:${this.invocation.channelId}:${this.invocation.messageId}:${call.id}`,
       }
@@ -111,6 +119,9 @@ export class Executor {
         }
         this.pendingWrite = false
         this.files.push(...attached)
+        if (attached.length)
+          this.filesByTool.set(tool.name, [...(this.filesByTool.get(tool.name) ?? []), ...attached])
+        this.voicePlayback ??= voicePlayback
         if (['web.search', 'web.news'].includes(tool.capability)) {
           const search = value as { sources?: { url: string }[] }
           for (const source of search.sources ?? []) this.discoveredUrls.add(source.url)

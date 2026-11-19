@@ -24,6 +24,7 @@ import type { MemberDirectory } from './member-directory'
 import type { LiveMembers } from './live-members'
 import type { HistoryReader } from './channel-history'
 import type { Reactions } from './reactions'
+import type { VoicePlaybackDependencies } from './voice-playback'
 
 /**
  * Everything that depends on where messages live (Discord or the local console). The rest of the
@@ -37,6 +38,7 @@ export interface ConversationPlatform {
   access(invocation: Invocation, signal?: AbortSignal): Promise<boolean>
   members: MemberDirectory
   live: LiveMembers
+  voicePlayback?: VoicePlaybackDependencies
   history(
     authorize: (invocation: Invocation, signal?: AbortSignal) => Promise<boolean>,
     cacheEnabled: boolean,
@@ -135,6 +137,7 @@ export function composeRuntimeConversation({
         reauthorize,
       ),
       notices: on.reminders.enabled && redis ? new ScheduledNotices(redis) : undefined,
+      voicePlayback: on.speech.enabled && speechGenerator ? platform.voicePlayback : undefined,
       images:
         on.images.enabled && redis
           ? {
