@@ -9,6 +9,8 @@ import { discordLiveMembers } from './live-members'
 import type { ConversationPorts } from '../../conversation/harness'
 import type { MemoryDependencies } from '../../conversation/explicit-memory'
 import type { SafeReader } from '../../web/safe-reader'
+import type { VoiceStage } from '../../conversation/voice-playback'
+import { discordVoiceLocation } from './voice-stage'
 import {
   composeRuntimeConversation,
   type ConversationPlatform,
@@ -24,6 +26,7 @@ export interface ConversationComposition {
   discordFetch?: typeof fetch
   web?: SafeReader
   memory?: MemoryDependencies
+  voiceStage?: VoiceStage
 }
 
 /** Discord members, presence, voice, history and live channel permissions. */
@@ -58,7 +61,16 @@ export function discordPlatform(
 export function composeConversation({
   client,
   discordFetch = fetch,
+  voiceStage,
   ...runtime
 }: ConversationComposition) {
-  return composeRuntimeConversation({ ...runtime, platform: discordPlatform(client, discordFetch) })
+  return composeRuntimeConversation({
+    ...runtime,
+    platform: {
+      ...discordPlatform(client, discordFetch),
+      voicePlayback: voiceStage
+        ? { stage: voiceStage, location: discordVoiceLocation(client) }
+        : undefined,
+    },
+  })
 }

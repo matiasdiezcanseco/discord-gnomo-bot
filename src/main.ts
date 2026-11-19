@@ -4,6 +4,7 @@ import { AppModule } from './app.module'
 import { LoggerService } from './modules/services/logger/logger.service'
 import { runtimeSummary } from './modules/config/runtime-summary'
 import { describeError } from './diagnostics'
+import { DiscordService } from './modules/discord/discord.service'
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -24,7 +25,10 @@ async function bootstrap() {
   })
   logger
     .createLogger('startup')
-    .info(runtimeSummary(app.get(ConfigService)), 'Runtime configuration')
+    .info(
+      runtimeSummary(app.get(ConfigService), !!app.get(DiscordService).voiceStage),
+      'Runtime configuration',
+    )
 
   app.enableShutdownHooks()
 

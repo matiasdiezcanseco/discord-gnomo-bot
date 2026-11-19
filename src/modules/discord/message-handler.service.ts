@@ -7,7 +7,7 @@ import { normalizeInvocation, referencedImages } from './normalize-invocation'
 import type { createConversation } from '../../conversation/harness'
 import { runtimeAllows } from '../../conversation/runtime-policy'
 import { describeError, reportError } from '../../diagnostics'
-import { replyWithVoice, voiceFile } from './voice-reply'
+import { replyWithPlayback, replyWithVoice, voiceFile } from './voice-reply'
 
 @Injectable()
 export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
@@ -66,8 +66,20 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
     }
     const stopTyping = this.showTyping(message)
     try {
-      await this.conversation.handle(invocation, async (_origin, reply) => {
+      await this.conversation.handle(invocation, async (_origin, reply, signal) => {
         stopTyping()
+        if (reply.voicePlayback) {
+          const { guildId, channelId } = reply.voicePlayback
+          await replyWithPlayback(message, reply, this.discord.voiceStage, signal, (failure) =>
+            this.logger
+              .createLogger('voice')
+              .warn(
+                { guildId, channelId, invocationId: invocation.messageId, ...failure },
+                'Voice playback failed',
+              ),
+          )
+          return
+        }
         const voice = voiceFile(reply)
         if (voice) await replyWithVoice(message, voice)
         else await message.reply(reply)

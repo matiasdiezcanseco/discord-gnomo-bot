@@ -14,6 +14,7 @@ import {
 } from './catalog-object-store'
 import { catalogSimilarity, queryTerms, rankCatalog } from './catalog-search'
 import type { MemoryEmbedding } from './explicit-memory'
+import { generatedSpeechTranscript } from './paid-generation'
 import { describeOggOpus, InvalidVoiceAudio } from './voice-message'
 
 export interface AudioDependencies {
@@ -125,12 +126,11 @@ export function audioCapabilities(
     available: async () => !!dependencies,
     execute: async (input, context) => {
       const { invocation, signal } = context
-      const speech = context
-        .generated?.()
-        .find((file) => file.voice && file.transcript !== undefined)
-      if (!speech?.voice || speech.transcript === undefined)
+      const speech = context.generated?.('speech_generate').find((file) => file.voice)
+      const transcript = speech && generatedSpeechTranscript(speech)
+      if (!speech?.voice || transcript === undefined)
         return { outcome: 'invalid' as const, message: 'No se creó ningún audio en esta petición.' }
-      const { attachment: bytes, voice, transcript } = speech
+      const { attachment: bytes, voice } = speech
       try {
         if (bytes.length > maxAudioBytes) throw new InvalidVoiceAudio('Audio is too large')
         describeOggOpus(bytes)

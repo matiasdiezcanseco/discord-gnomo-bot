@@ -87,6 +87,10 @@ async function withCatalog(
         },
         cooldown: { reserve: async () => ({ granted: true, release: async () => {} }) },
       },
+      voicePlayback: {
+        stage: { isBusy: () => false, play: async () => ({ status: 'played' }) },
+        location: async () => ({ status: 'found', channelId: 'voice', channelName: 'General' }),
+      },
     })
     const plans = new Map<string, ModelTurn['calls']>()
     const conversation = createConversation({
@@ -284,5 +288,26 @@ test('a failed insert removes the uploaded audio', dbTest, () =>
     assert.equal(objects.size, 0)
     const search = await ask('¿Hay audios guardados?', [call('audio_search', { query: '' })])
     assert.equal(modelAnswer(search).outcome, 'none')
+  }),
+)
+
+test('the same generated speech can be scheduled for voice playback and saved', dbTest, () =>
+  withCatalog(async ({ ask, invocation, objects, bytes }) => {
+    const [generate, save] = generateAndSave()
+    const replies = await ask('Únete y di que la misión terminó, y guarda el audio.', [
+      generate,
+      call('voice_play', { audio: 'generated' }),
+      save,
+    ])
+    const saved = modelAnswer(replies)
+    assert.equal(saved.outcome, 'saved')
+    const playback = replies.find(({ voicePlayback }) => voicePlayback)?.voicePlayback
+    assert.equal(playback?.channelId, 'voice')
+    assert.deepEqual(playback?.file.attachment, bytes)
+    assert.ok(replies.every(({ files }) => !files?.length))
+    assert.deepEqual(
+      objects.get(`${invocation.guildId}/${invocation.channelId}/${saved.id}.ogg`),
+      bytes,
+    )
   }),
 )

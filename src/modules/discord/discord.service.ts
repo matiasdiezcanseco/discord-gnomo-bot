@@ -7,11 +7,14 @@ import type { BirthdaySource } from '../../conversation/birthdays'
 import { discordScheduledDelivery } from './scheduled-delivery'
 import { describeError, redact } from '../../diagnostics'
 import { DISCORD_REST } from './rest-policy'
+import { discordVoiceStage } from './voice-stage'
+import { runtimeSettings } from '../config/runtime-settings'
 
 @Injectable()
 export class DiscordService extends Transport implements OnModuleInit, OnModuleDestroy {
   readonly name = 'discord'
   private readonly client: Client
+  readonly voiceStage: ReturnType<typeof discordVoiceStage>
 
   constructor(
     private readonly config: ConfigService,
@@ -29,6 +32,14 @@ export class DiscordService extends Transport implements OnModuleInit, OnModuleD
         GatewayIntentBits.GuildVoiceStates,
       ],
     })
+    this.voiceStage = discordVoiceStage(
+      this.client,
+      runtimeSettings(config).voiceConnectTimeoutMs,
+      (error) =>
+        this.logger
+          .createLogger('voice')
+          .warn({ error: describeError(error) }, 'Voice playback unavailable'),
+    )
   }
 
   async onModuleInit() {
@@ -101,6 +112,7 @@ export class DiscordService extends Transport implements OnModuleInit, OnModuleD
   }
 
   async onModuleDestroy() {
+    this.voiceStage?.close()
     await this.client.destroy()
   }
 

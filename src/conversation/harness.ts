@@ -7,6 +7,7 @@ import { describeError, redact, type ErrorSummary } from '../diagnostics'
 import { Admission } from './admission'
 import { Executor } from './executor'
 import { AttachmentError, type VerifiedImage } from './attached-images'
+import { MAX_VOICE_CONNECT_TIMEOUT_MS } from '../modules/config/constants'
 
 export type { Reply } from './reply-completion'
 /** Provider facts about one model call, for diagnostics only. */
@@ -119,7 +120,14 @@ export function looksLikeJson(text: string): boolean {
 export function createConversation(ports: ConversationPorts) {
   const admission = new Admission(ports.concurrency ?? 4)
   return {
-    async handle(source: Invocation, reply = ports.reply) {
+    async handle(
+      source: Invocation,
+      reply: (
+        invocation: Invocation,
+        reply: Reply,
+        signal: AbortSignal,
+      ) => Promise<void> = ports.reply,
+    ) {
       // A private immutable snapshot prevents adapters/tools from replacing authenticated scope.
       const invocation = Object.freeze({
         ...source,
@@ -311,6 +319,7 @@ export function createConversation(ports: ConversationPorts) {
           text,
           results,
           files: executor.files,
+          voicePlayback: executor.voicePlayback,
           users,
           failure,
           pendingWrite: executor.pendingWrite,
@@ -344,7 +353,16 @@ export function createConversation(ports: ConversationPorts) {
       )
       // Delivery gets its own window: the processing loop and synthesis can legitimately run
       // past 15 s, and anchoring here to the request start would silently drop the reply.
-      const delivery = new Budget(clock, clock.now(), 15000)
+      // Playback can run for the length of the clip after voice connection setup.
+      const playbackDurationSecs = executor.voicePlayback?.playback.file.voice.durationSecs
+      const delivery = new Budget(
+        clock,
+        clock.now(),
+        15000 +
+          (playbackDurationSecs
+            ? MAX_VOICE_CONNECT_TIMEOUT_MS + Math.ceil(playbackDurationSecs * 1000)
+            : 0),
+      )
       try {
         for (const message of messages) {
           if (
@@ -355,7 +373,7 @@ export function createConversation(ports: ConversationPorts) {
             trace('delivery', 'denied')
             return
           }
-          await delivery.wait(() => reply(invocation, message))
+          await delivery.wait(() => reply(invocation, message, delivery.controller.signal))
           trace('visible_send', 'confirmed', undefined, {
             contentLength: message.content.length,
             ...(message.files ? { attachments: message.files.length } : {}),
