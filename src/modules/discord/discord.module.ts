@@ -33,6 +33,7 @@ import { RuntimeMemory } from './runtime-memory'
       ) =>
         composeConversation({
           client: discord.getClient(),
+          voiceStage: discord.voiceStage,
           config: config,
           redis: redis,
           trace: conversationTrace(logger.createLogger('conversation')),

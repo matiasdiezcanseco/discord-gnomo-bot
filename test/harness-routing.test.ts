@@ -20,10 +20,15 @@ test('rollout expands, pauses and resumes the sole receiver without legacy fallb
     new LoggerService(pino({ level: 'silent' })),
     {
       handle: async (invocation, reply) => {
-        await reply!(invocation, {
-          content: 'Gnomo',
-          allowedMentions: { parse: [], roles: [], users: [], repliedUser: false },
-        })
+        await reply!(
+          invocation,
+          {
+            content: 'Gnomo',
+            allowedMentions: { parse: [], roles: [], users: [], repliedUser: false },
+          },
+          new AbortController().signal,
+          () => {},
+        )
       },
     },
   )

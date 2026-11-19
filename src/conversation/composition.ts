@@ -14,7 +14,14 @@ import { bucketCollection } from './collection-content'
 import { memoryCapabilities, type MemoryDependencies } from './explicit-memory'
 import { safeReader, type SafeReader } from '../web/safe-reader'
 import { attachedImages } from './attached-images'
-import { mediaCapabilities, s3MediaStore, type MediaObjectStore } from './media-library'
+import { mediaCapabilities } from './media-library'
+import { audioCatalog } from './audio-catalog'
+import { ffmpegAudioConverter } from './audio-upload-converter'
+import {
+  catalogObjectReader,
+  s3CatalogStore,
+  type CatalogObjectStore,
+} from './catalog-object-store'
 import { ScheduledNotices } from './scheduled-notices'
 import { aiSdkImages } from './image-generation'
 import { redisCooldown } from './paid-generation'
@@ -23,6 +30,7 @@ import type { MemberDirectory } from './member-directory'
 import type { LiveMembers } from './live-members'
 import type { HistoryReader } from './channel-history'
 import type { Reactions } from './reactions'
+import type { VoicePlaybackDependencies } from './voice-playback'
 
 /**
  * Everything that depends on where messages live (Discord or the local console). The rest of the
@@ -36,6 +44,7 @@ export interface ConversationPlatform {
   access(invocation: Invocation, signal?: AbortSignal): Promise<boolean>
   members: MemberDirectory
   live: LiveMembers
+  voicePlayback?: VoicePlaybackDependencies
   history(
     authorize: (invocation: Invocation, signal?: AbortSignal) => Promise<boolean>,
     cacheEnabled: boolean,
@@ -52,7 +61,7 @@ export interface RuntimeComposition {
   web?: SafeReader
   memory?: MemoryDependencies
   /** Defaults to the S3-compatible bucket from BUCKET_NAME/AWS_* configuration. */
-  mediaStore?: MediaObjectStore
+  mediaStore?: CatalogObjectStore
 }
 
 export function composeRuntimeConversation({
@@ -64,7 +73,7 @@ export function composeRuntimeConversation({
   model,
   web = safeReader(),
   memory,
-  mediaStore = s3MediaStore((key) => config.get<string>(key)),
+  mediaStore = s3CatalogStore((key) => config.get<string>(key)),
 }: RuntimeComposition) {
   const settings = runtimeSettings(config)
   // The environment promises; what was actually connected decides.
@@ -109,6 +118,19 @@ export function composeRuntimeConversation({
             voice: settings.speech.voice,
           })
         : undefined
+  const audio = audioCatalog(
+    on.audio.enabled && memory && mediaStore
+      ? {
+          pool: memory.pool,
+          embedding: memory.embedding,
+          store: mediaStore,
+          read: catalogObjectReader(mediaStore),
+          ownerId: settings.memoryOwnerId,
+          upload: { ...settings.audioUpload, read: web.read, convert: ffmpegAudioConverter() },
+        }
+      : undefined,
+    reauthorize,
+  )
   return createConversation({
     loadImages,
     loadContext: async (context) => history(context, 30),
@@ -133,7 +155,21 @@ export function composeRuntimeConversation({
         settings.memoryOwnerId,
         reauthorize,
       ),
+      audio,
       notices: on.reminders.enabled && redis ? new ScheduledNotices(redis) : undefined,
+      voicePlayback:
+        platform.voicePlayback && redis
+          ? {
+              ...platform.voicePlayback,
+              savedCooldown: audio.findSavedAudio
+                ? redisCooldown(
+                    redis,
+                    settings.savedAudioCooldownSeconds,
+                    'gnomo:saved-audio-quota:v1',
+                  )
+                : undefined,
+            }
+          : undefined,
       images:
         on.images.enabled && redis
           ? {

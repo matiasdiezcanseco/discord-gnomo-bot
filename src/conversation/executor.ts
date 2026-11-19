@@ -1,9 +1,11 @@
-import type { Invocation } from '../core/conversation/invocation'
+import { isAudioAttachment, type Invocation } from '../core/conversation/invocation'
 import type { Budget } from './budget'
 import type { Capability, ExecutionContext, ReplyFile } from './catalog'
 import { PartialResult } from './catalog'
 import type { ConversationPorts, ModelTurn, ToolResult, Trace } from './harness'
 import { describeError } from '../diagnostics'
+import type { VoicePlayback } from './voice-playback'
+import { audioIntentSchema, type AudioIntent } from './audio-intent'
 
 /** The only effect boundary. Neither model visibility nor validated input grants authorization. */
 export class Executor {
@@ -13,7 +15,10 @@ export class Executor {
   pendingWrite = false
   /** Files from successful calls only, in call order. */
   readonly files: ReplyFile[] = []
+  private readonly filesByTool = new Map<string, ReplyFile[]>()
+  voicePlayback?: { playback: VoicePlayback; channelName: string }
   private readonly context: ExecutionContext
+  private audioIntent?: Promise<AudioIntent | undefined>
   constructor(
     private readonly invocation: Invocation,
     private readonly tools: readonly Capability[],
@@ -26,6 +31,7 @@ export class Executor {
       extra?: Partial<Trace>,
     ) => void,
     private readonly discover = authorize,
+    private readonly classifyAudio?: ConversationPorts['model']['audioIntent'],
   ) {
     this.context = {
       invocation,
@@ -33,6 +39,30 @@ export class Executor {
       idempotencyKey: invocation.messageId,
       external: (work) => budget.external(work),
     }
+  }
+  private async allowsAudio(action: keyof AudioIntent) {
+    const { classifyAudio, invocation } = this
+    if (!classifyAudio) return false
+    const { signal } = this.context
+    this.audioIntent ??= this.budget
+      .wait(() =>
+        classifyAudio(
+          {
+            text: invocation.content,
+            hasAudioAttachment:
+              invocation.attachments.some(isAudioAttachment) ||
+              !!invocation.referencedAudioAttachments?.some(isAudioAttachment),
+          },
+          signal,
+        ),
+      )
+      .then((intent) => audioIntentSchema.parse(intent))
+      .catch((error) => {
+        signal.throwIfAborted()
+        this.trace('audio_intent', 'unavailable', undefined, { error: describeError(error) })
+        return undefined
+      })
+    return (await this.audioIntent)?.[action] === true
   }
   async available(): Promise<Capability[]> {
     const visible: Capability[] = []
@@ -84,16 +114,26 @@ export class Executor {
       const count = this.uses.get(tool.name) ?? 0
       if (count >= tool.maxCalls) return rejected('limit', `maxCalls ${tool.maxCalls} reached`)
       this.uses.set(tool.name, count + 1)
+      if (
+        tool.requiresAudioIntent &&
+        !(await this.allowsAudio(tool.requiresAudioIntent(parsed.data)))
+      )
+        return rejected('denied', 'the current request did not authorize this audio action')
       this.budget.check()
       this.trace('tool_started', 'allowed', tool.name)
       this.pendingWrite = tool.effect === 'write'
       const attached: ReplyFile[] = []
+      let voicePlayback: Executor['voicePlayback']
       const scoped: ExecutionContext = {
         ...this.context,
         attach: (file) => {
           attached.push(file)
         },
-        generated: () => Object.freeze([...this.files]),
+        generated: (toolName) =>
+          Object.freeze([...(toolName ? (this.filesByTool.get(toolName) ?? []) : this.files)]),
+        playVoice: (playback, channelName) => {
+          voicePlayback = { playback, channelName }
+        },
         discoveredUrls: Object.freeze([...this.discoveredUrls]),
         idempotencyKey: `${this.invocation.guildId}:${this.invocation.channelId}:${this.invocation.messageId}:${call.id}`,
       }
@@ -111,6 +151,9 @@ export class Executor {
         }
         this.pendingWrite = false
         this.files.push(...attached)
+        if (attached.length)
+          this.filesByTool.set(tool.name, [...(this.filesByTool.get(tool.name) ?? []), ...attached])
+        this.voicePlayback ??= voicePlayback
         if (['web.search', 'web.news'].includes(tool.capability)) {
           const search = value as { sources?: { url: string }[] }
           for (const source of search.sources ?? []) this.discoveredUrls.add(source.url)

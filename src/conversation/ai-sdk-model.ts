@@ -1,8 +1,9 @@
-import { generateText, type LanguageModel, type ToolSet } from 'ai'
+import { generateText, Output, type LanguageModel, type ToolSet } from 'ai'
+import { audioIntentInstructions, audioIntentSchema } from './audio-intent'
 import { looksLikeJson, type ConversationPorts } from './harness'
 import { gnomoPersona } from './persona'
 
-/** Exactly one generation, no SDK tool execution or automatic retries. Policy belongs to the harness. */
+/** No SDK tool execution or automatic retries. Policy belongs to the harness. */
 export function aiSdkModel(
   model: LanguageModel,
   maxOutputTokens = 1500,
@@ -10,6 +11,19 @@ export function aiSdkModel(
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
 ): ConversationPorts['model'] {
   return {
+    async audioIntent(request, signal) {
+      const result = await generateText({
+        model,
+        abortSignal: signal,
+        maxRetries: 0,
+        maxOutputTokens,
+        system: audioIntentInstructions,
+        prompt: JSON.stringify(request),
+        output: Output.object({ schema: audioIntentSchema }),
+        ...(reasoningEffort ? { providerOptions: { openai: { reasoningEffort } } } : {}),
+      })
+      return result.output
+    },
     async generate({ invocation, signal, results, tools, recentContext, images, finalize }) {
       const definitions: ToolSet = Object.fromEntries(
         tools.map((tool) => [
@@ -56,6 +70,9 @@ TIEMPO: now indica la fecha y hora actual en America/Lima; úsala para interpret
                     contentType,
                     size,
                   })),
+                  referencedAudioAttachments: invocation.referencedAudioAttachments?.map(
+                    ({ id, name, contentType, size }) => ({ id, name, contentType, size }),
+                  ),
                   verifiedImages: images?.map((image) => image.source),
                   toolResults: results,
                   recentContext,

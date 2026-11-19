@@ -112,7 +112,7 @@ export function safeReader(net: ReaderNetwork = nodeReaderNetwork()) {
         if (
           !Number.isInteger(policy.maxBytes) ||
           policy.maxBytes < 1 ||
-          policy.maxBytes > 5_000_000
+          policy.maxBytes > 16 * 1024 * 1024 + 1
         )
           throw new Error('unsupported')
         for (let hop = 0; hop <= 3; hop++) {

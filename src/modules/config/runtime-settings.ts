@@ -4,6 +4,7 @@ import {
   DEFAULT_OPENAI_SPEECH_MODEL,
   DEFAULT_OPENAI_SPEECH_VOICE,
   DEFAULT_FISH_AUDIO_MODEL,
+  MAX_VOICE_CONNECT_TIMEOUT_MS,
 } from './constants'
 
 /** Nest's ConfigService or any stand-in; values may be raw strings or already coerced. */
@@ -60,6 +61,17 @@ export function runtimeSettings(source: SettingsSource) {
         1,
         1440,
       ),
+    },
+    voiceConnectTimeoutMs: integer(
+      'VOICE_CONNECT_TIMEOUT_MS',
+      10000,
+      1000,
+      MAX_VOICE_CONNECT_TIMEOUT_MS,
+    ),
+    savedAudioCooldownSeconds: integer('SAVED_AUDIO_COOLDOWN_SECONDS', 60, 1, 3600),
+    audioUpload: {
+      maxBytes: integer('AUDIO_UPLOAD_MAX_BYTES', 8 * 1024 * 1024, 1, 16 * 1024 * 1024),
+      maxSeconds: integer('AUDIO_UPLOAD_MAX_SECONDS', 60, 1, 120),
     },
     concurrency: integer('CONVERSATION_CONCURRENCY', 4, 1, 16),
     timeoutMs: integer('CONVERSATION_TIMEOUT_MS', 60000, 1),
@@ -134,6 +146,11 @@ const requirements = {
     missing: (f) =>
       (!f.mediaBucket && 'BUCKET_NAME/AWS_* object storage') ||
       ((!f.database || !f.memoryOwner) && 'needs database and MEMORY_OWNER_ID'),
+  },
+  audio: {
+    name: 'audio catalog',
+    missing: (f) =>
+      (!f.database && 'no database URL') || (!f.mediaBucket && 'BUCKET_NAME/AWS_* object storage'),
   },
   collection: { name: 'phrases/photos/birthdays', missing: (f) => !f.collection && 'BUCKET_URL' },
   search: { name: 'web search/news', missing: (f) => !f.search && 'BROWSERBASE_API_KEY' },

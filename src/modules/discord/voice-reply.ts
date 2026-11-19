@@ -1,8 +1,6 @@
 import { MessageFlags, PermissionFlagsBits, Routes, type Message } from 'discord.js'
-import type { Reply } from '../../conversation/harness'
-import type { ReplyFile } from '../../conversation/catalog'
-
-type VoiceFile = ReplyFile & { voice: NonNullable<ReplyFile['voice']> }
+import type { ConfirmSend, Reply } from '../../conversation/harness'
+import type { VoiceFile, VoiceStage, VoiceStageResult } from '../../conversation/voice-playback'
 
 export function voiceFile(reply: Reply): VoiceFile | undefined {
   const file = reply.files?.length === 1 ? reply.files[0] : undefined
@@ -50,4 +48,57 @@ export async function replyWithVoice(message: Message, file: VoiceFile) {
     body: voiceMessageBody(message.id, file),
     files: [{ name: file.name, data: file.attachment, contentType: 'audio/ogg' }],
   })
+}
+
+export async function replyWithPlayback(
+  message: Message,
+  reply: Reply,
+  stage: VoiceStage | undefined,
+  signal: AbortSignal,
+  logFailure: (failure: Extract<VoiceStageResult, { status: 'failed' }>) => void,
+  confirmSend: ConfirmSend = () => {},
+) {
+  const playback = reply.voicePlayback
+  if (!playback || signal.aborted) return
+  const { file } = playback
+  const text = async (content: string) => {
+    await message.reply({ content, allowedMentions: reply.allowedMentions })
+    confirmSend({ contentLength: content.length })
+  }
+  let confirmation: Promise<{ error: unknown } | undefined> | undefined
+  const confirm = () => {
+    if (!signal.aborted)
+      confirmation ??= Promise.resolve()
+        .then(() => {
+          if (!signal.aborted) return text(reply.content)
+        })
+        .then(
+          () => undefined,
+          (error) => ({ error }),
+        )
+  }
+  const result: VoiceStageResult = stage
+    ? await stage.play(playback, signal, confirm)
+    : ({ status: 'failed', started: false, reason: 'unavailable' } as const)
+  if (result.status === 'played') {
+    confirm()
+  } else {
+    logFailure(result)
+    if (!result.started && result.reason !== 'aborted' && !signal.aborted) {
+      const reason =
+        result.message ??
+        (result.reason === 'busy'
+          ? 'Ya estoy reproduciendo otro audio en este servidor.'
+          : 'No pude reproducir el audio en la llamada.')
+      const sendClip = result.reason !== 'busy' || playback.source === 'generated'
+      await text(sendClip ? `${reason} Lo envío por el chat.` : reason)
+      if (sendClip) {
+        signal.throwIfAborted()
+        await replyWithVoice(message, file)
+        confirmSend({ contentLength: 0, attachments: 1 })
+      }
+    }
+  }
+  const failedConfirmation = await confirmation
+  if (failedConfirmation) throw failedConfirmation.error
 }

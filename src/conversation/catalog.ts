@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import type { Invocation } from '../core/conversation/invocation'
 import type { ToolResult } from './harness'
+import type { VoicePlayback } from './voice-playback'
+import type { AudioIntent } from './audio-intent'
 
 export class PartialResult<T> {
   constructor(readonly value: T) {}
@@ -29,7 +31,9 @@ export interface ExecutionContext {
   /** Tool calls only: kept and delivered with the reply only if the call succeeds. */
   attach?(file: ReplyFile): void
   /** Tool calls only: files earlier successful calls of this invocation attached to the reply. */
-  generated?(): readonly ReplyFile[]
+  generated?(toolName?: string): readonly ReplyFile[]
+  /** Tool calls only: committed with the reply if the call succeeds. */
+  playVoice?(playback: VoicePlayback, channelName: string): void
 }
 export interface Capability {
   name: string
@@ -46,6 +50,8 @@ export interface Capability {
   output: z.ZodType
   maxCalls: number
   maxResultChars: number
+  /** Independent authorization from the current request, for audio actions with side effects. */
+  requiresAudioIntent?(input: unknown): keyof AudioIntent
   /**
    * The model chooses the tool by intent; its result is then delivered exactly as rendered here,
    * never rephrased by the model. A turn that only calls verbatim tools ends without another
@@ -62,15 +68,23 @@ export interface Capability {
 }
 
 export function defineCapability<I, O>(
-  definition: Omit<Capability, 'input' | 'output' | 'execute'> & {
+  definition: Omit<Capability, 'input' | 'output' | 'execute' | 'requiresAudioIntent'> & {
     input: z.ZodType<I>
     output: z.ZodType<O>
+    requiresAudioIntent?(input: I): keyof AudioIntent
     execute(input: I, context: ExecutionContext): Promise<O | PartialResult<O>>
   },
 ): Capability {
+  const { requiresAudioIntent, ...capability } = definition
   return {
-    ...definition,
+    ...capability,
     execute: (input, context) => definition.execute(definition.input.parse(input), context),
+    ...(requiresAudioIntent
+      ? {
+          requiresAudioIntent: (input: unknown) =>
+            requiresAudioIntent(definition.input.parse(input)),
+        }
+      : {}),
   }
 }
 

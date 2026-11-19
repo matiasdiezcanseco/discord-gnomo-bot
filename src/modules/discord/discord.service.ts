@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common'
-import { Client, GatewayIntentBits } from 'discord.js'
+import { Client, Events, GatewayIntentBits } from 'discord.js'
 import { ConfigService } from '@nestjs/config'
 import { LoggerService } from '../services/logger/logger.service'
 import { Transport } from '../transport/transport'
@@ -7,11 +7,14 @@ import type { BirthdaySource } from '../../conversation/birthdays'
 import { discordScheduledDelivery } from './scheduled-delivery'
 import { describeError, redact } from '../../diagnostics'
 import { DISCORD_REST } from './rest-policy'
+import { clearStaleVoiceConnections, discordVoiceStage } from './voice-stage'
+import { runtimeSettings } from '../config/runtime-settings'
 
 @Injectable()
 export class DiscordService extends Transport implements OnModuleInit, OnModuleDestroy {
   readonly name = 'discord'
   private readonly client: Client
+  readonly voiceStage: ReturnType<typeof discordVoiceStage>
 
   constructor(
     private readonly config: ConfigService,
@@ -29,6 +32,14 @@ export class DiscordService extends Transport implements OnModuleInit, OnModuleD
         GatewayIntentBits.GuildVoiceStates,
       ],
     })
+    this.voiceStage = discordVoiceStage(
+      this.client,
+      runtimeSettings(config).voiceConnectTimeoutMs,
+      (error) =>
+        this.logger
+          .createLogger('voice')
+          .warn({ error: describeError(error) }, 'Voice playback unavailable'),
+    )
   }
 
   async onModuleInit() {
@@ -38,7 +49,8 @@ export class DiscordService extends Transport implements OnModuleInit, OnModuleD
       )
     const log = this.logger.createLogger('discord')
     const guildId = this.config.get<string>('GUILD_ID')
-    this.client.once('ready', (client) => {
+    this.client.once(Events.ClientReady, (client) => {
+      clearStaleVoiceConnections(client)
       log.info(
         {
           tag: client.user.tag,
@@ -101,6 +113,7 @@ export class DiscordService extends Transport implements OnModuleInit, OnModuleD
   }
 
   async onModuleDestroy() {
+    this.voiceStage?.close()
     await this.client.destroy()
   }
 

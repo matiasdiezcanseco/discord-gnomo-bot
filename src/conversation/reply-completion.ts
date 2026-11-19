@@ -1,16 +1,19 @@
 import type { Capability, ReplyFile } from './catalog'
 import type { ModelTurn, ToolResult } from './harness'
+import { voicePlaybackNotice, type VoicePlayback } from './voice-playback'
 
 export interface Reply {
   content: string
   allowedMentions: { parse: []; users: string[]; roles: []; repliedUser: false }
   /** Ordinary files ride on the last text/URL message; each voice file is sent alone. */
   files?: ReplyFile[]
+  voicePlayback?: VoicePlayback
 }
 interface ReplyDraft {
   text: string
   results: readonly ToolResult[]
   files: readonly ReplyFile[]
+  voicePlayback?: { playback: VoicePlayback; channelName: string }
   users: string[]
   failure?: string
   pendingWrite: boolean
@@ -38,7 +41,7 @@ export class ReplyCompletion {
 
   /** Complete confirmed content before the harness authorizes and sends each message. */
   async complete(
-    { text, results, files, users, failure, pendingWrite }: ReplyDraft,
+    { text, results, files, voicePlayback, users, failure, pendingWrite }: ReplyDraft,
     synthesize?: () => Promise<string>,
   ): Promise<{ messages: Reply[]; content: string }> {
     const confirmed = results.filter((r) => r.status === 'success' || r.status === 'partial')
@@ -58,6 +61,7 @@ export class ReplyCompletion {
     // Verbatim results are never paraphrased away: append any the final answer left out.
     // The synthesis turn may have quoted the URL again.
     text = withoutStandalone(text, alone)
+    if (!text) text = voicePlaybackNotice(results)
     const exact = results
       .filter((result) => result.status === 'success' && !this.standalone(result))
       .flatMap((result) => {
@@ -66,7 +70,7 @@ export class ReplyCompletion {
       })
       .filter((value) => !text.includes(value))
     if (exact.length) text = [text, ...exact].filter(Boolean).join('\n')
-    if (!text && !alone.length && !files.length) {
+    if (!text && !alone.length && !files.length && !voicePlayback) {
       const writes = [
         ...new Set(
           confirmed
@@ -104,16 +108,22 @@ export class ReplyCompletion {
     }
     chunks.push(...alone)
     // Discord rejects voice messages with text or other files: each one is its own message.
-    const voices = files.filter((file) => file.voice)
+    const voices = files.filter((file) => file.voice && file !== voicePlayback?.playback.file)
     const attached = files.filter((file) => !file.voice)
     // Generated files ride on the last message, or alone when there is no text at all.
     if (attached.length && !chunks.length) chunks.push('')
-    const messages: { content: string; files?: ReplyFile[] }[] = [
+    const messages: Omit<Reply, 'allowedMentions'>[] = [
       ...chunks.map((content, index) =>
         attached.length && index === chunks.length - 1 ? { content, files: attached } : { content },
       ),
       ...voices.map((file) => ({ content: '', files: [file] })),
     ]
+    if (voicePlayback) {
+      messages.push({
+        content: `Reproduciendo en ${voicePlayback.channelName}.`,
+        voicePlayback: voicePlayback.playback,
+      })
+    }
     return {
       messages: messages.map((message) => ({
         ...message,

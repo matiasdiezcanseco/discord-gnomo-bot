@@ -138,3 +138,45 @@ export const channelMedia = pgTable(
     ),
   ],
 )
+
+/** Audios members explicitly asked Gnomo to keep; the Ogg/Opus bytes live in object storage. */
+export const channelAudio = pgTable(
+  'channel_audio',
+  {
+    id: uuid('id').primaryKey(),
+    guildId: text('guild_id').notNull(),
+    channelId: text('channel_id').notNull(),
+    authorId: text('author_id').notNull(),
+    origin: text('origin', { enum: ['uploaded', 'generated'] }).notNull(),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    transcript: text('transcript'),
+    tags: text('tags')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    durationMs: integer('duration_ms').notNull(),
+    waveform: text('waveform').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    sha256: text('sha256').notNull(),
+    objectKey: text('object_key').notNull().unique('channel_audio_object_key_key'),
+    sourceMessageId: text('source_message_id'),
+    sourceAttachmentId: text('source_attachment_id'),
+    embedding: embeddingVector('embedding'),
+    embeddingModel: text('embedding_model'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('channel_audio_scope').on(table.guildId, table.channelId, table.createdAt),
+    uniqueIndex('channel_audio_content').on(table.guildId, table.channelId, table.sha256),
+    check('channel_audio_origin_check', sql`${table.origin} IN ('uploaded','generated')`),
+    check('channel_audio_title_check', sql`length(${table.title}) BETWEEN 1 AND 100`),
+    check('channel_audio_description_check', sql`length(${table.description}) BETWEEN 1 AND 1500`),
+    check('channel_audio_duration_check', sql`${table.durationMs} > 0`),
+    check('channel_audio_size_check', sql`${table.sizeBytes} > 0`),
+    check(
+      'channel_audio_embedding_check',
+      sql`(${table.embedding} IS NULL) = (${table.embeddingModel} IS NULL)`,
+    ),
+  ],
+)

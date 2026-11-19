@@ -13,3 +13,5 @@ export const DEFAULT_OPENAI_SPEECH_MODEL = 'gpt-realtime-2.1-mini'
 export const DEFAULT_OPENAI_SPEECH_VOICE = 'cedar'
 /** Fish Audio's recommended production TTS model; explicit FISH_AUDIO_MODEL always wins. */
 export const DEFAULT_FISH_AUDIO_MODEL = 's2.1-pro'
+
+export const MAX_VOICE_CONNECT_TIMEOUT_MS = 15000

@@ -3,11 +3,12 @@ import { type Message } from 'discord.js'
 import { ConfigService } from '@nestjs/config'
 import { LoggerService } from '../services/logger/logger.service'
 import { DiscordService } from './discord.service'
-import { normalizeInvocation, referencedImages } from './normalize-invocation'
+import { normalizeInvocation } from './normalize-invocation'
+import { isAudioAttachment } from '../../core/conversation/invocation'
 import type { createConversation } from '../../conversation/harness'
 import { runtimeAllows } from '../../conversation/runtime-policy'
 import { describeError, reportError } from '../../diagnostics'
-import { replyWithVoice, voiceFile } from './voice-reply'
+import { replyWithPlayback, replyWithVoice, voiceFile } from './voice-reply'
 
 @Injectable()
 export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
@@ -41,7 +42,7 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
       message,
       guildId,
       botId,
-      await this.referencedAttachments(message, botId),
+      await this.referencedAttachments(message, guildId, botId),
     )
     if (!invocation || !runtimeAllows(this.config, invocation)) {
       // Only messages that tag the bot: "why didn't it answer?" must be answerable from the logs.
@@ -66,8 +67,26 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
     }
     const stopTyping = this.showTyping(message)
     try {
-      await this.conversation.handle(invocation, async (_origin, reply) => {
+      await this.conversation.handle(invocation, async (_origin, reply, signal, confirmSend) => {
         stopTyping()
+        if (reply.voicePlayback) {
+          const { guildId, channelId } = reply.voicePlayback
+          await replyWithPlayback(
+            message,
+            reply,
+            this.discord.voiceStage,
+            signal,
+            (failure) =>
+              this.logger
+                .createLogger('voice')
+                .warn(
+                  { guildId, channelId, invocationId: invocation.messageId, ...failure },
+                  'Voice playback failed',
+                ),
+            confirmSend,
+          )
+          return
+        }
         const voice = voiceFile(reply)
         if (voice) await replyWithVoice(message, voice)
         else await message.reply(reply)
@@ -76,21 +95,28 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
       stopTyping()
     }
   }
-  /** Images of the replied-to message, same channel only; only fetched for a tagged reply. */
-  private async referencedAttachments(message: Message, botId: string | undefined) {
+  /** Same-channel attachment metadata for a tagged reply. */
+  private async referencedAttachments(
+    message: Message,
+    guildId: string | undefined,
+    botId: string | undefined,
+  ) {
     const reference = message.reference
     if (
       !botId ||
-      message.attachments.size ||
+      !guildId ||
+      message.guildId !== guildId ||
+      message.author.bot ||
       !reference?.messageId ||
       reference.channelId !== message.channelId ||
-      !new RegExp(`<@!?${botId}>`).test(message.content ?? '')
+      !new RegExp(`<@!?${botId}>`).test(message.content ?? '') ||
+      [...message.attachments.values()].some(isAudioAttachment)
     )
       return []
     try {
       const replied = await message.fetchReference()
       if (replied.channelId !== message.channelId) return []
-      return referencedImages(replied.attachments.values())
+      return [...replied.attachments.values()]
     } catch (error) {
       reportError('discord.reference', error, { invocationId: message.id })
       return []

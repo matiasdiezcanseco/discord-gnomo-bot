@@ -153,7 +153,8 @@ for (const stage of ['guild', 'channel', 'members'])
         },
         members: {
           fetch: async ({ user }: { user: string }) => {
-            if (late && stage === 'channel') lateQueries++
+            // Member lookups run alongside the channel lookup; only ones started after expiry count.
+            if (late && stage === 'channel' && now > 12000) lateQueries++
             if (late && stage === 'members') await pause()
             return { id: user }
           },
@@ -180,6 +181,7 @@ for (const stage of ['guild', 'channel', 'members'])
           GUILD_ID: 'g',
           RUNTIME_MODE: 'pilot',
           RUNTIME_CHANNEL_IDS: 'c',
+          CONVERSATION_TIMEOUT_MS: '12000',
         }),
         clock: {
           now: () => now,

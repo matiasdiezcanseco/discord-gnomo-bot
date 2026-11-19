@@ -7,6 +7,7 @@ import { messagesHistory, type HistoryReader } from './channel-history'
 import { collectionCapabilities, type CollectionSource } from './collection-content'
 import { memoryCapabilities } from './explicit-memory'
 import { mediaCapabilities } from './media-library'
+import { audioCatalog } from './audio-catalog'
 import { webRead } from './web-read'
 import { safeReader, type SafeReader } from '../web/safe-reader'
 import { presenceCapability, voiceCapability, type LiveMembers } from './live-members'
@@ -16,6 +17,7 @@ import { imageCapability, type ImageGenerator } from './image-generation'
 import type { RequesterCooldown } from './paid-generation'
 import { speechCapability, type SpeechGenerator } from './speech-generation'
 import { reactionCapabilities, type Reactions } from './reactions'
+import { voicePlayCapability, type VoicePlaybackDependencies } from './voice-playback'
 
 /**
  * Single composition point. A capability module owns its whole definition (identity, effect,
@@ -31,9 +33,11 @@ export interface CapabilityDependencies {
   web?: SafeReader
   memory?: ReturnType<typeof memoryCapabilities>
   media?: ReturnType<typeof mediaCapabilities>
+  audio?: ReturnType<typeof audioCatalog>
   notices?: ScheduledNotices
   images?: { generator?: ImageGenerator; cooldown?: RequesterCooldown }
   speech?: { generator?: SpeechGenerator; cooldown?: RequesterCooldown; cooldownMinutes?: number }
+  voicePlayback?: VoicePlaybackDependencies & { savedCooldown?: RequesterCooldown }
   extensions?: import('./catalog').Capability[]
 }
 export function composeCapabilities({
@@ -46,23 +50,32 @@ export function composeCapabilities({
   web = safeReader(),
   memory,
   media,
+  audio = audioCatalog(),
   notices,
   images,
   speech,
+  voicePlayback,
   extensions = [],
 }: CapabilityDependencies = {}) {
+  const canPlayGenerated = !!speech?.generator && !!speech.cooldown
+  const savedAudio =
+    audio.findSavedAudio && voicePlayback?.savedCooldown
+      ? { find: audio.findSavedAudio, cooldown: voicePlayback.savedCooldown }
+      : undefined
   return new Catalog([
     ...extensions,
     ...reactionCapabilities(reactions),
     reminderCapability(notices),
     imageCapability(images?.generator, images?.cooldown),
-    speechCapability(speech?.generator, speech?.cooldown, speech?.cooldownMinutes),
+    speechCapability(speech?.generator, speech?.cooldown, speech?.cooldownMinutes, !!voicePlayback),
+    ...(voicePlayback ? [voicePlayCapability(voicePlayback, canPlayGenerated, savedAudio)] : []),
     webRead(web),
     messagesHistory(history),
     ...collectionCapabilities(collection),
     ...searchCapabilities(search),
     ...(memory ?? memoryCapabilities()),
     ...(media ?? mediaCapabilities()),
+    ...audio.capabilities,
     ...(members ? memberCapabilities(members) : []),
     ...(live?.presence ? [presenceCapability(live.presence)] : []),
     ...(live?.voice ? [voiceCapability(live.voice)] : []),

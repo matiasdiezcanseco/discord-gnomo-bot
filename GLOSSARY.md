@@ -16,6 +16,10 @@ _Evitar_: Mensaje, cuando se habla de toda la respuesta y no de una sola de sus 
 Mensajes publicados en un canal de Discord, participara o no el bot en la conversación.
 _Evitar_: Memoria, historial del bot.
 
+**Reproducción en voz**:
+Entrega del audio de una respuesta de Gnomo en un canal de voz de Discord. Gnomo entra, reproduce el audio y sale cuando termina.
+_Evitar_: Mensaje de voz (se publica en el chat).
+
 **Historial de conversación con Gnomo**:
 Intercambios de peticiones y respuestas entre los miembros y el bot.
 _Evitar_: Historial del canal.
@@ -43,6 +47,10 @@ _Evitar_: Autor del recuerdo.
 **Medio guardado**:
 Imagen que un miembro pide explícitamente al bot que conserve, con una descripción para encontrarla y compartirla después dentro del mismo canal.
 _Evitar_: Foto de la colección (las fotos aleatorias del Gnomo), adjunto.
+
+**Audio guardado**:
+Audio que un miembro pide explícitamente al Gnomo conservar en el canal o hilo, con un título, una descripción, etiquetas y, cuando se conoce, una transcripción.
+_Evitar_: Mensaje de voz (formato de entrega), medio guardado (imagen).
 
 **Generación con costo**:
 Creación de un archivo (imagen, mensaje de voz) que gasta créditos del proveedor. Cada miembro tiene un turno por ventana de espera, que se toma antes de gastar; un rechazo del proveedor devuelve el turno y cualquier otra falla lo conserva.

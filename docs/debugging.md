@@ -31,15 +31,16 @@ model_started   tools offered
 model_finished  durationMs, toolCalls, model.{finishReason, inputTokens, outputTokens, reasoningTokens, responseId, warnings}
                 status "empty" (warn) = provider returned no text and no calls
 tool_started    tool
+audio_intent    unavailable if the request-only classification failed; the audio action is denied
 tool_rejected   (warn) never ran: unknown tool, denied, unavailable, invalid input (field: issue), limit
 tool_outcome    (warn) ran but answered a soft failure, e.g. memory "unavailable: …", "denied: …"
 tool_failed     (error) threw: error.{name, message, code, status, response, cause}
 tool_finished   status, durationMs
 stopped         (error) the turn aborted: timeout or error with the provider error (e.g. 401, 429)
 synthesis_*     fallback phrasing turn
-visible_send    one Discord message sent
+visible_send    confirmed after each successful Discord post, including playback fallback posts
 delivery        (warn/error) denied or uncertain, with the send error
-delivered       parts (+reply with LOG_CONTENT)
+delivered       parts (successful posts, even if playback posted nothing) (+reply with LOG_CONTENT)
 ```
 
 Messages that tag the bot but are not handled log `Tagged message ignored` (`module: receiver`)

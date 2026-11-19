@@ -5,11 +5,12 @@ import { configuredFacts, enablement, runtimeSettings } from './runtime-settings
  * One startup line answering "what is this process actually running with?". Booleans only for
  * credentials and URLs; never their values.
  */
-export function runtimeSummary(config: Pick<ConfigService, 'get'>) {
+export function runtimeSummary(config: Pick<ConfigService, 'get'>, voiceStageAvailable = false) {
   const get = (key: string) => config.get<string>(key)?.toString().trim() || undefined
   const has = (key: string) => !!get(key)
   const settings = runtimeSettings(config)
   const facts = configuredFacts(config)
+  const features = enablement(facts)
   const channels = (get('RUNTIME_CHANNEL_IDS') ?? '')
     .split(',')
     .map((id) => id.trim())
@@ -37,6 +38,7 @@ export function runtimeSummary(config: Pick<ConfigService, 'get'>) {
           speechVoice: defaulted('OPENAI_SPEECH_VOICE', settings.speech.voice),
         }),
     speechCooldownMinutes: settings.speech.cooldownMinutes,
+    savedAudioCooldownSeconds: settings.savedAudioCooldownSeconds,
     timeoutMs: settings.timeoutMs,
     synthesisTimeoutMs: settings.synthesisTimeoutMs,
     concurrency: settings.concurrency,
@@ -53,10 +55,12 @@ export function runtimeSummary(config: Pick<ConfigService, 'get'>) {
       PILOT_MEMORY_EMBEDDING_MODEL: has('PILOT_MEMORY_EMBEDDING_MODEL'),
       BUCKET_URL: has('BUCKET_URL'),
       MEDIA_BUCKET: facts.mediaBucket,
+      AUDIO_CATALOG: features.audio.enabled,
+      VOICE_PLAYBACK: voiceStageAvailable,
       BROWSERBASE_API_KEY: has('BROWSERBASE_API_KEY'),
       GNOMOS_CHANNEL_ID: has('GNOMOS_CHANNEL_ID'),
     },
-    disabled: Object.values(enablement(facts))
+    disabled: Object.values(features)
       .filter((feature) => !feature.enabled)
       .map((feature) => `${feature.name} (${feature.reason})`),
     logContent: settings.logContent,

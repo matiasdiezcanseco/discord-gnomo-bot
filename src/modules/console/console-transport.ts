@@ -114,7 +114,11 @@ export class ConsoleReceiver {
     }
     session.output({ type: 'typing', channelId: invocation.channelId })
     try {
-      await this.conversation.handle(invocation, async (_origin, reply) => {
+      await this.conversation.handle(invocation, async (_origin, reply, signal, confirmSend) => {
+        if (reply.voicePlayback) {
+          const result = await session.voicePlayback.stage.play(reply.voicePlayback, signal)
+          if (result.status === 'failed') return
+        }
         session.post(session.bot, reply.content, invocation.channelId)
         const files = await saveFiles(reply.files)
         session.output({
@@ -124,6 +128,7 @@ export class ConsoleReceiver {
           mentions: reply.allowedMentions.users,
           ...(files ? { files } : {}),
         })
+        if (reply.voicePlayback) confirmSend({ contentLength: reply.content.length })
       })
     } catch (error) {
       // Production only logs a safe line; locally the full error is what is being debugged.
