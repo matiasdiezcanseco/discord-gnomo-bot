@@ -15,3 +15,10 @@ export const DEFAULT_OPENAI_SPEECH_VOICE = 'cedar'
 export const DEFAULT_FISH_AUDIO_MODEL = 's2.1-pro'
 
 export const MAX_VOICE_CONNECT_TIMEOUT_MS = 15000
+
+/**
+ * External calls (tool calls plus their provider/platform subcalls) per invocation. Greeting the
+ * people in a call takes members, voice state, the speech cooldown, the provider and playback;
+ * the former 8 ran out before playback.
+ */
+export const DEFAULT_MAX_EXTERNAL_CALLS = 16

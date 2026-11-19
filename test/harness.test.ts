@@ -226,6 +226,7 @@ test('trusted mention subcalls cannot exceed the same eight-call allowance as th
   await createConversation({
     claim: async () => true,
     authorize: async () => true,
+    maxExternalCalls: 8,
     model: { generate: async () => ({ text: '<@111>', calls: [] }) },
     allowedUserMentions: async (_, context) => {
       for (let call = 0; call < 9; call++)

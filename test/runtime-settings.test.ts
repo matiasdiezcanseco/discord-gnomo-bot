@@ -93,6 +93,7 @@ test('settings apply defaults and bounds once, for raw and coerced values alike'
     [4, 60000, 20000],
   )
   assert.equal(defaults.logContent, false)
+  assert.equal(defaults.maxExternalCalls, 16)
 
   const set = runtimeSettings(
     source({
@@ -102,6 +103,7 @@ test('settings apply defaults and bounds once, for raw and coerced values alike'
       CONVERSATION_CONCURRENCY: 8,
       CONVERSATION_TIMEOUT_MS: '90000',
       CONVERSATION_SYNTHESIS_TIMEOUT_MS: 0,
+      CONVERSATION_MAX_EXTERNAL_CALLS: '24',
       MEMORY_OWNER_ID: '123456789012345678',
       LOG_CONTENT: 'true',
     }),
@@ -112,6 +114,7 @@ test('settings apply defaults and bounds once, for raw and coerced values alike'
   assert.deepEqual([set.concurrency, set.timeoutMs, set.synthesisTimeoutMs], [8, 90000, 0])
   assert.equal(set.memoryOwnerId, '123456789012345678')
   assert.equal(set.logContent, true)
+  assert.equal(set.maxExternalCalls, 24)
 
   const invalid = runtimeSettings(
     source({
@@ -120,6 +123,7 @@ test('settings apply defaults and bounds once, for raw and coerced values alike'
       OPENAI_SPEECH_COOLDOWN_MINUTES: '0',
       CONVERSATION_CONCURRENCY: '99',
       CONVERSATION_TIMEOUT_MS: 'soon',
+      CONVERSATION_MAX_EXTERNAL_CALLS: '100',
       MEMORY_OWNER_ID: 'ana',
     }),
   )
@@ -128,6 +132,7 @@ test('settings apply defaults and bounds once, for raw and coerced values alike'
   assert.equal(invalid.speech.cooldownMinutes, 10)
   assert.deepEqual([invalid.concurrency, invalid.timeoutMs], [4, 60000])
   assert.equal(invalid.memoryOwnerId, undefined)
+  assert.equal(invalid.maxExternalCalls, 16)
 })
 
 test('a complete Fish Audio setup replaces OpenAI as the voice provider', () => {

@@ -64,6 +64,30 @@ export class Executor {
       })
     return (await this.audioIntent)?.[action] === true
   }
+  /**
+   * Plays this invocation's generated speech when the request asked for it in a call but the
+   * model never called voice_play. The same authorization and audio intent check apply, so a
+   * voice message requested for the chat stays in the chat.
+   */
+  async playRequestedSpeech(): Promise<ToolResult | undefined> {
+    const name = 'voice_play'
+    if (
+      this.voicePlayback ||
+      this.uses.has(name) ||
+      !this.tools.some((tool) => tool.name === name) ||
+      !this.filesByTool.get('speech_generate')?.some((file) => file.voice) ||
+      !(await this.allowsAudio('playGenerated'))
+    )
+      return undefined
+    try {
+      return await this.execute({ id: `chained-${name}`, name, input: { audio: 'generated' } })
+    } catch (error) {
+      this.context.signal.throwIfAborted()
+      // Out of budget: the audio still goes out as a voice message.
+      this.trace('tool_failed', 'transient', name, { error: describeError(error) })
+      return undefined
+    }
+  }
   async available(): Promise<Capability[]> {
     const visible: Capability[] = []
     for (const tool of this.tools) {

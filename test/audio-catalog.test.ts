@@ -188,8 +188,9 @@ async function withCatalog(
       model: {
         audioIntent:
           options.audioIntent ??
-          (async () => ({
-            playGenerated: true,
+          (async ({ text }) => ({
+            // Like the real classifier: «di X y guárdalo» is a voice message, not a call.
+            playGenerated: /únete|canal de voz|llamada/i.test(text),
             playSaved: true,
             saveGenerated: true,
             saveAttachment: true,

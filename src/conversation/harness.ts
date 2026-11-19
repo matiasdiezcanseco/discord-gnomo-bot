@@ -104,6 +104,8 @@ export interface ConversationPorts {
   traceContent?: boolean
   /** Main loop budget in ms (model steps and tools). */
   timeoutMs?: number
+  /** External calls (tools and their subcalls) one invocation may make. */
+  maxExternalCalls?: number
   /**
    * Grace budget for one tool-less model turn that phrases confirmed results when the loop
    * ends without a usable answer (timeout, failure, exhausted steps). 0 disables it.
@@ -143,7 +145,7 @@ export function createConversation(ports: ConversationPorts) {
       })
       Object.freeze(invocation.attachments)
       const clock = ports.clock ?? systemClock
-      const budget = new Budget(clock, clock.now(), ports.timeoutMs)
+      const budget = new Budget(clock, clock.now(), ports.timeoutMs, ports.maxExternalCalls)
       const signal = budget.controller.signal
       const results: ToolResult[] = []
       // Attachments are untrusted data; execution still requires current text consent and permissions.
@@ -293,6 +295,9 @@ export function createConversation(ports: ConversationPorts) {
             }
             if (budget.steps === 5) text = ''
           }
+          // The request asked for the audio in the call; the model may still forget voice_play.
+          const chained = await executor.playRequestedSpeech()
+          if (chained) trace('tool_finished', chained.status, chained.name, { detail: 'chained' })
           if (ports.allowedUserMentions) {
             const resolved = await budget.wait(() =>
               ports.allowedUserMentions!(invocation, {
