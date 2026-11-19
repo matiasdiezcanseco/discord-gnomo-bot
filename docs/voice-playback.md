@@ -49,3 +49,17 @@ El resumen de arranque muestra `AUDIO_CATALOG` como booleano. Con la base de dat
 bucket sin configurar, las herramientas del catálogo quedan ocultas. La creación de un
 audio sigue usando la configuración y el límite de `speech_generate`. Buscar y compartir
 usan el audio existente.
+
+### Guardar audios adjuntos
+
+Adjunta un MP3, Ogg, WAV, M4A o WebM y pide «@Gnomo guarda este audio como el grito de
+Pedro». También puedes responder a un audio del mismo canal, incluidos los mensajes de
+voz de Gnomo. Indica cómo quieres encontrar el audio después. Gnomo usa esa descripción
+para catalogarlo y pide una si falta.
+
+La imagen de producción incluye ffmpeg para convertir los adjuntos a Ogg/Opus.
+[ADR 0007](adr/0007-normalize-saved-audio.md). Los adjuntos con tipo de audio declarado
+pueden pesar hasta 8 MiB y durar hasta 60 segundos. Los límites se pueden cambiar con
+`AUDIO_UPLOAD_MAX_BYTES` (de 1 byte a 16 MiB, en bytes) y `AUDIO_UPLOAD_MAX_SECONDS` (de 1 a
+120 segundos). Un archivo que no se puede decodificar o excede algún límite se rechaza.
+Sin ffmpeg, los adjuntos quedan indisponibles y se puede seguir guardando el audio generado.

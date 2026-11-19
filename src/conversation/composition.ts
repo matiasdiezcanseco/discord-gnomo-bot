@@ -16,6 +16,7 @@ import { safeReader, type SafeReader } from '../web/safe-reader'
 import { attachedImages } from './attached-images'
 import { mediaCapabilities } from './media-library'
 import { audioCapabilities } from './audio-catalog'
+import { ffmpegAudioConverter } from './audio-upload-converter'
 import {
   catalogObjectReader,
   s3CatalogStore,
@@ -148,6 +149,7 @@ export function composeRuntimeConversation({
               embedding: memory.embedding,
               store: mediaStore,
               read: catalogObjectReader(mediaStore),
+              upload: { ...settings.audioUpload, read: web.read, convert: ffmpegAudioConverter() },
             }
           : undefined,
         reauthorize,

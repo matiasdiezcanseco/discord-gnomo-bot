@@ -79,16 +79,19 @@ function opusTags() {
 
 /**
  * Encodes 16-bit little-endian mono PCM into an Ogg/Opus file, the container Discord requires
- * for voice messages. Pure WebAssembly (opusscript): no native build, no ffmpeg in the image.
+ * for voice messages. The encoder uses WebAssembly (opusscript).
  */
-export function encodeOggOpus(pcm: Buffer, rate: 24000 | 48000 = 24000, bitrate = 32000) {
+export function encodeOggOpus(
+  pcm: Buffer,
+  rate: 24000 | 48000 = 24000,
+  { bitrate = 32000, serial = (Math.random() * 0xffffffff) >>> 0 } = {},
+) {
   const frameSamples = (rate * FRAME_MS) / 1000
   const frameBytes = frameSamples * 2
   const scale = GRANULE_RATE / rate
   // libopus' encoder lookahead: 6.5 ms, i.e. 312 samples at 48 kHz, trimmed by the decoder.
   const preSkip = 312
   const encoder = new OpusScript(rate, 1, OpusScript.Application.VOIP)
-  const serial = (Math.random() * 0xffffffff) >>> 0
   const pages: Buffer[] = []
   let sequence = 0
   try {
@@ -98,19 +101,20 @@ export function encodeOggOpus(pcm: Buffer, rate: 24000 | 48000 = 24000, bitrate 
     )
     pages.push(oggPage([opusTags()], { serial, sequence: sequence++, granule: 0n, flags: 0 }))
     const totalSamples = Math.floor(pcm.length / 2)
-    const frames = Math.max(1, Math.ceil(totalSamples / frameSamples))
+    // Encode enough padded samples to flush the encoder lookahead at the end.
+    const frames = Math.ceil((totalSamples + preSkip / scale) / frameSamples)
     // The final granule marks where real audio ends, so the padded tail is trimmed on playback.
     const endGranule = BigInt(preSkip + totalSamples * scale)
     let pending: Buffer[] = []
     for (let frame = 0; frame < frames; frame++) {
       const chunk = Buffer.alloc(frameBytes)
-      pcm.copy(chunk, 0, frame * frameBytes, Math.min(pcm.length, (frame + 1) * frameBytes))
+      pcm.subarray(frame * frameBytes, (frame + 1) * frameBytes).copy(chunk)
       // The encoder returns a view into WebAssembly memory: copy it before the next call.
       pending.push(Buffer.from(encoder.encode(chunk, frameSamples)))
       const last = frame === frames - 1
       // About one second of audio per page keeps pages well under the 255-segment limit.
       if (pending.length === 50 || last) {
-        const granule = last ? endGranule : BigInt(preSkip + (frame + 1) * frameSamples * scale)
+        const granule = last ? endGranule : BigInt((frame + 1) * frameSamples * scale)
         pages.push(oggPage(pending, { serial, sequence: sequence++, granule, flags: last ? 4 : 0 }))
         pending = []
       }

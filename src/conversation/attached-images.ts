@@ -1,4 +1,5 @@
 import sharp from 'sharp'
+import { isAudioAttachment } from '../core/conversation/invocation'
 import type { ExecutionContext } from './catalog'
 import type { SafeReader } from '../web/safe-reader'
 import { reportError } from '../diagnostics'
@@ -29,10 +30,13 @@ export function attachedImages(reader: SafeReader) {
     function fail(reason: string): never {
       throw new AttachmentError(`No pude usar los adjuntos: ${reason}`)
     }
-    if (invocation.attachments.length > 2) fail('máximo dos imágenes y 5 MB en total.')
+    const attachments = invocation.attachments.filter(
+      (attachment) => !isAudioAttachment(attachment),
+    )
+    if (attachments.length > 2) fail('máximo dos imágenes y 5 MB en total.')
     const images: VerifiedImage[] = []
     let total = 0
-    for (const attachment of invocation.attachments) {
+    for (const attachment of attachments) {
       signal.throwIfAborted()
       const claimed = attachment.contentType?.toLowerCase().split(';')[0].trim()
       if (!claimed || !types.includes(claimed))
