@@ -21,13 +21,18 @@ function botVoicePermissionMessage(permissions: Readonly<PermissionsBitField>): 
   if (missing.length) return `Me faltan estos permisos en el canal de voz: ${missing.join(', ')}.`
 }
 
+function canRequesterJoin(permissions: Readonly<PermissionsBitField> | null) {
+  return permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect])
+}
+
+const requesterForbidden = 'Necesitas permiso para ver y entrar en el canal de voz.'
+
 export function discordVoiceLocation(client: Client) {
   return async (context: ExecutionContext, target?: string): Promise<VoiceLocation> => {
     const { invocation, signal } = context
     const guild = client.guilds.cache.get(invocation.guildId)
     if (!client.isReady() || !guild?.available || !client.user)
       return { status: 'unavailable', message: 'No pude consultar tu canal de voz.' }
-    const currentChannel = () => guild.voiceStates.cache.get(invocation.requester.id)?.channelId
     let channel
     if (target) {
       if (/^\d{17,20}$/.test(target)) {
@@ -45,28 +50,18 @@ export function discordVoiceLocation(client: Client) {
       if (!channel)
         return { status: 'invalid', message: 'No encontré ese canal de voz en este servidor.' }
     } else {
-      const channelId = currentChannel()
+      const channelId = guild.voiceStates.cache.get(invocation.requester.id)?.channelId
       if (!channelId) return { status: 'absent' }
-      channel = await context.external(() => guild.channels.fetch(channelId, { force: true }))
-      if (currentChannel() !== channelId)
-        return {
-          status: 'unavailable',
-          message: 'Tu canal de voz cambió mientras preparaba el audio.',
-        }
+      channel = guild.channels.cache.get(channelId)
     }
     signal.throwIfAborted()
     if (channel?.type !== ChannelType.GuildVoice)
       return { status: 'invalid', message: 'Solo puedo reproducir en canales de voz normales.' }
     const requester = guild.members.cache.get(invocation.requester.id)
-    if (
-      !requester ||
-      !channel
-        .permissionsFor(requester)
-        ?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect])
-    )
+    if (!requester || !canRequesterJoin(channel.permissionsFor(requester)))
       return {
         status: 'forbidden',
-        message: 'Necesitas permiso para ver y entrar en el canal de voz.',
+        message: requesterForbidden,
       }
     const bot = guild.members.me
     const permissions = bot && channel.permissionsFor(bot)
@@ -78,7 +73,7 @@ export function discordVoiceLocation(client: Client) {
   }
 }
 
-type FailureReason = Extract<VoiceStageResult, { status: 'failed' }>['reason']
+type StageFailure = Extract<VoiceStageResult, { status: 'failed' }>
 
 export function clearStaleVoiceConnections(client: Client<true>) {
   for (const guild of client.guilds.cache.values()) {
@@ -113,9 +108,9 @@ export function discordVoiceStage(
     close() {
       shutdown.abort('aborted')
     },
-    async play(guildId, channelId, audio, signal, onStarted) {
+    async play({ guildId, channelId, requesterId, file }, signal, onStarted) {
       let started = false
-      const failed = (reason: FailureReason): VoiceStageResult => ({
+      const failed = (reason: StageFailure['reason']): StageFailure => ({
         status: 'failed',
         reason,
         started,
@@ -123,15 +118,7 @@ export function discordVoiceStage(
       if (signal.aborted || shutdown.signal.aborted) return failed('aborted')
       if (busy.has(guildId)) return failed('busy')
       const guild = client.guilds.cache.get(guildId)
-      const channel = guild?.channels.cache.get(channelId)
-      if (!guild?.available || channel?.type !== ChannelType.GuildVoice || !client.isReady())
-        return failed('unavailable')
-      const bot = guild.members.me
-      const permissions = bot && channel.permissionsFor(bot)
-      if (!permissions) return failed('unavailable')
-      const message = botVoicePermissionMessage(permissions)
-      if (message) return { status: 'failed', started, reason: 'forbidden', message }
-      if (!channel.joinable || !channel.speakable) return failed('forbidden')
+      if (!guild?.available || !client.isReady()) return failed('unavailable')
 
       busy.add(guildId)
       const disconnected = new AbortController()
@@ -150,8 +137,24 @@ export function discordVoiceStage(
       let player: AudioPlayer | undefined
       let source: Readable | undefined
       let checkStarted: ReturnType<typeof setInterval> | undefined
-      const connectTimeout = AbortSignal.timeout(connectTimeoutMs)
+      let connectTimeout: AbortSignal | undefined
       try {
+        const channel = await guild.channels.fetch(channelId, { force: true })
+        playbackSignal.throwIfAborted()
+        if (!guild.available || channel?.type !== ChannelType.GuildVoice || !client.isReady())
+          return failed('unavailable')
+        // Use current channel overwrites and gateway-maintained member roles just before joining.
+        const requester = guild.members.cache.get(requesterId)
+        if (!requester || !canRequesterJoin(channel.permissionsFor(requester)))
+          return { ...failed('forbidden'), message: requesterForbidden }
+        const bot = guild.members.me
+        const permissions = bot && channel.permissionsFor(bot)
+        if (!permissions) return failed('unavailable')
+        const message = botVoicePermissionMessage(permissions)
+        if (message) return { ...failed('forbidden'), message }
+        if (!channel.joinable || !channel.speakable) return failed('forbidden')
+
+        connectTimeout = AbortSignal.timeout(connectTimeoutMs)
         client.on(Events.VoiceStateUpdate, checkBotChannel)
         connection = voice.joinVoiceChannel({
           guildId,
@@ -177,7 +180,7 @@ export function discordVoiceStage(
         )
         playbackSignal.throwIfAborted()
         player = voice.createAudioPlayer()
-        source = Readable.from([audio.attachment])
+        source = Readable.from([file.attachment])
         const resource = voice.createAudioResource(source, { inputType: voice.StreamType.OggOpus })
         if (!connection.subscribe(player)) return failed('disconnected')
         const observeStart = () => {
@@ -200,7 +203,7 @@ export function discordVoiceStage(
         if (signal.aborted || shutdown.signal.aborted) return failed('aborted')
         if (disconnected.signal.aborted) return failed('disconnected')
         if (player) return failed('audio')
-        return failed(connectTimeout.aborted ? 'timeout' : 'unavailable')
+        return failed(connectTimeout?.aborted ? 'timeout' : 'unavailable')
       } finally {
         clearInterval(checkStarted)
         client.off(Events.VoiceStateUpdate, checkBotChannel)

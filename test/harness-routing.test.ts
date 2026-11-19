@@ -27,6 +27,7 @@ test('rollout expands, pauses and resumes the sole receiver without legacy fallb
             allowedMentions: { parse: [], roles: [], users: [], repliedUser: false },
           },
           new AbortController().signal,
+          () => {},
         )
       },
     },

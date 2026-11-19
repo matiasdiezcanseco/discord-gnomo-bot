@@ -12,7 +12,7 @@ import {
   type CatalogObjectReader,
   type CatalogObjectStore,
 } from './catalog-object-store'
-import { catalogSimilarity, queryTerms, rankCatalog } from './catalog-search'
+import { catalogEmbedding, catalogSimilarity, queryTerms, rankCatalog } from './catalog-search'
 import type { MemoryEmbedding } from './explicit-memory'
 import { generatedSpeechTranscript } from './paid-generation'
 import { loadAudioUpload, type AudioUploadDependencies } from './audio-upload'
@@ -47,6 +47,19 @@ const scope = (invocation: Invocation) =>
     eq(channelAudio.channelId, invocation.channelId),
   )
 const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
+
+async function findExactAudio(
+  db: Pick<ReturnType<typeof memoryDatabase>, 'select'>,
+  invocation: Invocation,
+  sha256: string,
+) {
+  const [existing] = await db
+    .select({ id: channelAudio.id, title: channelAudio.title, durationMs: channelAudio.durationMs })
+    .from(channelAudio)
+    .where(and(scope(invocation), eq(channelAudio.sha256, sha256)))
+    .limit(1)
+  return existing
+}
 
 function generatedAudio(context: ExecutionContext) {
   const speech = context.generated?.('speech_generate').find((file) => file.voice)
@@ -84,24 +97,12 @@ export function audioCatalog(
   reauthorize: (invocation: Invocation, signal: AbortSignal) => Promise<boolean> = async () =>
     false,
 ) {
-  async function embed(value: string, context: ExecutionContext) {
-    const embedding = dependencies?.embedding
-    if (!embedding) return null
-    try {
-      const vector = await context.external(() => embedding.embed(value, context.signal))
-      if (!vector.length || vector.length > 4096 || !vector.every(Number.isFinite))
-        throw new Error('Invalid embedding')
-      return { vector, model: embedding.model }
-    } catch (error) {
-      context.signal.throwIfAborted()
-      reportError('audio.embedding', error, { invocationId: context.invocation.messageId })
-      return null
-    }
-  }
-
   async function find(query: string, context: ExecutionContext, limit: number, exactId: boolean) {
     if (exactId && !uuid.test(query)) return []
-    const embedded = query && !exactId ? await embed(query, context) : null
+    const embedded =
+      query && !exactId
+        ? await catalogEmbedding(dependencies?.embedding, query, context, 'audio.embedding')
+        : null
     const rows = await memoryDatabase(dependencies!.pool).transaction(async (db) => {
       await db.execute(sql`SET LOCAL statement_timeout='2000ms'`)
       return db
@@ -186,6 +187,8 @@ export function audioCatalog(
     ]),
     maxCalls: 2,
     maxResultChars: 2000,
+    requiresAudioIntent: ({ source }) =>
+      source === 'generated' ? 'saveGenerated' : 'saveAttachment',
     available: async () => !!dependencies,
     execute: async (input, context) => {
       const { invocation, signal } = context
@@ -196,9 +199,16 @@ export function audioCatalog(
           message: 'Dime de qué trata el audio o con qué nombre quieres guardarlo.',
         }
 
+      const { pool, store } = dependencies!
       const candidate =
         source === 'attachment'
-          ? await loadAudioUpload(dependencies?.upload, context)
+          ? await loadAudioUpload(dependencies?.upload, context, (bytes) =>
+              memoryDatabase(pool).transaction(async (db) => {
+                await db.execute(sql`SET LOCAL statement_timeout='2000ms'`)
+                signal.throwIfAborted()
+                return findExactAudio(db, invocation, digest(bytes))
+              }),
+            )
           : generatedAudio(context)
       if (candidate.outcome !== 'ready') return candidate
 
@@ -210,7 +220,6 @@ export function audioCatalog(
           outcome: 'invalid' as const,
           message: 'El audio creado no tiene una duración válida.',
         }
-      const { pool, store } = dependencies!
       const sha256 = digest(bytes)
       const tags = [...new Set((input.tags ?? []).map((value) => value.toLowerCase()))]
       const id = randomUUID()
@@ -222,16 +231,15 @@ export function audioCatalog(
           await db.execute(sql`SET LOCAL statement_timeout='5000ms'`)
           // A concurrent save of these bytes waits for the row before deciding whether to upload.
           await db.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lock}, 0))`)
-          const [existing] = await db
-            .select({ id: channelAudio.id, title: channelAudio.title })
-            .from(channelAudio)
-            .where(and(scope(invocation), eq(channelAudio.sha256, sha256)))
-            .limit(1)
-          if (existing) return { outcome: 'already_saved' as const, ...existing }
+          const existing = await findExactAudio(db, invocation, sha256)
+          if (existing)
+            return { outcome: 'already_saved' as const, id: existing.id, title: existing.title }
 
-          const embedded = await embed(
+          const embedded = await catalogEmbedding(
+            dependencies?.embedding,
             [input.title, description, transcript, tags.join(', ')].join('\n'),
             context,
+            'audio.embedding',
           )
           if (!(await reauthorize(invocation, signal)))
             return { outcome: 'denied' as const, message: 'Permisos actuales insuficientes.' }

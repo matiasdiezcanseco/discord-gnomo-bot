@@ -8,6 +8,7 @@ import { Admission } from './admission'
 import { Executor } from './executor'
 import { AttachmentError, type VerifiedImage } from './attached-images'
 import { MAX_VOICE_CONNECT_TIMEOUT_MS } from '../modules/config/constants'
+import type { AudioIntent, AudioRequest } from './audio-intent'
 
 export type { Reply } from './reply-completion'
 /** Provider facts about one model call, for diagnostics only. */
@@ -76,11 +77,16 @@ export interface Trace {
   content?: string
   reply?: string
 }
+export type ConfirmSend = (message: { contentLength: number; attachments?: number }) => void
+
 export interface ConversationPorts {
   loadImages?(context: ExecutionContext): Promise<VerifiedImage[]>
   /** Called only after invocation authorization; absent means no ambient context. */
   loadContext?(context: ExecutionContext): Promise<HistoryResult | undefined>
-  model: { generate(input: ModelInput): Promise<ModelTurn> }
+  model: {
+    generate(input: ModelInput): Promise<ModelTurn>
+    audioIntent?(request: AudioRequest, signal: AbortSignal): Promise<AudioIntent>
+  }
   catalog?: Catalog
   clock?: Clock
   concurrency?: number
@@ -126,6 +132,7 @@ export function createConversation(ports: ConversationPorts) {
         invocation: Invocation,
         reply: Reply,
         signal: AbortSignal,
+        confirmSend: ConfirmSend,
       ) => Promise<void> = ports.reply,
     ) {
       // A private immutable snapshot prevents adapters/tools from replacing authenticated scope.
@@ -169,6 +176,7 @@ export function createConversation(ports: ConversationPorts) {
         ports.authorize,
         trace,
         ports.discover,
+        ports.model.audioIntent?.bind(ports.model),
       )
       let text = ''
       let failure: string | undefined
@@ -363,6 +371,11 @@ export function createConversation(ports: ConversationPorts) {
             ? MAX_VOICE_CONNECT_TIMEOUT_MS + Math.ceil(playbackDurationSecs * 1000)
             : 0),
       )
+      let parts = 0
+      const confirmSend: ConfirmSend = (details) => {
+        parts++
+        trace('visible_send', 'confirmed', undefined, details)
+      }
       try {
         for (const message of messages) {
           if (
@@ -373,11 +386,15 @@ export function createConversation(ports: ConversationPorts) {
             trace('delivery', 'denied')
             return
           }
-          await delivery.wait(() => reply(invocation, message, delivery.controller.signal))
-          trace('visible_send', 'confirmed', undefined, {
-            contentLength: message.content.length,
-            ...(message.files ? { attachments: message.files.length } : {}),
-          })
+          await delivery.wait(() =>
+            reply(invocation, message, delivery.controller.signal, confirmSend),
+          )
+          // Ordinary replies have a 1:1 post contract. Playback may send zero, one or two posts.
+          if (!message.voicePlayback)
+            confirmSend({
+              contentLength: message.content.length,
+              ...(message.files ? { attachments: message.files.length } : {}),
+            })
         }
       } catch (error) {
         trace('delivery', 'uncertain', undefined, { error: describeError(error) })
@@ -386,7 +403,7 @@ export function createConversation(ports: ConversationPorts) {
         delivery.close()
       }
       trace('delivered', undefined, undefined, {
-        parts: messages.length,
+        parts,
         ...(executor.files.length ? { attachments: executor.files.length } : {}),
         ...(ports.traceContent ? { reply: redact(content, 1000) } : {}),
       })

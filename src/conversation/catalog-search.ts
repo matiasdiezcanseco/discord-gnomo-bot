@@ -1,4 +1,27 @@
 import { sql, type SQLWrapper } from 'drizzle-orm'
+import { reportError } from '../diagnostics'
+import type { ExecutionContext } from './catalog'
+import type { MemoryEmbedding } from './explicit-memory'
+
+/** Catalogs can fall back to term ranking when the embedding provider fails. */
+export async function catalogEmbedding(
+  embedding: MemoryEmbedding | undefined,
+  value: string,
+  context: ExecutionContext,
+  diagnosticScope: 'media.embedding' | 'audio.embedding',
+) {
+  if (!embedding) return null
+  try {
+    const vector = await context.external(() => embedding.embed(value, context.signal))
+    if (!vector.length || vector.length > 4096 || !vector.every(Number.isFinite))
+      throw new Error('Invalid embedding')
+    return { vector, model: embedding.model }
+  } catch (error) {
+    context.signal.throwIfAborted()
+    reportError(diagnosticScope, error, { invocationId: context.invocation.messageId })
+    return null
+  }
+}
 
 /** Lowercase, accents removed: «canción» matches «cancion». */
 const fold = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()

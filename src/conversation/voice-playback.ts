@@ -9,6 +9,8 @@ export type VoiceFile = ReplyFile & { voice: NonNullable<ReplyFile['voice']> }
 export interface VoicePlayback {
   guildId: string
   channelId: string
+  requesterId: string
+  source: 'generated' | 'saved'
   file: VoiceFile
 }
 
@@ -31,9 +33,7 @@ export type VoiceStageResult =
 export interface VoiceStage {
   isBusy(guildId: string): boolean
   play(
-    guildId: string,
-    channelId: string,
-    audio: VoiceFile,
+    playback: VoicePlayback,
     signal: AbortSignal,
     onStarted?: () => void,
   ): Promise<VoiceStageResult>
@@ -102,6 +102,7 @@ export function voicePlayCapability(
     output: playbackOutput,
     maxCalls: 1,
     maxResultChars: 1000,
+    requiresAudioIntent: ({ audio }) => (audio === 'generated' ? 'playGenerated' : 'playSaved'),
     available: async () => canPlayGenerated || !!savedAudio,
     async execute({ audio, channel }, context): Promise<z.infer<typeof playbackOutput>> {
       if (!context.playVoice || (audio !== 'generated' && !savedAudio))
@@ -149,6 +150,8 @@ export function voicePlayCapability(
         {
           guildId,
           channelId: target.channelId,
+          requesterId: context.invocation.requester.id,
+          source: audio === 'generated' ? 'generated' : 'saved',
           file,
         },
         target.channelName,

@@ -67,17 +67,23 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
     }
     const stopTyping = this.showTyping(message)
     try {
-      await this.conversation.handle(invocation, async (_origin, reply, signal) => {
+      await this.conversation.handle(invocation, async (_origin, reply, signal, confirmSend) => {
         stopTyping()
         if (reply.voicePlayback) {
           const { guildId, channelId } = reply.voicePlayback
-          await replyWithPlayback(message, reply, this.discord.voiceStage, signal, (failure) =>
-            this.logger
-              .createLogger('voice')
-              .warn(
-                { guildId, channelId, invocationId: invocation.messageId, ...failure },
-                'Voice playback failed',
-              ),
+          await replyWithPlayback(
+            message,
+            reply,
+            this.discord.voiceStage,
+            signal,
+            (failure) =>
+              this.logger
+                .createLogger('voice')
+                .warn(
+                  { guildId, channelId, invocationId: invocation.messageId, ...failure },
+                  'Voice playback failed',
+                ),
+            confirmSend,
           )
           return
         }

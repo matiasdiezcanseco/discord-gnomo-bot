@@ -30,6 +30,9 @@ const servedTypes = [
 export async function loadAudioUpload(
   upload: AudioUploadDependencies | undefined,
   context: ExecutionContext,
+  findDuplicate: (
+    bytes: Buffer,
+  ) => Promise<{ id: string; title: string; durationMs: number } | undefined>,
 ) {
   const unavailable = {
     outcome: 'unavailable' as const,
@@ -59,6 +62,15 @@ export async function loadAudioUpload(
   if ('bytes' in result && result.bytes.length > maxBytes) return sizeLimit()
   if (result.status !== 'complete')
     return invalid('No pude descargar el archivo de audio completo desde Discord.')
+
+  // Encoding can change the bytes of an Ogg/Opus file that is already in the catalog.
+  const existing = await findDuplicate(result.bytes)
+  if (existing) {
+    const { id, title, durationMs } = existing
+    return durationMs > maxSeconds * 1000
+      ? invalid(`El audio supera el límite de ${maxSeconds} segundos.`)
+      : { outcome: 'already_saved' as const, id, title }
+  }
 
   const converted = await context.external(() => upload.convert(result.bytes, maxSeconds, signal))
   switch (converted.outcome) {

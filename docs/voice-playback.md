@@ -4,7 +4,9 @@ Al pedir «@Gnomo únete y di X», Gnomo genera el audio con su proveedor habitu
 
 Si la persona está fuera de una llamada, el modelo recibe `delivered: 'chat'` y Gnomo envía un mensaje de voz. Si falla la conexión antes de reproducir, el bot avisa y envía el mismo archivo al chat. Si se corta una reproducción ya iniciada, el bot deja el canal y registra el fallo.
 
-Para elegir otro canal de voz del servidor, pide «@Gnomo ve a General y di X» o indica el ID del canal. Si hay varios canales de voz con el mismo nombre, usa el ID. Quien lo pide necesita `ViewChannel` y `Connect`. Gnomo indica si le falta `ViewChannel`, `Connect` o `Speak`. Si ya está reproduciendo en el servidor, avisa y envía al chat el audio recién generado mientras continúa la reproducción.
+Para elegir otro canal de voz del servidor, pide «@Gnomo ve a General y di X» o indica el ID del canal. Si hay varios canales de voz con el mismo nombre, usa el ID. Justo antes de entrar, Gnomo vuelve a comprobar que quien lo pide tenga `ViewChannel` y `Connect` y que el bot tenga `ViewChannel`, `Connect` y `Speak`. Si ya está reproduciendo en el servidor, avisa que está ocupado. Solo el audio recién generado se envía al chat en ese caso.
+
+Para autorizar la reproducción en voz o el guardado, el modelo clasifica el texto del mensaje actual en una llamada separada, sin historial, imágenes ni resultados de herramientas. Para un adjunto solo recibe un indicador de que existe. Las dos acciones pueden autorizarse en la misma petición.
 
 Para reproducir un audio recién generado, tiene que haberse creado en esa invocación. Se mantienen el costo, el límite de 30 segundos y la espera por persona de la generación de voz. La etapa de voz admite una reproducción a la vez por servidor. La reproducción usa `@discordjs/voice` con DAVE y lee los paquetes Opus del Ogg sin transcodificar.
 
@@ -18,6 +20,7 @@ Para reproducir un audio recién generado, tiene que haberse creado en esa invoc
 - [ ] Desde otro canal o fuera de la llamada, pedir que vaya a General por nombre y por ID. Probar también un canal al que la persona no tenga acceso y un canal de texto.
 - [ ] Pedir otro audio desde una segunda cuenta mientras Gnomo habla. Comprobar que avisa que está ocupado y que la reproducción en curso sigue.
 - [ ] Quitar el permiso de hablar al bot y comprobar que explica qué permiso falta. Interrumpir la conexión antes de que empiece el audio y comprobar que llega el audio al chat.
+- [ ] Quitar a la persona `ViewChannel` o `Connect` entre la preparación y la entrega. Comprobar que Gnomo no entra en el canal y que explica la pérdida de permisos.
 - [ ] Desconectar a Gnomo mientras habla. Verificar que la reproducción termina, que queda un registro del fallo y que otra petición puede abrir una conexión nueva.
 - [ ] Reiniciar Gnomo mientras aparece conectado a voz. Comprobar que sale al iniciar y que puede reproducir en la siguiente petición.
 - [ ] Medir memoria de la máquina de Fly en reposo y durante una reproducción, incluyendo el pico al conectar. Registrar los resultados en el PR y comprobar si caben en 256 MB.
@@ -48,7 +51,9 @@ Para reproducir un audio recién generado, tiene que haberse creado en esa invoc
 Cada canal o hilo tiene su propio catálogo. [ADR 0003](adr/0003-channel-memory-ownership.md).
 Postgres guarda la metadata y la clave del objeto en `channel_audio`. Los bytes Ogg/Opus quedan
 en el bucket público compartido con la biblioteca de medios, bajo `<guild>/<canal>/<uuid>.ogg`.
-Una copia idéntica en el mismo canal devuelve `already_saved` sin volver a subirla. Si falla
+Una copia idéntica en el mismo canal devuelve `already_saved` sin volver a subirla. Se comprueba
+el archivo original antes de convertir el adjunto, para reconocer también un audio generado
+que un miembro vuelva a subir o al que responda. Si falla
 el registro de un audio nuevo, el bot elimina el objeto que subió. Cualquiera con la URL puede
 descargarlo. [ADR 0006](adr/0006-media-on-tigris.md).
 
@@ -82,4 +87,5 @@ La imagen de producción incluye ffmpeg para convertir los adjuntos a Ogg/Opus.
 pueden pesar hasta 8 MiB y durar hasta 60 segundos. Los límites se pueden cambiar con
 `AUDIO_UPLOAD_MAX_BYTES` (de 1 byte a 16 MiB, en bytes) y `AUDIO_UPLOAD_MAX_SECONDS` (de 1 a
 120 segundos). Un archivo que no se puede decodificar o excede algún límite se rechaza.
-Sin ffmpeg, los adjuntos quedan indisponibles y se puede seguir guardando el audio generado.
+Sin ffmpeg, los adjuntos que requieren conversión quedan indisponibles y se puede seguir
+guardando el audio generado.

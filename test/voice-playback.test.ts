@@ -10,7 +10,12 @@ import {
   type Message,
 } from 'discord.js'
 import { composeCapabilities } from '../src/conversation/capabilities'
-import { createConversation, type ModelInput, type Reply } from '../src/conversation/harness'
+import {
+  createConversation,
+  type ConversationPorts,
+  type ModelInput,
+  type Reply,
+} from '../src/conversation/harness'
 import type { Invocation } from '../src/core/conversation/invocation'
 import type { VoicePlaybackDependencies } from '../src/conversation/voice-playback'
 import { replyWithPlayback } from '../src/modules/discord/voice-reply'
@@ -35,18 +40,20 @@ async function conversation(
     | Awaited<ReturnType<VoicePlaybackDependencies['location']>>,
   {
     withStage = true,
-    generateFirst = true,
     busy = false,
     content = invocation.content,
     history,
     channel,
+    deliver,
+    trace,
   }: {
     withStage?: boolean
-    generateFirst?: boolean
     busy?: boolean
     content?: string
     history?: HistoryResult
     channel?: string
+    deliver?: Parameters<ReturnType<typeof createConversation>['handle']>[1]
+    trace?: ConversationPorts['trace']
   } = {},
 ) {
   const replies: Reply[] = []
@@ -73,10 +80,17 @@ async function conversation(
     authorize: async () => true,
     claim: async () => true,
     loadContext: async () => history,
+    trace,
     model: {
+      audioIntent: async ({ text }) => ({
+        playGenerated: text !== 'Mándame una nota de voz por el chat.',
+        playSaved: false,
+        saveGenerated: false,
+        saveAttachment: false,
+      }),
       async generate(turn) {
         turns.push(turn)
-        if (generateFirst && !turn.results.length)
+        if (!turn.results.length)
           return {
             text: '',
             calls: [{ id: 'say', name: 'speech_generate', input: { text: 'Juan perdió.' } }],
@@ -93,7 +107,7 @@ async function conversation(
       replies.push(reply)
     },
   })
-  await app.handle({ ...invocation, content })
+  await app.handle({ ...invocation, content }, deliver)
   return { replies, turns, reservations }
 }
 
@@ -210,6 +224,8 @@ test('generated speech goes to the requester’s current voice channel once, wit
   assert.deepEqual(replies[0].voicePlayback, {
     guildId: 'guild',
     channelId: 'voice',
+    requesterId: invocation.requester.id,
+    source: 'generated',
     file: { name: 'gnomo-message.ogg', attachment: audio, voice },
   })
 })
@@ -230,10 +246,9 @@ test('without a stage, only speech generation is offered and the audio stays in 
   assert.equal(replies[0].files?.[0].attachment, audio)
 })
 
-test('a playback instruction from history cannot play an audio produced outside the current request', async () => {
+test('a playback instruction from history cannot move a requested voice message into a call', async () => {
   const { replies, turns, reservations } = await conversation(general, {
-    generateFirst: false,
-    content: '¿Qué pasó ayer?',
+    content: 'Mándame una nota de voz por el chat.',
     history: {
       source: 'discord',
       channelId: invocation.channelId,
@@ -253,9 +268,10 @@ test('a playback instruction from history cannot play an audio produced outside 
     },
   })
   assert.equal(turns[0].recentContext?.messages[0].messageId, 'past')
-  assert.equal((turns.at(-1)?.results[0].value as { status: string }).status, 'invalid')
-  assert.equal(reservations, 0)
-  assert.ok(replies.every((reply) => !reply.files?.length && !reply.voicePlayback))
+  assert.equal(turns.at(-1)?.results.at(-1)?.status, 'denied')
+  assert.equal(reservations, 1)
+  assert.ok(replies.every((reply) => !reply.voicePlayback))
+  assert.equal(replies.flatMap((reply) => reply.files ?? [])[0]?.attachment, audio)
 })
 
 test('an active playback stays in its call and the new audio stays in chat', async () => {
@@ -266,7 +282,7 @@ test('an active playback stays in its call and the new audio stays in chat', asy
   assert.ok(replies.every((reply) => !reply.voicePlayback))
 })
 
-function discordOrigin() {
+function discordOrigin({ rejectText = false, rejectVoice = false } = {}) {
   const text: string[] = []
   const posted: unknown[] = []
   const message = {
@@ -279,11 +295,13 @@ function discordOrigin() {
       }),
     },
     reply: async (options: { content: string }) => {
+      if (rejectText) throw new Error('Text post failed')
       text.push(options.content)
     },
     client: {
       rest: {
         post: async (_route: string, options: unknown) => {
+          if (rejectVoice) throw new Error('Voice post failed')
           posted.push(options)
         },
       },
@@ -302,9 +320,10 @@ test('a connection failure before playback posts a fallback note and the same au
     reply,
     {
       isBusy: () => false,
-      async play(guildId, channelId, file) {
+      async play({ guildId, channelId, requesterId, file }) {
         assert.equal(guildId, 'guild')
         assert.equal(channelId, 'voice')
+        assert.equal(requesterId, invocation.requester.id)
         assert.equal(file.attachment, audio)
         return { status: 'failed', started: false, reason: 'timeout' }
       },
@@ -373,6 +392,104 @@ test('if the guild becomes busy before delivery, Discord reports busy and keeps 
   assert.equal(posted.length, 1)
 })
 
+test('if the guild becomes busy before delivery, Discord does not post the saved clip', async () => {
+  const {
+    replies: [reply],
+  } = await conversation(general)
+  assert.ok(reply.voicePlayback)
+  const { text, posted, message } = discordOrigin()
+  await replyWithPlayback(
+    message,
+    { ...reply, voicePlayback: { ...reply.voicePlayback, source: 'saved' } },
+    {
+      isBusy: () => true,
+      play: async () => ({ status: 'failed', started: false, reason: 'busy' }),
+    },
+    new AbortController().signal,
+    () => {},
+  )
+  assert.deepEqual(text, ['Ya estoy reproduciendo otro audio en este servidor.'])
+  assert.deepEqual(posted, [])
+})
+
+for (const { reason, confirmation, rejectText, rejectVoice, posts, uncertain } of [
+  {
+    reason: 'aborted',
+    confirmation: false,
+    rejectText: false,
+    rejectVoice: false,
+    posts: 0,
+    uncertain: false,
+  },
+  {
+    reason: 'disconnected',
+    confirmation: true,
+    rejectText: true,
+    rejectVoice: false,
+    posts: 0,
+    uncertain: true,
+  },
+  {
+    reason: 'disconnected',
+    confirmation: true,
+    rejectText: false,
+    rejectVoice: false,
+    posts: 1,
+    uncertain: false,
+  },
+  {
+    reason: 'timeout',
+    confirmation: false,
+    rejectText: false,
+    rejectVoice: false,
+    posts: 2,
+    uncertain: false,
+  },
+  {
+    reason: 'timeout',
+    confirmation: false,
+    rejectText: false,
+    rejectVoice: true,
+    posts: 1,
+    uncertain: true,
+  },
+] as const) {
+  test(`delivery traces only successful posts (${reason}, ${posts} sent)`, async () => {
+    const { message, text, posted } = discordOrigin({ rejectText, rejectVoice })
+    const events: { event: string; status?: string; contentLength?: number }[] = []
+    await conversation(general, {
+      trace: (event) => events.push(event),
+      deliver: async (_invocation, reply, signal, sent) => {
+        await replyWithPlayback(
+          message,
+          reply,
+          {
+            isBusy: () => false,
+            async play(_playback, _signal, onStarted) {
+              if (confirmation) onStarted?.()
+              return { status: 'failed', started: confirmation, reason }
+            },
+          },
+          signal,
+          () => {},
+          sent,
+        )
+      },
+    })
+    assert.deepEqual(
+      events
+        .filter(({ event, status }) => event === 'visible_send' && status === 'confirmed')
+        .map(({ contentLength }) => contentLength),
+      [...text.map((content) => content.length), ...posted.map(() => 0)],
+    )
+    assert.equal(text.length + posted.length, posts)
+    assert.equal(
+      events.some(({ event, status }) => event === 'delivery' && status === 'uncertain'),
+      uncertain,
+    )
+  })
+}
+
 test('Discord confirms when audio starts and logs an interruption without posting a duplicate', async () => {
   const {
     replies: [reply],
@@ -384,7 +501,7 @@ test('Discord confirms when audio starts and logs an interruption without postin
     reply,
     {
       isBusy: () => false,
-      async play(_guildId, _channelId, _file, _signal, onStarted) {
+      async play(_playback, _signal, onStarted) {
         assert.deepEqual(text, [])
         onStarted?.()
         await Promise.resolve()

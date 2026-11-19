@@ -61,7 +61,7 @@ export class ConsoleSession {
     },
     stage: {
       isBusy: () => false,
-      play: async (_guildId, channelId, file, signal, onStarted) => {
+      play: async ({ channelId, file }, signal, onStarted) => {
         if (signal.aborted) return { status: 'failed', reason: 'aborted', started: false }
         onStarted?.()
         this.output({ type: 'voice', channelId, durationSecs: file.voice.durationSecs })

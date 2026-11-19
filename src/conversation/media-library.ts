@@ -13,7 +13,12 @@ import type { ReplyFile } from './catalog'
 import type { ToolResult } from './harness'
 import { reportError } from '../diagnostics'
 import { channelObjectKey, type CatalogObjectStore } from './catalog-object-store'
-import { catalogSimilarity, queryTerms as catalogQueryTerms, rankCatalog } from './catalog-search'
+import {
+  catalogEmbedding,
+  catalogSimilarity,
+  queryTerms as catalogQueryTerms,
+  rankCatalog,
+} from './catalog-search'
 
 export interface MediaDependencies {
   pool: Pool
@@ -129,22 +134,10 @@ export function mediaCapabilities(
       eq(channelMedia.guildId, invocation.guildId),
       eq(channelMedia.channelId, invocation.channelId),
     )
-  async function embed(value: string, context: ExecutionContext) {
-    const embedding = dependencies!.embedding
-    if (!embedding) return null
-    try {
-      const vector = await context.external(() => embedding.embed(value, context.signal))
-      if (!vector.length || vector.length > 4096 || !vector.every(Number.isFinite))
-        throw new Error('Invalid embedding')
-      return { vector, model: embedding.model }
-    } catch (error) {
-      context.signal.throwIfAborted()
-      reportError('media.embedding', error, { invocationId: context.invocation.messageId })
-      return null
-    }
-  }
   async function find(query: string, context: ExecutionContext, limit: number) {
-    const embedded = uuid.test(query) ? null : await embed(query, context)
+    const embedded = uuid.test(query)
+      ? null
+      : await catalogEmbedding(dependencies!.embedding, query, context, 'media.embedding')
     return withDatabase(context, async (db) => {
       const rows: Row[] = await db
         .select({
@@ -223,9 +216,11 @@ export function mediaCapabilities(
       })
       if (!existing) return 'unavailable: base de datos de medios no disponible; nada guardado.'
       if (existing.length) return JSON.stringify({ outcome: 'already_saved', ...existing[0] })
-      const embedded = await embed(
+      const embedded = await catalogEmbedding(
+        dependencies!.embedding,
         `${input.title}\n${input.description}\n${tags.join(', ')}`,
         context,
+        'media.embedding',
       )
       if (!(await reauthorize(invocation, signal)))
         return 'denied: permisos actuales insuficientes.'
