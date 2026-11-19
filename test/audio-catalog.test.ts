@@ -474,6 +474,12 @@ test('the author can forget an audio, removing it from the catalog and the bucke
     ])
     assert.deepEqual(modelAnswer(share), { outcome: 'not_found' })
     assert.ok(share.every(({ files }) => !files?.length))
+
+    const playback = await ask(`Reproduce el audio ${saved.id} en voz.`, [
+      call('voice_play', { audio: { id: saved.id } }),
+    ])
+    assert.equal(playback[0]?.content, 'No encontré ese audio guardado en este canal.')
+    assert.ok(playback.every(({ voicePlayback, files }) => !voicePlayback && !files?.length))
   }),
 )
 
