@@ -91,7 +91,13 @@ async function setup(t: TestContext, bytes = png, mime = 'image/png', status = 2
   } as unknown as Client
   const pilot = composeConversation({
     client: client,
-    config: new ConfigService({ GUILD_ID: 'g', RUNTIME_MODE: 'pilot', RUNTIME_CHANNEL_IDS: 'c' }),
+    // These tests pin the per-invocation allowance they count against.
+    config: new ConfigService({
+      GUILD_ID: 'g',
+      RUNTIME_MODE: 'pilot',
+      RUNTIME_CHANNEL_IDS: 'c',
+      CONVERSATION_MAX_EXTERNAL_CALLS: '8',
+    }),
     redis: { set: async () => 'OK' } as unknown as Redis,
     model: aiSdkModel(model),
     discordFetch: async () => new Response(JSON.stringify(history)),
