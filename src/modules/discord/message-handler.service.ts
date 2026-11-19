@@ -101,10 +101,10 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
       !guildId ||
       message.guildId !== guildId ||
       message.author.bot ||
-      message.attachments.some(isAudioAttachment) ||
       !reference?.messageId ||
       reference.channelId !== message.channelId ||
-      !new RegExp(`<@!?${botId}>`).test(message.content ?? '')
+      !new RegExp(`<@!?${botId}>`).test(message.content ?? '') ||
+      [...message.attachments.values()].some(isAudioAttachment)
     )
       return []
     try {
