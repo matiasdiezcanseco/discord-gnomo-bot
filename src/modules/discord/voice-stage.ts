@@ -85,11 +85,33 @@ export function clearStaleVoiceConnections(client: Client<true>) {
   }
 }
 
+/** Milestones of one playback, in ms since play() was called, to locate join-to-speech delays. */
+export interface VoicePlaybackTimings {
+  guildId: string
+  channelId: string
+  result: string
+  totalMs: number
+  events: { ms: number; event: string }[]
+}
+
+// Networking state codes in @discordjs/voice (VoiceNetworkingStatusCode).
+const networkingStates = [
+  'opening_ws',
+  'identifying',
+  'udp_handshaking',
+  'selecting_protocol',
+  'ready',
+  'resuming',
+  'closed',
+]
+const MAX_TIMING_EVENTS = 60
+
 /** The registry is process-local. A single stage owns the guild lease until cleanup is complete. */
 export function discordVoiceStage(
   client: Client,
   connectTimeoutMs: number,
   onUnavailable: (error: unknown) => void,
+  onTimings?: (timings: VoicePlaybackTimings) => void,
 ): (VoiceStage & { close(): void }) | undefined {
   let voice: typeof import('@discordjs/voice')
   try {
@@ -108,7 +130,35 @@ export function discordVoiceStage(
     close() {
       shutdown.abort('aborted')
     },
-    async play({ guildId, channelId, requesterId, file }, signal, onStarted) {
+    async play(playback, signal, onStarted) {
+      const startedAt = Date.now()
+      const events: VoicePlaybackTimings['events'] = []
+      const mark = (event: string) => {
+        if (events.length < MAX_TIMING_EVENTS) events.push({ ms: Date.now() - startedAt, event })
+      }
+      const result = await playOnce(playback, signal, onStarted, mark)
+      try {
+        onTimings?.({
+          guildId: playback.guildId,
+          channelId: playback.channelId,
+          result: result.status === 'played' ? 'played' : result.reason,
+          totalMs: Date.now() - startedAt,
+          events,
+        })
+      } catch {
+        // Diagnostics never change the playback outcome.
+      }
+      return result
+    },
+  }
+
+  async function playOnce(
+    { guildId, channelId, requesterId, file }: Parameters<VoiceStage['play']>[0],
+    signal: AbortSignal,
+    onStarted: (() => void) | undefined,
+    mark: (event: string) => void,
+  ): Promise<VoiceStageResult> {
+    {
       let started = false
       const failed = (reason: StageFailure['reason']): StageFailure => ({
         status: 'failed',
@@ -125,6 +175,14 @@ export function discordVoiceStage(
       const playbackSignal = AbortSignal.any([signal, shutdown.signal, disconnected.signal])
       const disconnect = () => disconnected.abort('disconnected')
       const checkBotChannel = (oldState: VoiceState, state: VoiceState) => {
+        // When members see Gnomo appear in the call.
+        if (
+          state.id === client.user?.id &&
+          state.guild.id === guildId &&
+          state.channelId === channelId &&
+          oldState.channelId !== channelId
+        )
+          mark('gateway:in_channel')
         if (
           state.id === client.user?.id &&
           state.guild.id === guildId &&
@@ -140,6 +198,7 @@ export function discordVoiceStage(
       let connectTimeout: AbortSignal | undefined
       try {
         const channel = await guild.channels.fetch(channelId, { force: true })
+        mark('channel_fetched')
         playbackSignal.throwIfAborted()
         if (!guild.available || channel?.type !== ChannelType.GuildVoice || !client.isReady())
           return failed('unavailable')
@@ -156,11 +215,31 @@ export function discordVoiceStage(
 
         connectTimeout = AbortSignal.timeout(connectTimeoutMs)
         client.on(Events.VoiceStateUpdate, checkBotChannel)
+        mark('join_requested')
         connection = voice.joinVoiceChannel({
           guildId,
           channelId,
           adapterCreator: guild.voiceAdapterCreator,
           selfDeaf: true,
+          // Needed for DAVE handshake messages; only [DAVE] lines are kept, never WS payloads.
+          debug: !!onTimings,
+        })
+        const observed = new WeakSet<object>()
+        const observeNetworking = (networking: unknown) => {
+          const emitter = networking as {
+            on?(event: string, listener: (...args: never[]) => void): void
+          } | null
+          if (!emitter?.on || observed.has(emitter)) return
+          observed.add(emitter)
+          emitter.on('stateChange', ((_: unknown, next: { code: number }) =>
+            mark(`networking:${networkingStates[next.code] ?? next.code}`)) as never)
+          emitter.on('debug', ((message: string) => {
+            if (message.startsWith('[DAVE]')) mark(message.slice(0, 120))
+          }) as never)
+        }
+        connection.on('stateChange', (_, next) => {
+          mark(`connection:${next.status}`)
+          if ('networking' in next) observeNetworking(next.networking)
         })
         connection.on('error', disconnect)
         connection.on(voice.VoiceConnectionStatus.Disconnected, disconnect)
@@ -179,13 +258,16 @@ export function discordVoiceStage(
           AbortSignal.any([playbackSignal, connectTimeout]),
         )
         playbackSignal.throwIfAborted()
+        mark('ready')
         player = voice.createAudioPlayer()
+        player.on('stateChange', (_, next) => mark(`player:${next.status}`))
         source = Readable.from([file.attachment])
         const resource = voice.createAudioResource(source, { inputType: voice.StreamType.OggOpus })
         if (!connection.subscribe(player)) return failed('disconnected')
         const observeStart = () => {
           if (!started && resource.playbackDuration > 0) {
             started = true
+            mark('first_audio')
             onStarted?.()
           }
         }
@@ -219,6 +301,6 @@ export function discordVoiceStage(
           }
         }
       }
-    },
+    }
   }
 }
