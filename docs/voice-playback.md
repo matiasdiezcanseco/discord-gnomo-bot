@@ -29,6 +29,12 @@ Solo se puede reproducir el audio generado para la invocación actual. Se mantie
   y transcripción. Con `PILOT_MEMORY_EMBEDDING_MODEL` se añade similitud vectorial.
 - **Compartir** (`audio_share`). «@Gnomo manda el audio de la victoria por el chat» envía
   la mejor coincidencia por descripción o ID como un mensaje de voz con duración y forma de onda.
+- **Olvidar** (`audio_forget`). «@Gnomo olvida el audio <ID>» borra el audio de este canal
+  o hilo. Solo puede hacerlo quien lo guardó o el propietario indicado en `MEMORY_OWNER_ID`,
+  con permisos vigentes en el canal. Gnomo elimina primero la entrada del catálogo y después
+  el archivo del bucket. Tras borrar el archivo, la URL pública puede seguir sirviendo una
+  copia en caché durante hasta una hora. Si el bucket falla, Gnomo avisa y el audio queda
+  fuera del catálogo.
 
 Cada canal o hilo tiene su propio catálogo. [ADR 0003](adr/0003-channel-memory-ownership.md).
 Postgres guarda la metadata y la clave del objeto en `channel_audio`. Los bytes Ogg/Opus quedan
