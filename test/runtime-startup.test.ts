@@ -130,6 +130,101 @@ test(
 )
 
 test(
+  'active production Nest receiver reacts unprompted in a whitelisted channel through the real Redis countdown',
+  { skip: !process.env.T02_REDIS_URL },
+  () => {
+    execFileSync(process.execPath, ['node_modules/@nestjs/cli/bin/nest.js', 'build'], {
+      stdio: 'pipe',
+    })
+    // A fresh numeric channel isolates this run's countdown key in the shared Redis.
+    const channel = String(100000000000000000n + BigInt(Math.floor(Math.random() * 1e15)))
+    const script = `
+    require('reflect-metadata');
+    const assert = require('node:assert/strict');
+    const { Client } = require('discord.js');
+    Client.prototype.login = async function() {
+      this.user = { id: '99' };
+      this.guilds.fetch = async () => ({ channels: { fetch: async () => ({
+        isTextBased: () => true, isThread: () => false, permissionsFor: () => ({ has: () => true }),
+      }) }, members: { fetch: async ({user}) => ({ id: user, roles: { cache: new Map() } }) } });
+      return 'controlled';
+    };
+    const puts = [];
+    let modelCalls = 0;
+    global.fetch = async (url, options) => {
+      const target = String(url);
+      if (target === 'https://api.openai.com/v1/responses') {
+        modelCalls++;
+        return Response.json({ id: 'resp_1', created_at: 0, model: 'gpt-4o-mini', status: 'completed', incomplete_details: null, output: [{ type: 'message', id: 'msg_1', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: '{"emoji":"gnomo_risa"}', annotations: [] }] }], usage: { input_tokens: 1, output_tokens: 1, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } } });
+      }
+      if (target.endsWith('/guilds/g/emojis')) return Response.json([{ id: '123', name: 'gnomo_risa', available: true, roles: [] }]);
+      if (options && options.method === 'PUT' && target.startsWith('https://discord.com/')) { puts.push(target); return new Response(null, { status: 204 }); }
+      throw Error('unexpected external request: ' + url);
+    };
+    const { Pool } = require('pg');
+    Pool.prototype.connect = () => { throw Error('unexpected database connection'); };
+    const { NestFactory } = require('@nestjs/core');
+    const { AppModule } = require('./dist/app.module');
+    const { DiscordService } = require('./dist/modules/discord/discord.service');
+    const Redis = require('ioredis');
+    (async () => {
+      const app = await NestFactory.create(AppModule, { logger: false, abortOnError: false });
+      const redis = new Redis(process.env.REDIS_URL);
+      const key = 'gnomo:ambient-reaction:v1:g:${channel}';
+      try {
+        await app.init();
+        const client = app.get(DiscordService).getClient();
+        const ids = [];
+        const send = async (content, channelId = '${channel}') => {
+          const id = String(900000000000000000n + BigInt(ids.length));
+          ids.push(id);
+          client.emit('messageCreate', { id, guildId: 'g', channelId, content, createdTimestamp: Date.now(),
+            author: { id: 'u', username: 'Ana', bot: false }, attachments: new Map(), channel: {}, reply: async () => {} });
+          await new Promise(r => setTimeout(r, 30));
+        };
+        // Outside the whitelist: never counted.
+        for (let i = 0; i < 20; i++) await send('hola', 'c');
+        assert.equal(await redis.get('gnomo:ambient-reaction:v1:g:c'), null);
+        // 16 messages: the drawn 8-16 gap guarantees one reaction, at most two.
+        for (let i = 0; i < 16; i++) await send('jajaja el gnomo ' + i);
+        const deadline = Date.now() + 3000;
+        while (!puts.length && Date.now() < deadline) await new Promise(r => setTimeout(r, 10));
+        assert.ok(puts.length >= 1 && puts.length <= 2, 'reactions ' + puts.length);
+        assert.equal(modelCalls, puts.length);
+        for (const put of puts) assert.match(put, new RegExp('^https://discord.com/api/v10/channels/${channel}/messages/9[0-9]{17}/reactions/gnomo_risa%3A123/@me$'));
+        const left = Number(await redis.get(key));
+        assert.ok(left >= 1 && left <= 16, 'countdown ' + left);
+      } finally { await redis.del(key); redis.disconnect(); await app.close(); }
+      console.log('ambient smoke passed');
+    })().catch(e => { console.error(e); process.exit(1); });
+  `
+    const env: Record<string, string | undefined> = {
+      ...process.env,
+      NODE_ENV: 'production',
+      RUNTIME_MODE: 'guild',
+      GUILD_ID: 'g',
+      BOT_TOKEN: 'controlled',
+      OPENAI_API_KEY: 'controlled',
+      REDIS_URL: process.env.T02_REDIS_URL,
+      AMBIENT_REACTION_CHANNEL_IDS: channel,
+    }
+    for (const key of [
+      'PILOT_MEMORY_DATABASE_URL',
+      'DATABASE_URL',
+      'DATABASE_URL_POOLED',
+      'MEMORY_OWNER_ID',
+      'PILOT_MEMORY_EMBEDDING_MODEL',
+      'BUCKET_URL',
+    ])
+      delete env[key]
+    assert.match(
+      execFileSync(process.execPath, ['-e', script], { env, encoding: 'utf8', timeout: 20000 }),
+      /ambient smoke passed/,
+    )
+  },
+)
+
+test(
   'server migrates before Discord login, skips applied migrations and aborts on failure',
   {
     skip: !process.env.STARTUP_TEST_DATABASE_URL || !process.env.T02_REDIS_URL,

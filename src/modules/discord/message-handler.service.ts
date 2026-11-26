@@ -9,6 +9,7 @@ import type { createConversation } from '../../conversation/harness'
 import { runtimeAllows } from '../../conversation/runtime-policy'
 import { describeError, reportError } from '../../diagnostics'
 import { replyWithPlayback, replyWithVoice, voiceFile } from './voice-reply'
+import type { AmbientReactions } from './ambient-reactions'
 
 @Injectable()
 export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
@@ -18,6 +19,8 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
     private readonly logger: LoggerService,
     @Inject('CONVERSATION')
     private readonly conversation: Pick<ReturnType<typeof createConversation>, 'handle'>,
+    @Inject('AMBIENT_REACTIONS')
+    private readonly ambient: Pick<AmbientReactions, 'observe'> | null = null,
   ) {}
   private readonly receive = (message: Message) => {
     void this.handleMessage(message).catch((error) =>
@@ -45,8 +48,11 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
       await this.referencedAttachments(message, guildId, botId),
     )
     if (!invocation || !runtimeAllows(this.config, invocation)) {
+      const tagged = !!botId && new RegExp(`<@!?${botId}>`).test(message.content ?? '')
+      // Messages addressed to the bot never count toward an unprompted reaction.
+      if (!tagged && botId && guildId) this.observeAmbient(message, guildId)
       // Only messages that tag the bot: "why didn't it answer?" must be answerable from the logs.
-      if (botId && new RegExp(`<@!?${botId}>`).test(message.content ?? ''))
+      if (tagged)
         this.logger.createLogger('receiver').info(
           {
             invocationId: message.id,
@@ -94,6 +100,31 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
     } finally {
       stopTyping()
     }
+  }
+  /** Fire-and-forget: an unprompted reaction is cosmetic and never delays or fails anything. */
+  private observeAmbient(message: Message, guildId: string) {
+    if (!this.ambient || message.author.bot || message.guildId !== guildId) return
+    // Paused or outside the pilot: the countdown does not advance either.
+    if (!runtimeAllows(this.config, { guildId, channelId: message.channelId })) return
+    const log = this.logger.createLogger('ambient-reaction')
+    const ids = { messageId: message.id, channelId: message.channelId }
+    void this.ambient
+      .observe({
+        guildId,
+        channelId: message.channelId,
+        messageId: message.id,
+        requester: { id: message.author.id, username: message.author.username },
+        createdAt: message.createdTimestamp,
+        content: message.content ?? '',
+      })
+      .then((outcome) => {
+        if (outcome.reacted) log.info({ ...ids, emoji: outcome.emoji }, 'Ambient reaction added')
+        else if (outcome.reason === 'denied' || outcome.reason === 'no-fit')
+          log.info({ ...ids, reason: outcome.reason }, 'Ambient reaction skipped')
+      })
+      .catch((error) =>
+        log.warn({ ...ids, error: describeError(error) }, 'Ambient reaction failed'),
+      )
   }
   /** Same-channel attachment metadata for a tagged reply. */
   private async referencedAttachments(
