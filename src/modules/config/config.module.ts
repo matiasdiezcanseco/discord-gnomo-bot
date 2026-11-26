@@ -17,6 +17,8 @@ const envSchema = z
     GNOMOS_CHANNEL_ID: z.string().min(1).optional(),
     RUNTIME_MODE: z.enum(['paused', 'pilot', 'guild']).default('paused'),
     RUNTIME_CHANNEL_IDS: z.string().default(''),
+    // Comma-separated channels where Gnomo reacts unprompted every 8-16 messages.
+    AMBIENT_REACTION_CHANNEL_IDS: z.string().optional(),
     CONVERSATION_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
     // Whole-request budget and the grace turn that phrases confirmed results (0 disables it).
     CONVERSATION_TIMEOUT_MS: z.coerce.number().int().min(0).optional(),

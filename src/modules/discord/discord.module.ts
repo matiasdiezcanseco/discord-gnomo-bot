@@ -11,6 +11,7 @@ import type Redis from 'ioredis'
 import { LoggerService } from '../services/logger/logger.service'
 import { composeConversation } from './conversation-composition'
 import { RuntimeMemory } from './runtime-memory'
+import { discordAmbientReactions } from './ambient-reactions'
 
 /** Production transport: Discord receiver, replies and scheduled delivery. */
 @Global()
@@ -39,6 +40,12 @@ import { RuntimeMemory } from './runtime-memory'
           trace: conversationTrace(logger.createLogger('conversation')),
           memory: memory.dependencies,
         }),
+    },
+    {
+      provide: 'AMBIENT_REACTIONS',
+      inject: [DiscordService, ConfigService, 'REDIS_CONNECTION'],
+      useFactory: (discord: DiscordService, config: ConfigService, redis: Redis | null) =>
+        discordAmbientReactions({ client: discord.getClient(), config, redis }) ?? null,
     },
   ],
   exports: [DiscordService, Transport],

@@ -13,6 +13,16 @@ Unicode is the fallback. `message_react` targets the replied-to message, the cur
 request, or a message selected from the current channel's history. Reactions stay
 within the originating channel/thread and require an explicit request.
 
+Unprompted reactions keep the chat lively in channels listed in
+`AMBIENT_REACTION_CHANNEL_IDS` (comma-separated; empty or unset turns them off). Every 8-16
+human messages per channel, Gnomo reacts to the current message with the emoji that fits best.
+It uses a matching server custom emoji first and falls back to a standard one. It skips
+messages where nothing fits, such as bad news. The countdown is one Redis key per channel
+(`gnomo:ambient-reaction:v1:<guild>:<channel>`), drawn at random and re-armed by one Lua
+script. Messages that mention Gnomo get a reply and do not count. The same deployment policy
+and live channel access as a tagged request apply. Only the reacted-to message's text goes to
+the model ([ADR 0008](docs/adr/0008-unprompted-reactions.md)).
+
 Image creation (`image_generate`, OpenAI `OPENAI_IMAGE_MODEL`, default `gpt-image-1-mini`)
 is limited to one image per user per hour. The limit lives in Redis
 (`gnomo:image-quota:v1:<guild>:<user>`, `SET NX EX 3600`) and is taken before any credit
@@ -54,7 +64,8 @@ Docker image accepts Neon or Supabase connection URLs at deployment time.
 Active mode requires BOT_TOKEN, GUILD_ID, OPENAI_API_KEY and REDIS_URL. Redis stores
 deduplication and durable notices, not a permanent conversation archive. Context
 comes from the current channel/thread, bounded and reauthorized. Ambient messages,
-bots, other guilds and DMs do not invoke Gnomo.
+bots, other guilds and DMs do not invoke Gnomo (ambient messages only drive the
+unprompted-reaction countdown described above).
 
 Optional capabilities require BUCKET_URL (phrases/photos/birthday JSON),
 BROWSERBASE_API_KEY (search/news), BUCKET_NAME/AWS_* (public S3/Tigris bucket for the

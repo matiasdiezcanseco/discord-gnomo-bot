@@ -20,6 +20,7 @@ export function runtimeSummary(config: Pick<ConfigService, 'get'>, voiceStageAva
     transport: get('GNOMO_TRANSPORT') ?? 'discord',
     runtimeMode: get('RUNTIME_MODE') ?? 'paused',
     runtimeChannels: channels.length,
+    ambientReactionChannels: settings.ambientReactionChannelIds.size,
     guildId: get('GUILD_ID') ?? null,
     // Effective values: what the conversation runs with after defaults and bounds.
     model: defaulted('OPENAI_MODEL', settings.model),

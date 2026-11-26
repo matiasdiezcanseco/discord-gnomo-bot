@@ -82,6 +82,13 @@ export function runtimeSettings(source: SettingsSource) {
     logContent: text('LOG_CONTENT') === 'true',
     /** Deployment configuration only; an invalid ID is the same as none. */
     memoryOwnerId: owner && /^\d{17,20}$/.test(owner) ? owner : undefined,
+    /** Channels where the bot reacts unprompted every 8-16 messages; empty turns it off. */
+    ambientReactionChannelIds: new Set(
+      (text('AMBIENT_REACTION_CHANNEL_IDS') ?? '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => /^\d{1,20}$/.test(id)),
+    ),
     collectionUrl: text('BUCKET_URL'),
     searchApiKey: text('BROWSERBASE_API_KEY'),
   }
