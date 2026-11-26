@@ -104,6 +104,8 @@ export class MessageHandlerService implements OnModuleInit, OnModuleDestroy {
   /** Fire-and-forget: an unprompted reaction is cosmetic and never delays or fails anything. */
   private observeAmbient(message: Message, guildId: string) {
     if (!this.ambient || message.author.bot || message.guildId !== guildId) return
+    // Paused or outside the pilot: the countdown does not advance either.
+    if (!runtimeAllows(this.config, { guildId, channelId: message.channelId })) return
     const log = this.logger.createLogger('ambient-reaction')
     const ids = { messageId: message.id, channelId: message.channelId }
     void this.ambient

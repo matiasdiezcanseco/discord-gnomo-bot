@@ -250,13 +250,17 @@ test('message handler counts untagged human messages and reacts through Discord 
   await send('<@99> cuéntame un chiste') // addressed to the bot: replied, never counted
   await send('soy otro bot', { bot: true })
   await send('mensaje en canal fuera de la lista', { channelId: '12' })
+  config.set('RUNTIME_MODE', 'paused')
+  await send('pausado: no cuenta')
+  config.set('RUNTIME_MODE', 'guild')
   await send('qué tal')
   assert.equal(puts.length, 0)
   await send('jajaja el gnomo') // third counted message
   assert.deepEqual(handled, ['2'])
+  assert.equal(id, 7)
   assert.deepEqual(ticked, ['10', '10', '10'])
   assert.deepEqual(puts, [
-    `https://discord.com/api/v10/channels/10/messages/6/reactions/${encodeURIComponent('gnomo_risa:123')}/@me`,
+    `https://discord.com/api/v10/channels/10/messages/7/reactions/${encodeURIComponent('gnomo_risa:123')}/@me`,
   ])
 })
 
