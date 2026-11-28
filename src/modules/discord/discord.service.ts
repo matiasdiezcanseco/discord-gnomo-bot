@@ -39,6 +39,7 @@ export class DiscordService extends Transport implements OnModuleInit, OnModuleD
         this.logger
           .createLogger('voice')
           .warn({ error: describeError(error) }, 'Voice playback unavailable'),
+      (timings) => this.logger.createLogger('voice').info(timings, 'Voice playback timings'),
     )
   }
 
